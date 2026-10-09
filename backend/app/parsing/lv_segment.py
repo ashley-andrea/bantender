@@ -108,6 +108,8 @@ def segment(rows_by_page: dict[int, list[Row]], use_bold: bool = True) -> Parsed
 
     def start_item(text, page, bbox):
         nonlocal header, header_page, header_bbox, shared, local, item_has_qty, subtable
+        if item_has_qty and local and lines:
+            lines[-1].trailing_text.extend(local[:40])  # rows after the last quantity row belong to that line
         header, header_page, header_bbox = text, page, bbox
         shared, local, item_has_qty, subtable = [], [], False, []
 
@@ -134,6 +136,8 @@ def segment(rows_by_page: dict[int, list[Row]], use_bold: bool = True) -> Parsed
             if system:
                 systems[system]["last_page"] = info.page
             for row in rows:
+                if row.y < CONTENT_TOP:  # page header ("5549 SH Erlenstrasse …") is not a data row
+                    continue
                 text = row.text
                 if "Auflistung der" in text:
                     t = text.lower()

@@ -15,15 +15,15 @@
     "examples_size_ok": "20/20",
     "examples_system_ok": "22/22",
     "anomalies": {
-      "implausible_size": 1,
-      "header_system_mismatch": 13
+      "header_system_mismatch": 1,
+      "implausible_size": 1
     },
-    "component_rows": 468,
+    "component_rows": 457,
     "by_table": {
       "ducts_rect": 133,
-      "fittings_rect": 208,
+      "fittings_rect": 203,
       "ducts_round": 29,
-      "fittings_round": 98
+      "fittings_round": 92
     },
     "hand_check": "4/4"
   },
@@ -43,21 +43,21 @@
     "examples_size_ok": "19/20",
     "examples_system_ok": "22/22",
     "anomalies": {
-      "implausible_size": 1,
-      "header_system_mismatch": 13
+      "header_system_mismatch": 1,
+      "implausible_size": 1
     },
-    "component_rows": 468,
+    "component_rows": 457,
     "by_table": {
       "ducts_rect": 133,
-      "fittings_rect": 208,
+      "fittings_rect": 203,
       "ducts_round": 29,
-      "fittings_round": 98
+      "fittings_round": 92
     },
     "hand_check": "4/4"
   },
   {
     "config": "C docling_text",
-    "seconds": 6.3,
+    "seconds": 7.1,
     "lines": 210,
     "lines_by_system": {
       "244.01": 34,
@@ -70,18 +70,18 @@
     "examples_size_ok": "13/20",
     "examples_system_ok": "17/22",
     "anomalies": {
-      "implausible_size": 1,
-      "header_system_mismatch": 13
+      "header_system_mismatch": 1,
+      "implausible_size": 1
     },
-    "component_rows": 468,
+    "component_rows": 457,
     "by_table": {
       "ducts_rect": 133,
-      "fittings_rect": 208,
+      "fittings_rect": 203,
       "ducts_round": 29,
-      "fittings_round": 98
+      "fittings_round": 92
     },
     "hand_check": "4/4",
-    "docling_convert_seconds": 6.3,
+    "docling_convert_seconds": 7.0,
     "figures": 12
   },
   {
@@ -99,7 +99,7 @@
     "examples_size_ok": "0/20",
     "examples_system_ok": "1/22",
     "anomalies": {
-      "header_system_mismatch": 13
+      "header_system_mismatch": 1
     },
     "component_rows": 396,
     "by_table": {
@@ -127,8 +127,8 @@
     "examples_size_ok": "2/20",
     "examples_system_ok": "4/22",
     "anomalies": {
-      "implausible_size": 1,
-      "header_system_mismatch": 13
+      "header_system_mismatch": 1,
+      "implausible_size": 1
     },
     "component_rows": 282,
     "by_table": {
@@ -157,8 +157,8 @@
     "examples_size_ok": "20/20",
     "examples_system_ok": "22/22",
     "anomalies": {
-      "implausible_size": 1,
-      "header_system_mismatch": 13
+      "header_system_mismatch": 1,
+      "implausible_size": 1
     },
     "component_rows": 396,
     "by_table": {

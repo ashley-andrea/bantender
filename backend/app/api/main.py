@@ -7,12 +7,18 @@ import json
 import tempfile
 from pathlib import Path
 
+from datetime import datetime, timezone
+
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from app.config import get_settings
+from pydantic import BaseModel
+
+from app.matching.matcher import STATUSES
 from app.parsing.pipeline import PARSER_VERSION, parse_tender, tender_to_dict
+from app.pricing.service import price_tender
 from app.reference import load_reference
 from app.storage import make_storage
 
@@ -106,3 +112,107 @@ def get_tender(tender_id: str) -> dict:
 def get_pdf(tender_id: str) -> Response:
     _load(tender_id)
     return Response(storage.get(f"tenders/{tender_id}/tender.pdf"), media_type="application/pdf")
+
+
+# ---- pricing, overrides, settings ---------------------------------------------------------------
+
+USER = "estimator"  # dev auth; Entra ID in production
+
+
+def _get_json(key: str, default):
+    return json.loads(storage.get(key)) if storage.exists(key) else default
+
+
+def _put_json(key: str, value) -> None:
+    storage.put(key, json.dumps(value, ensure_ascii=False).encode())
+
+
+def _audit(tender_id: str, entry: dict) -> None:
+    key = f"tenders/{tender_id}/audit.json"
+    log = _get_json(key, [])
+    log.append({"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "by": USER, **entry})
+    _put_json(key, log)
+
+
+def _pricing(tender_id: str) -> dict:
+    parsed = _load(tender_id)
+    overrides = _get_json(f"tenders/{tender_id}/overrides.json", {})
+    settings_ = _get_json(f"tenders/{tender_id}/settings.json", {})
+    result = price_tender(parsed, reference, overrides, settings_)
+    result["anomalies"] = parsed["anomalies"]
+    result["reference_version"] = reference.version
+    return result
+
+
+@app.get("/api/tenders/{tender_id}/pricing")
+def get_pricing(tender_id: str) -> dict:
+    return _pricing(tender_id)
+
+
+class LineOverride(BaseModel):
+    quantity: float | None = None
+    product_id: str | None = None
+    unit_price: float | None = None
+    unit_price_source: str | None = None  # estimator_input | quote
+    labour_only: bool | None = None
+    status: str | None = None
+    confirmed: bool | None = None
+    note: str | None = None
+
+
+@app.patch("/api/tenders/{tender_id}/lines/{line_id}")
+def override_line(tender_id: str, line_id: str, body: LineOverride) -> dict:
+    _load(tender_id)
+    if body.product_id and body.product_id not in reference.catalog:
+        raise HTTPException(400, "Unknown product")
+    if body.status and body.status not in STATUSES:
+        raise HTTPException(400, "Unknown status")
+    key = f"tenders/{tender_id}/overrides.json"
+    overrides = _get_json(key, {})
+    old = overrides.get(line_id, {})
+    new = {**old, **body.model_dump(exclude_none=True)}
+    overrides[line_id] = new
+    _put_json(key, overrides)
+    _audit(tender_id, {"line_id": line_id, "action": "override", "before": old, "after": new})
+    return _pricing(tender_id)
+
+
+@app.delete("/api/tenders/{tender_id}/lines/{line_id}/override")
+def reset_line(tender_id: str, line_id: str) -> dict:
+    key = f"tenders/{tender_id}/overrides.json"
+    overrides = _get_json(key, {})
+    old = overrides.pop(line_id, None)
+    _put_json(key, overrides)
+    _audit(tender_id, {"line_id": line_id, "action": "reset", "before": old})
+    return _pricing(tender_id)
+
+
+@app.patch("/api/tenders/{tender_id}/settings")
+def update_settings(tender_id: str, body: dict) -> dict:
+    _load(tender_id)
+    allowed = {"factors", "allowances", "overhead_pct", "margin_pct", "risk_allowance_chf", "include_project_costs",
+               "include_small_material", "include_supplier_contingency", "include_cad_ductwork"}
+    if set(body) - allowed:
+        raise HTTPException(400, f"Unknown settings: {sorted(set(body) - allowed)}")
+    key = f"tenders/{tender_id}/settings.json"
+    old = _get_json(key, {})
+    new = {**old, **body}
+    _put_json(key, new)
+    _audit(tender_id, {"action": "settings", "before": old, "after": new})
+    return _pricing(tender_id)
+
+
+@app.get("/api/tenders/{tender_id}/audit")
+def get_audit(tender_id: str) -> list[dict]:
+    _load(tender_id)
+    return list(reversed(_get_json(f"tenders/{tender_id}/audit.json", [])))
+
+
+@app.get("/api/catalog/search")
+def search_catalog(q: str = "", install_code: str | None = None, limit: int = 12) -> list[dict]:
+    """Product picker: a few matching rows, never the full catalogue."""
+    words = q.lower().split()
+    hits = [i for i in reference.catalog.values()
+            if (not install_code or i.install_code == install_code)
+            and all(w in f"{i.product_id} {i.category} {i.subcategory} {i.description}".lower() for w in words)]
+    return [i.model_dump() for i in hits[: min(limit, 20)]]

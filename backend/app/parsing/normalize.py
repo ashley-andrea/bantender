@@ -18,7 +18,8 @@ UNIT_MAP = {
     "satz": "set", "kpl": "set", "kpl.": "set",
 }
 
-NUMBER_RE = re.compile(r"^\d{1,3}(?:['’]\d{3})+(?:[.,]\d+)?$|^\d+(?:[.,]\d+)?$")
+THOUSANDS = "'’`´"  # Swiss thousands separators as they appear in tenders (10'000, 6`200)
+NUMBER_RE = re.compile(r"^\d{1,3}(?:['’`´]\d{3})+(?:[.,]\d+)?$|^\d+(?:[.,]\d+)?$")
 
 
 def normalize_unit(raw: str) -> str | None:
@@ -29,7 +30,7 @@ def parse_number(raw: str) -> float | None:
     s = raw.strip()
     if not NUMBER_RE.match(s):
         return None
-    return float(s.replace("'", "").replace("’", "").replace(",", "."))
+    return _num(s)
 
 
 def fold(text: str) -> str:
@@ -51,7 +52,7 @@ class Sizes:
     notes: tuple[str, ...] = ()
 
 
-_NUM = r"(\d+(?:['’]\d{3})*(?:[.,]\d+)?)"
+_NUM = r"(\d+(?:['’`´]\d{3})*(?:[.,]\d+)?)"
 DIAM_RE = re.compile(rf"(?:Ø|DN|NW)\s*{_NUM}\s*(cm|mm)?|{_NUM}\s*Ø\s*(cm|mm)?", re.I)
 RECT_RE = re.compile(rf"{_NUM}\s*[xX×]\s*{_NUM}(?:\s*[xX×]\s*{_NUM})?\s*(cm|mm)?")
 AIRFLOW_RE = re.compile(rf"{_NUM}\s*m\s?[3³]\s*/\s*h", re.I)
@@ -63,7 +64,9 @@ INLINE_HEADER_RE = re.compile(r"^Mod\.?\s+(.*)$")
 
 
 def _num(s: str) -> float:
-    return float(s.replace("'", "").replace("’", "").replace(",", "."))
+    for ch in THOUSANDS:
+        s = s.replace(ch, "")
+    return float(s.replace(",", "."))
 
 
 def _to_mm(value: float, unit: str | None, default_unit: str) -> float:

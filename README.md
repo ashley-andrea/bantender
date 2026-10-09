@@ -32,11 +32,11 @@ No OpenAI calls are made anywhere yet (`AI_PROVIDER=off`).
 
 Six configurations on the full tender, no OpenAI calls ([details](backend/benchmarks/results/parse_bench.md), regenerate with `make bench`):
 
-| Config | LV lines | Examples found | Sizes correct | Component rows (independent count: 469) |
+| Config | LV lines | Examples found | Sizes correct | Component rows (independent count: 457) |
 | --- | --- | --- | --- | --- |
-| A PyMuPDF rows + bold headers | 251 | 22/22 | 20/20 | 468 |
-| B PyMuPDF without fonts | 251 | 22/22 | 19/20 | 468 |
-| C Docling layout, text only | 210 | 17/22 | 13/20 | 468 |
+| A PyMuPDF rows + bold headers | 251 | 22/22 | 20/20 | 457 |
+| B PyMuPDF without fonts | 251 | 22/22 | 19/20 | 457 |
+| C Docling layout, text only | 210 | 17/22 | 13/20 | 457 |
 | D Docling + TableFormer accurate | 46 | 1/22 | 0/20 | 396 |
 | E Docling + TableFormer fast | 111 | 4/22 | 2/20 | 282 |
 | F A for lines + D for tables | 251 | 22/22 | 20/20 | 396 |

@@ -11,7 +11,7 @@ def test_units(raw, unit):
     assert normalize_unit(raw) == unit
 
 
-@pytest.mark.parametrize("raw,value", [("5", 5), ("12.5", 12.5), ("10'000", 10000), ("1'250.50", 1250.5), ("4,5", 4.5), ("abc", None)])
+@pytest.mark.parametrize("raw,value", [("5", 5), ("12.5", 12.5), ("10'000", 10000), ("1'250.50", 1250.5), ("6`200", 6200), ("4,5", 4.5), ("abc", None)])
 def test_numbers(raw, value):
     assert parse_number(raw) == value
 
@@ -31,6 +31,10 @@ def test_numbers(raw, value):
 ])
 def test_sizes(text, key):
     assert size_key(parse_sizes(text)) == key
+
+
+def test_backtick_thousands_in_airflow():
+    assert parse_sizes("Luftmenge 6`200 m3/h").airflow_m3h == 6200
 
 
 def test_airflow_fire_and_thickness():

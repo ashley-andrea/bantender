@@ -1,0 +1,331 @@
+"""Deterministic matching of LV lines to catalogue items, with explainable confidence and status.
+
+No AI: category comes from the lexicon, the product from size filters on the catalogue,
+confidence from checks a person can verify, the status from an ordered rule list.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+
+from app.parsing.normalize import parse_sizes
+from app.reference.models import CatalogItem, ReferenceData
+
+from .lexicon import LOT_LOCATION, Rule, classify, fold, install_only_device
+
+HIGH, MEDIUM = 0.85, 0.6
+NEAREST_TOLERANCE = 0.25  # a "nearest size" substitute must be within ±25 % (diameter) or ~±56 % (area)
+STATUSES = ("calculated", "supplier_quote_required", "assumption_applied", "review_required",
+            "insufficient_information", "out_of_scope", "non_priceable")
+
+
+@dataclass
+class Check:
+    key: str
+    label: str
+    result: str  # pass | partial | fail
+    score: float
+    detail: str = ""
+
+
+@dataclass
+class Alternative:
+    product_id: str
+    description: str
+    net_cost_chf: float
+    reason: str
+
+
+@dataclass
+class Decision:
+    line_id: str
+    rule_key: str | None
+    title_en: str
+    title_de: str
+    product_id: str | None
+    install_code: str | None
+    quantity: float | None
+    unit: str | None
+    location: str
+    status: str
+    priced: bool
+    confidence: float | None
+    band: str | None  # high | medium | low
+    checks: list[Check] = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)
+    assumptions: list[str] = field(default_factory=list)
+    alternatives: list[Alternative] = field(default_factory=list)
+    labour_only_possible: bool = False
+
+
+# ---- catalogue sizes ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class ItemSize:
+    dn: float | None = None
+    w: float | None = None
+    h: float | None = None
+    length: float | None = None
+    airflow: float | None = None
+    thickness: float | None = None
+
+
+def item_size(item: CatalogItem) -> ItemSize:
+    d = item.description
+    dn = re.search(r"DN\s?(\d+)", d)
+    rect = re.search(r"(\d+)x(\d+)(?:x(\d+))?\s*mm", d)
+    air = re.search(r"(\d+)\s*m3/h", d)
+    thick = re.search(r"(\d+)\s*mm\s+(?:mineral|external)", d)
+    length = re.search(r"length\s+(\d+)\s*mm", d)
+    return ItemSize(
+        dn=float(dn.group(1)) if dn else None,
+        w=float(rect.group(1)) if rect else None,
+        h=float(rect.group(2)) if rect else None,
+        length=float(rect.group(3)) if rect and rect.group(3) else (float(length.group(1)) if length else None),
+        airflow=float(air.group(1)) if air else None,
+        thickness=float(thick.group(1)) if thick else None,
+    )
+
+
+def candidates(ref: ReferenceData, rule: Rule, subcategory: str | None = None) -> list[CatalogItem]:
+    sub = (subcategory or rule.subcategory or "").lower()
+    return [i for i in ref.catalog.values()
+            if i.install_code == rule.install_code and (not sub or sub in i.subcategory.lower())]
+
+
+def _same_rect(a: tuple[float, float], b: tuple[float, float]) -> bool:
+    return sorted(a) == sorted(b)
+
+
+# ---- decision ----------------------------------------------------------------------------------
+
+def title_of(line: dict) -> str:
+    return line["header"] or (line["local_text"][0] if line["local_text"] else "")
+
+
+def decide(line: dict, ref: ReferenceData, ahu_context: bool = False, extra_text: str = "") -> Decision:
+    title = title_of(line)
+    location = LOT_LOCATION.get(line["lot"], "school")
+    device = install_only_device(line["description"], line["local_text"], line["section"])
+    if device:
+        return _install_only(line, device, location)
+    rule = classify(title, line["description"], line["section"])
+    d = Decision(line_id=line["line_id"], rule_key=rule.key if rule else None,
+                 title_en=rule.en if rule else title, title_de=title,
+                 product_id=None, install_code=rule.install_code if rule else None,
+                 quantity=line["quantity"], unit=line["unit"], location=location,
+                 status="review_required", priced=False, confidence=None, band=None)
+
+    if rule is None:
+        d.reasons.append("Not recognised by the classification rules. Classify or price it manually.")
+        return d
+
+    if rule.disposition == "non_priceable":
+        d.status, d.reasons = "non_priceable", [rule.note]
+        return d
+    if rule.disposition == "covered":
+        d.status, d.reasons = "out_of_scope", [rule.note]
+        return d
+    if ahu_context and rule.key not in ("ahu",) and line["section"] == "A" and rule.disposition is None and rule.size_mode == "none":
+        d.status, d.reasons = "non_priceable", ["Included in the air-handling unit package."]
+        return d
+
+    # Quantity
+    qty_check = Check("quantity", "Quantity and unit read from the tender", "pass", 1.0,
+                      f"{line['quantity']:g} {line['unit_raw']}" if line["quantity"] is not None else "")
+    if line["quantity"] is None:
+        if rule.key == "ahu":
+            d.quantity = 1.0
+            d.assumptions.append("The tender leaves the quantity blank; one unit is assumed (one unit per numbered device).")
+            qty_check = Check("quantity", "Quantity and unit read from the tender", "partial", 0.7, "blank in tender; 1 assumed")
+        else:
+            d.status = "insufficient_information"
+            d.reasons.append("The tender gives no quantity for this line.")
+            d.checks.append(Check("quantity", "Quantity and unit read from the tender", "fail", 0.0, "blank in tender"))
+            return d
+    d.checks.append(qty_check)
+
+    if rule.disposition == "no_catalogue":
+        d.status = "review_required"
+        d.reasons.append(f"No catalogue item for '{rule.en}' ({rule.de}). Enter a unit price, send to a supplier, or price labour only.")
+        d.labour_only_possible = bool(rule.install_code)
+        return d
+
+    sizes = parse_sizes(line["description"] + (" | " + extra_text if extra_text else ""))
+    if rule.key == "silencer_compact" and sizes.dn_mm is None and "lange" in fold(line["description"]):
+        m = re.match(r"^(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s", (line["local_text"] or [""])[-1])
+        if m:  # inline table: Länge (cm) | Ø innen (cm) | …
+            sizes.length_mm, sizes.dn_mm = float(m.group(1)) * 10, float(m.group(2)) * 10
+    product, size_check, assumption = _choose_product(rule, sizes, line, ref, d)
+    if product is None:
+        d.status = "review_required"
+        d.reasons.append(f"No catalogue item fits this {rule.en.lower()}{(' (' + size_check.detail + ')') if size_check and size_check.detail else ''}.")
+        if size_check:
+            d.checks.append(size_check)
+        d.labour_only_possible = bool(rule.install_code)
+        return d
+
+    item = ref.catalog[product]
+    d.product_id, d.install_code = product, item.install_code
+    d.checks.append(Check("category", "Item type matches the catalogue", "pass", 1.0, f"{rule.de} → {item.subcategory}"))
+    if size_check:
+        d.checks.append(size_check)
+    unit_ok = d.unit == item.unit
+    d.checks.append(Check("unit", "Unit matches the catalogue", "pass" if unit_ok else "fail", 1.0 if unit_ok else 0.5,
+                          f"{d.unit} vs {item.unit}"))
+    if rule.note:
+        d.checks.append(Check("function", "Function matches", "partial", 0.7, rule.note))
+    if assumption:
+        d.assumptions.append(assumption)
+
+    d.confidence = 1.0
+    for c in d.checks:
+        d.confidence *= c.score
+    d.band = "high" if d.confidence >= HIGH else "medium" if d.confidence >= MEDIUM else "low"
+    d.priced = True
+
+    if item.supplier_quote_required:
+        d.status = "supplier_quote_required"
+        d.reasons.append("Supplier package: the catalogue price is a placeholder until a quote is received.")
+    elif d.assumptions:
+        d.status = "assumption_applied"
+    elif d.band != "high":
+        d.status = "review_required"
+        d.reasons.append("Match confidence is below 'high'. Please confirm.")
+    else:
+        d.status = "calculated"
+    return d
+
+
+def _install_only(line: dict, device: tuple[str, str], location: str) -> Decision:
+    en, de = device
+    d = Decision(line_id=line["line_id"], rule_key="field_device_install", title_en=f"{en} (install only)", title_de=de,
+                 product_id=None, install_code="CONTROL_POINT", quantity=line["quantity"], unit=line["unit"],
+                 location=location, status="calculated", priced=True, confidence=None, band=None)
+    if line["quantity"] is None:
+        d.status, d.priced = "insufficient_information", False
+        d.reasons.append("The tender gives no quantity for this line.")
+        return d
+    d.checks = [
+        Check("quantity", "Quantity and unit read from the tender", "pass", 1.0, f"{line['quantity']:g} {line['unit_raw']}"),
+        Check("scope", "Scope stated in the tender", "pass", 1.0, "'Einbau der folgenden Feldgeräte': install only"),
+    ]
+    d.confidence, d.band = 1.0, "high"
+    d.reasons.append("Install only: the device itself comes with the separate controls tender. Labour is priced, material is not.")
+    return d
+
+
+def _choose_product(rule: Rule, sizes, line: dict, ref: ReferenceData, d: Decision):
+    """Return (product_id | None, size check | None, assumption text | None)."""
+    mode = rule.size_mode
+    if mode == "fixed":
+        return rule.fixed_product, None, None
+
+    if mode == "thickness":
+        t = sizes.thickness_mm
+        hit = next((i for i in ref.catalog.values() if i.category == "Insulation" and i.source_type == "catalog"
+                    and item_size(i).thickness == t), None)
+        if hit:
+            return hit.product_id, Check("size", "Insulation thickness matches", "pass", 1.0, f"{t:g} mm"), None
+        return None, Check("size", "Insulation thickness matches", "fail", 0.0, f"{t:g} mm not in catalogue" if t else "thickness not stated"), None
+
+    if mode == "airflow":
+        need = sizes.airflow_m3h
+        items = sorted(candidates(ref, rule), key=lambda i: item_size(i).airflow or 0)
+        if not need:
+            return None, Check("size", "Airflow stated", "fail", 0.0, "no airflow found"), None
+        fit = next((i for i in items if (item_size(i).airflow or 0) >= need), items[-1] if items else None)
+        if not fit:
+            return None, None, None
+        _alts(d, items, fit, "other unit size")
+        return (fit.product_id, Check("size", "Unit sized by airflow", "pass", 1.0, f"{need:g} m³/h → {item_size(fit).airflow:g} m³/h unit"),
+                f"Unit chosen as the smallest catalogue unit for {need:g} m³/h.")
+
+    if mode == "duct_length":
+        m = re.search(r"l[äa]nge\s*(\d+(?:[.,]\d+)?)\s*m\b", fold(line["description"]))
+        dn = sizes.dn_mm
+        item = next((i for i in candidates(ref, rule) if item_size(i).dn == dn), None)
+        if not (m and item):
+            return None, Check("size", "Duct size and length stated", "fail", 0.0, "length or DN missing"), None
+        length = float(m.group(1).replace(",", "."))
+        qty = (line["quantity"] or 0) * length
+        d.quantity, d.unit = qty, "m"
+        return (item.product_id, Check("size", "Diameter matches", "pass", 1.0, f"DN{dn:g}"),
+                f"{line['quantity']:g} pieces × {length:g} m = {qty:g} m of duct.")
+
+    if mode == "dn_or_rect":
+        mode = "rect" if sizes.width_mm and sizes.height_mm else "dn"
+        sub = "VAV rectangular" if mode == "rect" else "VAV circular"
+    else:
+        sub = None
+    items = candidates(ref, rule, sub)
+    if not items:
+        return None, None, None
+
+    if mode == "dn":
+        dn = sizes.dn_mm
+        if dn is None:
+            return None, Check("size", "Diameter stated", "fail", 0.0, "no diameter found"), None
+        exact = [i for i in items if item_size(i).dn == dn]
+        if exact:
+            _alts(d, items, exact[0], "different diameter")
+            return exact[0].product_id, Check("size", "Diameter matches exactly", "pass", 1.0, f"DN{dn:g}"), None
+        near = min(items, key=lambda i: abs((item_size(i).dn or 1e9) - dn))
+        if abs(item_size(near).dn - dn) / dn > NEAREST_TOLERANCE:
+            return None, Check("size", "Diameter matches", "fail", 0.0, f"DN{dn:g}: no catalogue size within ±25 %"), None
+        _alts(d, items, near, "different diameter")
+        return (near.product_id, Check("size", "Diameter matches", "partial", 0.6, f"DN{dn:g} → nearest DN{item_size(near).dn:g}"),
+                f"DN{dn:g} is not in the catalogue; priced as DN{item_size(near).dn:g}.")
+
+    if mode in ("rect", "rect_len"):
+        if not (sizes.width_mm and sizes.height_mm):
+            return None, Check("size", "Dimensions stated", "fail", 0.0, "no B×H found"), None
+        wh = (sizes.width_mm, sizes.height_mm)
+        label = f"{wh[0]:g}×{wh[1]:g}" + (f"×{sizes.length_mm:g}" if mode == "rect_len" and sizes.length_mm else "")
+        exact = [i for i in items if item_size(i).w and _same_rect(wh, (item_size(i).w, item_size(i).h))]
+        if mode == "rect_len" and sizes.length_mm:
+            exact_len = [i for i in exact if item_size(i).length == sizes.length_mm]
+            exact = exact_len or exact
+        if exact:
+            _alts(d, items, exact[0], "different size")
+            return exact[0].product_id, Check("size", "Dimensions match exactly", "pass", 1.0, f"{label} mm"), None
+        sized = [i for i in items if item_size(i).w]
+        if not sized:
+            return None, None, None
+        near = min(sized, key=lambda i: abs(item_size(i).w * item_size(i).h - wh[0] * wh[1]))
+        ratio = item_size(near).w * item_size(near).h / (wh[0] * wh[1])
+        if not 1 / (1 + NEAREST_TOLERANCE) ** 2 <= ratio <= (1 + NEAREST_TOLERANCE) ** 2:
+            return None, Check("size", "Dimensions match", "fail", 0.0, f"{label} mm: no catalogue size close enough"), None
+        _alts(d, sized, near, "different size")
+        ns = item_size(near)
+        return (near.product_id, Check("size", "Dimensions match", "partial", 0.6, f"{label} → nearest {ns.w:g}×{ns.h:g}"),
+                f"{label} mm is not in the catalogue; priced as {ns.w:g}×{ns.h:g} mm.")
+
+    return None, None, None
+
+
+def _alts(d: Decision, items: list[CatalogItem], chosen: CatalogItem, reason: str) -> None:
+    d.alternatives = [Alternative(i.product_id, i.description, i.net_cost_chf, reason)
+                      for i in items if i.product_id != chosen.product_id][:3]
+
+
+def decide_all(lines: list[dict], ref: ReferenceData) -> list[Decision]:
+    """Decide every line; lines inside an air-handling unit block are treated as part of that package."""
+    out, in_ahu = [], False
+    rules = [classify(title_of(l), l["description"], l["section"]) for l in lines]
+    for i, (line, rule) in enumerate(zip(lines, rules)):
+        if line["section"] != "A" or line["system"] != lines[i - 1]["system"]:
+            in_ahu = False
+        extra = ""
+        if rule and rule.key == "ahu":
+            in_ahu = True
+            # The unit's data (airflow etc.) is listed below its head row: read ahead within the block.
+            block = []
+            for nxt, nrule in zip(lines[i + 1:], rules[i + 1:]):
+                if nxt["section"] != "A" or nxt["system"] != line["system"] or not (nrule and nrule.key == "ahu_part"):
+                    break
+                block.append(nxt["description"])
+            extra = " | ".join(block)
+        out.append(decide(line, ref, ahu_context=in_ahu and not (rule and rule.key == "ahu"), extra_text=extra))
+    return out

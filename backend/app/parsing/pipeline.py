@@ -1,7 +1,7 @@
 """Tender parsing pipeline.
 
 PyMuPDF is the primary reader for LV lines and component lists: on the Oberglatt tender it finds
-22/22 verified examples and 468 component rows (an independent pdftotext count gives 469), while
+22/22 verified examples and 457 component rows (an independent pdftotext count also gives 457), while
 Docling's table model finds 396 (see benchmarks/results). Docling is an optional, separate
 cross-check (`app.cli crosscheck`, own container): pages where the two readers disagree are flagged
 and Docling's figures are kept for the viewer. It is also the route for scanned or unfamiliar layouts.
@@ -19,7 +19,7 @@ from .normalize import parse_sizes, size_key
 from .pdf_layer import read_rows
 
 # Bump when parsing output changes: stored results with an older version are re-parsed on upload.
-PARSER_VERSION = "2026.10.10-2"
+PARSER_VERSION = "2026.10.10-4"
 
 
 def parse_tender(pdf_path: Path) -> tuple[ParsedTender, dict]:

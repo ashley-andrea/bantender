@@ -66,10 +66,12 @@ class LVLine:
     header_page: int | None
     header_bbox: BBox | None
     flags: list[str] = field(default_factory=list)
+    # Rows printed after the quantity row (e.g. an air-handling unit's data below its head row).
+    trailing_text: list[str] = field(default_factory=list)
 
     @property
     def description(self) -> str:
-        parts = [self.header, *self.shared_text, *self.local_text]
+        parts = [self.header, *self.shared_text, *self.local_text, *self.trailing_text]
         return " | ".join(p for p in parts if p)
 
 

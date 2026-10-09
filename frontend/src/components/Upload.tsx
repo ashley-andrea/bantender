@@ -2,11 +2,13 @@ import { Check, FileText, Loader2, Upload as UploadIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import { fmtNum } from '../format'
+import { LangToggle, useI18n, type Key } from '../i18n'
 import type { TenderSummary } from '../types'
 
-const STAGES = ['Uploading tender', 'Reading every page', 'Finding priceable lines', 'Checking for red flags']
+const STAGES: Key[] = ['stageUpload', 'stageRead', 'stageLines', 'stageFlags']
 
 export function Upload({ onOpen }: { onOpen: (id: string) => void }) {
+  const { t } = useI18n()
   const [recent, setRecent] = useState<TenderSummary[]>([])
   const [drag, setDrag] = useState(false)
   const [stage, setStage] = useState(-1)
@@ -43,14 +45,15 @@ export function Upload({ onOpen }: { onOpen: (id: string) => void }) {
 
   return (
     <div className="min-h-full flex flex-col items-center px-4 py-16">
-      <div className="flex items-center gap-2 mb-12">
+      <div className="w-full max-w-2xl flex items-center gap-2 mb-12">
         <div className="size-8 rounded-[9px] bg-brand grid place-items-center font-bold text-brand-ink">b</div>
         <span className="text-[17px] font-semibold tracking-tight">bantender</span>
+        <span className="ml-auto"><LangToggle /></span>
       </div>
 
-      <h1 className="text-[40px] leading-tight font-semibold tracking-tight text-center">From tender to first price.</h1>
+      <h1 className="text-[40px] leading-tight font-semibold tracking-tight text-center">{t('tagline')}</h1>
       <p className="mt-3 text-muted text-[17px] text-center max-w-xl">
-        Drop a tender PDF. Every line, quantity and price stays linked to the page it came from.
+        {t('subline')}
       </p>
 
       <div
@@ -74,10 +77,10 @@ export function Upload({ onOpen }: { onOpen: (id: string) => void }) {
             <div className="size-14 rounded-full bg-canvas grid place-items-center">
               <UploadIcon className="size-6 text-ink" />
             </div>
-            <div className="text-[17px] font-medium">Drop the tender PDF here</div>
-            <div className="text-muted text-sm">or click to choose a file</div>
+            <div className="text-[17px] font-medium">{t('dropHere')}</div>
+            <div className="text-muted text-sm">{t('orClick')}</div>
             <span className="mt-2 inline-flex items-center rounded-full bg-brand px-5 py-2.5 text-[15px] font-semibold text-brand-ink hover:brightness-95">
-              Choose PDF
+              {t('choosePdf')}
             </span>
           </button>
         ) : (
@@ -92,19 +95,19 @@ export function Upload({ onOpen }: { onOpen: (id: string) => void }) {
                   ) : (
                     <span className="size-5 rounded-full border border-hair" />
                   )}
-                  <span className={i <= stage ? 'text-ink' : 'text-faint'}>{label}</span>
+                  <span className={i <= stage ? 'text-ink' : 'text-faint'}>{t(label)}</span>
                 </li>
               ))}
             </ol>
             {result && (
               <div className="mt-8 grid grid-cols-4 gap-3 rise">
-                <Stat label="Pages" value={result.pages} />
-                <Stat label="Systems" value={Object.keys(result.systems).length} />
-                <Stat label="Lines found" value={result.lines} />
-                <Stat label="Red flags" value={result.anomalies} tone="warn" />
+                <Stat label={t('pages')} value={result.pages} />
+                <Stat label={t('systems')} value={Object.keys(result.systems).length} />
+                <Stat label={t('linesFound')} value={result.lines} />
+                <Stat label={t('redFlags')} value={result.anomalies} tone="warn" />
               </div>
             )}
-            {busy && <p className="mt-6 text-sm text-muted">Deterministic parsing, no AI involved.</p>}
+            {busy && <p className="mt-6 text-sm text-muted">{t('deterministic')}</p>}
           </div>
         )}
         <input
@@ -122,22 +125,22 @@ export function Upload({ onOpen }: { onOpen: (id: string) => void }) {
 
       {recent.length > 0 && stage < 0 && (
         <div className="mt-12 w-full max-w-2xl">
-          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-muted mb-3">Recent tenders</h2>
+          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-muted mb-3">{t('recent')}</h2>
           <div className="rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-card)] divide-y divide-hair">
-            {recent.map((t) => (
+            {recent.map((r) => (
               <button
-                key={t.tender_id}
-                onClick={() => onOpen(t.tender_id)}
+                key={r.tender_id}
+                onClick={() => onOpen(r.tender_id)}
                 className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-canvas/60 cursor-pointer"
               >
                 <FileText className="size-5 text-muted" />
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{t.filename ?? t.tender_id}</div>
+                  <div className="font-medium truncate">{r.filename ?? r.tender_id}</div>
                   <div className="text-sm text-muted num">
-                    {t.pages} pages · {Object.keys(t.systems).length} systems · {fmtNum(t.lines)} lines
+                    {r.pages} {t('pages').toLowerCase()} · {Object.keys(r.systems).length} {t('systems').toLowerCase()} · {fmtNum(r.lines)} {t('linesFound').toLowerCase()}
                   </div>
                 </div>
-                <span className="text-sm text-sel font-medium">Open</span>
+                <span className="text-sm text-sel font-medium">{t('open')}</span>
               </button>
             ))}
           </div>

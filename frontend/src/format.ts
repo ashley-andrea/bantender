@@ -31,3 +31,9 @@ export const FLAG_LABEL: Record<string, string> = {
   reader_disagreement: 'Readers disagree',
   quantity_missing: 'Quantity missing',
 }
+
+const chf0 = new Intl.NumberFormat('de-CH', { maximumFractionDigits: 0 })
+const chf2 = new Intl.NumberFormat('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+export const fmtChf = (n: number | null | undefined, decimals = 0) => (n == null ? '—' : (decimals ? chf2 : chf0).format(n))
+export const fmtPct = (n: number) => `${n.toLocaleString('de-CH', { maximumFractionDigits: 1 })} %`

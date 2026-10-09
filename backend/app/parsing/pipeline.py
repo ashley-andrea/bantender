@@ -32,9 +32,10 @@ def parse_tender(pdf_path: Path) -> tuple[ParsedTender, dict]:
 
 
 def docling_cross_check(pdf_path: Path, parsed: dict, mode: str = "tables_accurate", cache_dir: Path | None = None) -> dict:
-    """Compare component-list rows with Docling's reading; add disagreement flags and figures to `parsed`.
+    """Read the component lists again with Docling and compare row counts per page.
 
-    Requires the optional `docling` extra.
+    Returns a separate result ({meta, anomalies}) that is stored next to the parse and merged on read,
+    so a slow cross-check can never overwrite a newer parse. Requires the optional `docling` extra.
     """
     from . import docling_layer
 
@@ -44,14 +45,18 @@ def docling_cross_check(pdf_path: Path, parsed: dict, mode: str = "tables_accura
     docling_rows = docling_layer.component_rows_from_doc(doc, page_system)
     mine = Counter(r["page"] for r in parsed["component_rows"])
     theirs = Counter(r.page for r in docling_rows)
-    parsed["anomalies"] = [a for a in parsed["anomalies"] if a["code"] != "reader_disagreement"]
-    for page in sorted(set(mine) | set(theirs)):
-        if mine[page] != theirs[page]:
-            parsed["anomalies"].append({"page": page, "code": "reader_disagreement",
-                                        "message": f"Component list: PyMuPDF read {mine[page]} rows, Docling {theirs[page]}. Check this page."})
-    parsed["meta"]["cross_check"] = f"docling:{mode}"
-    parsed["meta"]["figures"] = docling_layer.figures(doc)
-    return parsed
+    differ = [p for p in sorted(set(mine) | set(theirs)) if mine[p] != theirs[p]]
+    anomalies = []
+    if differ:
+        detail = ", ".join(f"p.{p} {mine[p]} vs {theirs[p]}" for p in differ)
+        anomalies.append({"page": differ[0], "code": "reader_disagreement",
+                          "message": f"Component lists: PyMuPDF and Docling read different row counts on {len(differ)} page(s) "
+                                     f"({detail}). PyMuPDF is used; check these pages."})
+    return {
+        "parser_version": parsed["meta"].get("parser_version"),
+        "meta": {"cross_check": f"docling:{mode}", "figures": docling_layer.figures(doc)},
+        "anomalies": anomalies,
+    }
 
 
 def tender_to_dict(tender: ParsedTender, meta: dict) -> dict:

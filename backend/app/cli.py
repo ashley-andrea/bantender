@@ -23,10 +23,11 @@ def crosscheck(tender_ids: list[str]) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             pdf = Path(tmp) / "tender.pdf"
             pdf.write_bytes(storage.get(f"tenders/{tender_id}/tender.pdf"))
-            parsed = docling_cross_check(pdf, parsed, settings.docling_mode, settings.data_dir / "cache" / "docling")
-        storage.put(f"tenders/{tender_id}/parsed.json", json.dumps(parsed, ensure_ascii=False).encode())
-        flags = sum(1 for a in parsed["anomalies"] if a["code"] == "reader_disagreement")
-        print(f"{tender_id}: cross-check done, {flags} page(s) where readers disagree, {len(parsed['meta']['figures'])} figures")
+            result = docling_cross_check(pdf, parsed, settings.docling_mode, settings.data_dir / "cache" / "docling")
+        # Stored separately and merged on read: never overwrites the parse.
+        storage.put(f"tenders/{tender_id}/crosscheck.json", json.dumps(result, ensure_ascii=False).encode())
+        msg = result["anomalies"][0]["message"] if result["anomalies"] else "readers agree"
+        print(f"{tender_id}: cross-check done, {len(result['meta']['figures'])} figures. {msg}")
 
 
 def main() -> None:

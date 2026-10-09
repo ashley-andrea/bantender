@@ -71,8 +71,9 @@ def test_docling_cross_check_flags_disagreements(tender):
     pytest.importorskip("docling")
     from app.parsing.pipeline import docling_cross_check, tender_to_dict
 
-    parsed = tender_to_dict(tender, {"pages": 202, "figures": []})
-    parsed = docling_cross_check(TENDER_PDF, parsed, cache_dir=TENDER_PDF.parents[2] / "cache" / "docling")
-    assert parsed["meta"]["cross_check"].startswith("docling")
-    assert any(a["code"] == "reader_disagreement" for a in parsed["anomalies"])
-    assert len(parsed["meta"]["figures"]) > 0
+    parsed = tender_to_dict(tender, {"pages": 202, "figures": [], "parser_version": "x"})
+    result = docling_cross_check(TENDER_PDF, parsed, cache_dir=TENDER_PDF.parents[2] / "cache" / "docling")
+    assert result["meta"]["cross_check"].startswith("docling") and result["parser_version"] == "x"
+    assert len(result["anomalies"]) == 1 and result["anomalies"][0]["code"] == "reader_disagreement"
+    assert len(result["meta"]["figures"]) > 0
+    assert parsed["anomalies"] == [a for a in parsed["anomalies"] if a["code"] != "reader_disagreement"]  # parse untouched

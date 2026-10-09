@@ -63,7 +63,14 @@ def _load(tender_id: str) -> dict:
     key = f"tenders/{tender_id}/parsed.json"
     if not tender_id.isalnum() or not storage.exists(key):
         raise HTTPException(404, "Unknown tender")
-    return json.loads(storage.get(key))
+    parsed = json.loads(storage.get(key))
+    check_key = f"tenders/{tender_id}/crosscheck.json"
+    if storage.exists(check_key):
+        check = json.loads(storage.get(check_key))
+        if check.get("parser_version") == parsed["meta"].get("parser_version"):
+            parsed["meta"].update(check["meta"])
+            parsed["anomalies"] += check["anomalies"]
+    return parsed
 
 
 def summary(tender_id: str) -> dict:

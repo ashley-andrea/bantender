@@ -48,11 +48,15 @@ def apply_override(d: Decision, ov: dict, ref: ReferenceData) -> Decision:
         changed.append("product")
     if ov.get("labour_only") and d.install_code:
         d.product_id, d.priced, d.status = None, True, "calculated"
+        d.reasons = ["Priced as labour only, decided by the estimator."]
         d.checks.append(Check("estimator", "Labour only, decided by the estimator", "pass", 1.0, ""))
         changed.append("labour_only")
     if ov.get("unit_price") is not None:
         d.priced = True
         d.status = "calculated"
+        source = "supplier quote" if ov.get("unit_price_source") == "quote" else "the estimator"
+        d.reasons = [f"Unit price CHF {float(ov['unit_price']):,.2f} entered by {source}.".replace(",", "'")]
+        d.checks.append(Check("estimator", f"Unit price set by {source}", "pass", 1.0, ov.get("note") or ""))
         changed.append("unit_price")
     if ov.get("status"):
         d.status = ov["status"]

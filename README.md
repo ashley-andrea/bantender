@@ -20,9 +20,16 @@ Built for the Equans case at the sprintd hackathon (October 2026).
 | API: upload PDF → parsed lines; PDF download; tender list; reference summary | done | `tests/test_api.py` |
 | Web client v0: upload with live stages, workspace (systems tree, lines table, line detail, PDF viewer with source highlight, red-flags panel) | done | screenshots checked with Playwright |
 | Server stack (Docker, Compose, Caddy HTTPS) | built and tested in Docker: HTTPS → API, upload parses 202 pages in 0.6 s; Docling runs offline in the container | `make smoke` |
-| Matching, statuses, pricing in the UI, database, worker | next layers | — |
+| Matching (German HVAC lexicon → catalogue by size), confidence checklist, 7 statuses | done | 22/22 golden products + statuses; every line classified |
+| Install-only field devices (labour only), air-handling units sized by airflow, project costs not double-counted | done | `tests/test_matching.py` |
+| Ductwork derived from the CAD component lists (m, m², bends; other fittings labour only) | done | 77 derived lines, each citing its list pages |
+| Pricing service: overrides, settings, audit log; full build-up and bid scenarios | done | `tests/test_api.py` |
+| Web client v1: prices, status filters, why-this-price, estimator actions, price build-up, scenarios, award points, EN/DE | done | Playwright edit flow: price updates and resets |
+| Database (PostgreSQL), RFQ packs, exports, tender facts (LLM) | next layers | — |
 
 No OpenAI calls are made anywhere yet (`AI_PROVIDER=off`).
+
+Current result on the Oberglatt tender: indicative price CHF 1'758'000; 113 of 229 actionable LV lines priced from the catalogue, the rest flagged "needs price" (not in the 56-item catalogue) for the estimator.
 
 ## Known follow-ups
 

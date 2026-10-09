@@ -29,7 +29,7 @@ Built for the Equans case at the sprintd hackathon (October 2026).
 
 No OpenAI calls are made anywhere yet (`AI_PROVIDER=off`).
 
-Current result on the Oberglatt tender: indicative price CHF 1'758'000; 113 of 229 actionable LV lines priced from the catalogue, the rest flagged "needs price" (not in the 56-item catalogue) for the estimator.
+Current result on the Oberglatt tender: indicative price CHF 1'758'000; 112 of 229 actionable LV lines priced from the catalogue, the rest flagged "needs price" (not in the 56-item catalogue) for the estimator.
 
 ## Known follow-ups
 

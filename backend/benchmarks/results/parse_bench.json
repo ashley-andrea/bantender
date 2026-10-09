@@ -1,0 +1,173 @@
+[
+  {
+    "config": "A pymupdf",
+    "seconds": 0.8,
+    "lines": 251,
+    "lines_by_system": {
+      "244.01": 41,
+      "244.02": 53,
+      "244.03": 53,
+      "244.04": 60,
+      "244.05": 42,
+      "244.06": 2
+    },
+    "examples_found": "22/22",
+    "examples_size_ok": "20/20",
+    "examples_system_ok": "22/22",
+    "anomalies": {
+      "implausible_size": 1,
+      "header_system_mismatch": 13
+    },
+    "component_rows": 468,
+    "by_table": {
+      "ducts_rect": 133,
+      "fittings_rect": 208,
+      "ducts_round": 29,
+      "fittings_round": 98
+    },
+    "hand_check": "4/4"
+  },
+  {
+    "config": "B pymupdf_nobold",
+    "seconds": 0.0,
+    "lines": 251,
+    "lines_by_system": {
+      "244.01": 41,
+      "244.02": 53,
+      "244.03": 53,
+      "244.04": 60,
+      "244.05": 42,
+      "244.06": 2
+    },
+    "examples_found": "22/22",
+    "examples_size_ok": "19/20",
+    "examples_system_ok": "22/22",
+    "anomalies": {
+      "implausible_size": 1,
+      "header_system_mismatch": 13
+    },
+    "component_rows": 468,
+    "by_table": {
+      "ducts_rect": 133,
+      "fittings_rect": 208,
+      "ducts_round": 29,
+      "fittings_round": 98
+    },
+    "hand_check": "4/4"
+  },
+  {
+    "config": "C docling_text",
+    "seconds": 6.3,
+    "lines": 210,
+    "lines_by_system": {
+      "244.01": 34,
+      "244.02": 45,
+      "244.03": 41,
+      "244.04": 51,
+      "244.05": 39
+    },
+    "examples_found": "17/22",
+    "examples_size_ok": "13/20",
+    "examples_system_ok": "17/22",
+    "anomalies": {
+      "implausible_size": 1,
+      "header_system_mismatch": 13
+    },
+    "component_rows": 468,
+    "by_table": {
+      "ducts_rect": 133,
+      "fittings_rect": 208,
+      "ducts_round": 29,
+      "fittings_round": 98
+    },
+    "hand_check": "4/4",
+    "docling_convert_seconds": 6.3,
+    "figures": 12
+  },
+  {
+    "config": "D docling_tables",
+    "seconds": 0.2,
+    "lines": 46,
+    "lines_by_system": {
+      "244.01": 4,
+      "244.02": 14,
+      "244.03": 11,
+      "244.04": 7,
+      "244.05": 10
+    },
+    "examples_found": "1/22",
+    "examples_size_ok": "0/20",
+    "examples_system_ok": "1/22",
+    "anomalies": {
+      "header_system_mismatch": 13
+    },
+    "component_rows": 396,
+    "by_table": {
+      "ducts_rect": 130,
+      "fittings_rect": 145,
+      "ducts_round": 29,
+      "fittings_round": 92
+    },
+    "hand_check": "4/4",
+    "docling_convert_seconds": 0.2,
+    "figures": 12
+  },
+  {
+    "config": "E docling_fast",
+    "seconds": 0.1,
+    "lines": 111,
+    "lines_by_system": {
+      "244.01": 21,
+      "244.02": 24,
+      "244.03": 15,
+      "244.04": 33,
+      "244.05": 18
+    },
+    "examples_found": "4/22",
+    "examples_size_ok": "2/20",
+    "examples_system_ok": "4/22",
+    "anomalies": {
+      "implausible_size": 1,
+      "header_system_mismatch": 13
+    },
+    "component_rows": 282,
+    "by_table": {
+      "ducts_rect": 132,
+      "fittings_rect": 114,
+      "ducts_round": 3,
+      "fittings_round": 33
+    },
+    "hand_check": "0/4",
+    "docling_convert_seconds": 0.1,
+    "figures": 12
+  },
+  {
+    "config": "F hybrid (A lines + D tables)",
+    "seconds": 1.0,
+    "lines": 251,
+    "lines_by_system": {
+      "244.01": 41,
+      "244.02": 53,
+      "244.03": 53,
+      "244.04": 60,
+      "244.05": 42,
+      "244.06": 2
+    },
+    "examples_found": "22/22",
+    "examples_size_ok": "20/20",
+    "examples_system_ok": "22/22",
+    "anomalies": {
+      "implausible_size": 1,
+      "header_system_mismatch": 13
+    },
+    "component_rows": 396,
+    "by_table": {
+      "ducts_rect": 130,
+      "fittings_rect": 145,
+      "ducts_round": 29,
+      "fittings_round": 92
+    },
+    "hand_check": "4/4",
+    "figures": 12
+  }
+]

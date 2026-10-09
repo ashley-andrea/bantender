@@ -1,0 +1,38 @@
+[project]
+name = "tender-pricing"
+version = "0.1.0"
+description = "Tender pricing assistant: tender PDF to traceable first price"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "docling>=2.137.0",
+    "fastapi>=0.143.0",
+    "pandas>=3.0.6",
+    "pydantic>=2",
+    "pydantic-settings>=2.15.0",
+    "pymupdf>=1.28.2",
+    "python-multipart>=0.0.32",
+    "torch>=2.14.1",
+    "torchvision>=0.29.1",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+# CPU-only PyTorch on Linux (server / Azure containers): avoids several GB of CUDA libraries.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

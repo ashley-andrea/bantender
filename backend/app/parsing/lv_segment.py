@@ -216,4 +216,26 @@ def segment(rows_by_page: dict[int, list[Row]], use_bold: bool = True) -> Parsed
             local = []
             item_has_qty = True
 
-    return ParsedTender(pages=pages, lines=lines, component_rows=component_rows, anomalies=anomalies, systems=systems)
+    return ParsedTender(pages=pages, lines=lines, component_rows=component_rows,
+                        anomalies=_merge_header_flags(anomalies, systems), systems=systems)
+
+
+def _merge_header_flags(anomalies: list[Anomaly], systems: dict) -> list[Anomaly]:
+    """Collapse per-page header mismatches into one flag per run of pages."""
+    pages = sorted(a.page for a in anomalies if a.code == "header_system_mismatch")
+    others = [a for a in anomalies if a.code != "header_system_mismatch"]
+    if not pages:
+        return others
+    by_page = {a.page: a for a in anomalies if a.code == "header_system_mismatch"}
+    merged, start = [], pages[0]
+    for prev, cur in zip(pages, pages[1:] + [None]):
+        if cur is not None and cur - prev <= 3:  # component-list pages in between keep the run together
+            continue
+        said, actual = re.findall(r"244\.\d{2}", by_page[start].message)[:2]
+        name = systems.get(actual, {}).get("name", "")
+        merged.append(Anomaly(start, "header_system_mismatch",
+                              f"Pages {start}–{prev}: page headers say {said}, but document order places them in {actual} {name}. "
+                              f"Lines are assigned to {actual}."))
+        if cur is not None:
+            start = cur
+    return merged + others

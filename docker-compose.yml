@@ -10,7 +10,12 @@ services:
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
-    depends_on: [api]
+    depends_on: [api, web]
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    expose: ["80"]
 
   api:
     build: { context: ./backend, target: api }

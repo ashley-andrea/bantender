@@ -1,0 +1,58 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+
+/* Apple × Binance: calm neutrals, a few notable colours with fixed meanings. */
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --color-canvas: #f5f5f7;
+  --color-surface: #ffffff;
+  --color-ink: #1d1d1f;
+  --color-muted: #6e6e73;
+  --color-faint: #a1a1a6;
+  --color-hair: #e5e5ea;
+  --color-brand: #f0b90b; /* primary action, headline price */
+  --color-brand-ink: #1e2329;
+  --color-sel: #0a84ff; /* selection, evidence */
+  --color-good: #0ecb81;
+  --color-bad: #f6465d;
+  --color-warn: #ff9f0a;
+  --radius-card: 14px;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px rgb(0 0 0 / 0.04);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d1d6 transparent;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 240ms ease-out both;
+}

@@ -35,6 +35,9 @@ def test_upload_parse_and_fetch(client):
     parsed = client.get(f"/api/tenders/{body['tender_id']}").json()
     assert parsed["lines"][0]["page"] >= 67 and parsed["lines"][0]["row_bbox"]
     assert client.get(f"/api/tenders/{body['tender_id']}/pdf").content.startswith(b"%PDF")
+    first = next(l for l in parsed["lines"] if l["page"] == 78 and l["quantity"] == 5)
+    assert first["size_key"] == "DN100"
+    assert [t["tender_id"] for t in client.get("/api/tenders").json()] == [body["tender_id"]]
 
 
 def test_rejects_non_pdf(client):

@@ -15,14 +15,18 @@ from pathlib import Path
 
 from .lv_segment import segment
 from .models import ParsedTender
+from .normalize import parse_sizes, size_key
 from .pdf_layer import read_rows
+
+# Bump when parsing output changes: stored results with an older version are re-parsed on upload.
+PARSER_VERSION = "2026.10.10-2"
 
 
 def parse_tender(pdf_path: Path) -> tuple[ParsedTender, dict]:
     """Deterministic parse (~1 s). Returns the parsed tender plus run metadata."""
     rows, sizes = read_rows(pdf_path)
     tender = segment(rows, use_bold=True)
-    meta = {"pages": len(rows), "lv_reader": "pymupdf", "component_reader": "pymupdf", "figures": [],
+    meta = {"parser_version": PARSER_VERSION, "pages": len(rows), "lv_reader": "pymupdf", "component_reader": "pymupdf", "figures": [],
             "page_sizes": {p: s for p, s in sizes.items()}}
     return tender, meta
 
@@ -55,6 +59,9 @@ def tender_to_dict(tender: ParsedTender, meta: dict) -> dict:
     for line in tender.lines:
         d = asdict(line)
         d["description"] = line.description
+        sizes = parse_sizes(line.description)
+        d["sizes"] = {k: v for k, v in asdict(sizes).items() if v not in (None, ())}
+        d["size_key"] = size_key(sizes)
         lines.append(d)
     return {
         "meta": meta,

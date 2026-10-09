@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from app.config import get_settings
-from app.parsing.pipeline import parse_tender, tender_to_dict
+from app.parsing.pipeline import PARSER_VERSION, parse_tender, tender_to_dict
 from app.reference import load_reference
 from app.storage import make_storage
 
@@ -47,7 +47,8 @@ async def upload_tender(file: UploadFile) -> dict:
         raise HTTPException(400, "Please upload a PDF file.")
     tender_id = hashlib.sha256(data).hexdigest()[:16]
     result_key = f"tenders/{tender_id}/parsed.json"
-    if not storage.exists(result_key):
+    current = storage.exists(result_key) and json.loads(storage.get(result_key))["meta"].get("parser_version") == PARSER_VERSION
+    if not current:
         storage.put(f"tenders/{tender_id}/tender.pdf", data)
         with tempfile.TemporaryDirectory() as tmp:
             pdf = Path(tmp) / "tender.pdf"
@@ -75,6 +76,18 @@ def summary(tender_id: str) -> dict:
         "anomalies": len(parsed["anomalies"]),
         "readers": {k: parsed["meta"][k] for k in ("lv_reader", "component_reader")},
     }
+
+
+@app.get("/api/tenders")
+def list_tenders() -> list[dict]:
+    root = settings.data_dir / "files" / "tenders"
+    if not root.exists():
+        return []
+    items = []
+    for path in sorted(root.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
+        if (path / "parsed.json").exists():
+            items.append({"tender_id": path.name, **summary(path.name)})
+    return items
 
 
 @app.get("/api/tenders/{tender_id}")

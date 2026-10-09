@@ -17,9 +17,10 @@ Built for the Equans case at the sprintd hackathon (October 2026).
 | Component lists (CAD duct/fitting tables) | done | hand-checked LA01 round-duct lengths 4/4 |
 | Red flags (header mislabels pp.181–195, Ø 1155 cm typo p.78, blank quantity p.169) | done | `tests/test_parsing_tender.py` |
 | Docling cross-check (tables, figures; cached, models baked into the image) + parser benchmark | done | `benchmarks/results/parse_bench.md` |
-| API: upload PDF → parsed lines; PDF download; reference summary | done | `tests/test_api.py` |
+| API: upload PDF → parsed lines; PDF download; tender list; reference summary | done | `tests/test_api.py` |
+| Web client v0: upload with live stages, workspace (systems tree, lines table, line detail, PDF viewer with source highlight, red-flags panel) | done | screenshots checked with Playwright |
 | Server stack (Docker, Compose, Caddy HTTPS) | built and tested in Docker: HTTPS → API, upload parses 202 pages in 0.6 s; Docling runs offline in the container | `make smoke` |
-| Matching, statuses, review UI, database, worker | next layers | — |
+| Matching, statuses, pricing in the UI, database, worker | next layers | — |
 
 No OpenAI calls are made anywhere yet (`AI_PROVIDER=off`).
 
@@ -55,8 +56,27 @@ backend/
 data/
   reference/v1/    seed of the company reference data (internal)
   samples/         the Oberglatt tender + verified examples (test fixtures)
+frontend/          React + Vite + Tailwind web client (served by Caddy in its own container)
 deploy/Caddyfile   HTTPS reverse proxy for our server
 docker-compose.yml server stack (mirrors the Azure target)
+```
+
+## See it locally
+
+Needs Docker running.
+
+```bash
+cp .env.example .env          # then set DOMAIN=localhost in .env
+docker compose up -d --build  # caddy (HTTPS) + web + api
+open https://localhost        # accept the local certificate once (Caddy issues it for localhost)
+```
+
+Drop `data/samples/oberglatt/BKP_244_LV_Lueftung_260804.pdf` on the upload screen. Click any line to see the tender page with the source row highlighted. ↑/↓ moves through lines.
+
+UI development with hot reload (the Docker stack keeps serving the API):
+
+```bash
+cd frontend && npm install && npm run dev   # http://localhost:5173, proxies /api to https://localhost
 ```
 
 ## Run

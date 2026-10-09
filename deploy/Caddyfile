@@ -5,9 +5,8 @@
 		reverse_proxy api:8000
 	}
 
-	# The web client (static build) is added with the frontend layer.
 	handle {
-		respond "Tender pricing API is running. Web client coming next." 200
+		reverse_proxy web:80
 	}
 
 	header {

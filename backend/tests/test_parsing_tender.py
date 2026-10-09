@@ -32,8 +32,8 @@ def test_systems_in_document_order(tender):
 
 
 def test_sports_hall_header_trap_is_detected(tender):
-    flagged = {a.page for a in tender.anomalies if a.code == "header_system_mismatch"}
-    assert {181, 190, 195} <= flagged
+    flags = [a for a in tender.anomalies if a.code == "header_system_mismatch"]
+    assert len(flags) == 1 and flags[0].message.startswith("Pages 181–195")
     assert all(l.system == "244.05" for l in tender.lines if 181 <= l.page <= 195)
 
 

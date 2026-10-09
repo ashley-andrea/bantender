@@ -25,8 +25,7 @@ No OpenAI calls are made anywhere yet (`AI_PROVIDER=off`).
 
 ## Known follow-ups
 
-- The API image is 5.9 GB because Docling + PyTorch (CPU) + models are in it. Next layer: a slim API image without Docling, and Docling only in the worker image.
-- Docling runs synchronously when `DOCLING_TABLES=true`; it moves to the background worker with the database layer.
+- Docling is optional: the API image (≈420 MB) has none of it; the cross-check runs in its own image on demand (`make crosscheck`).
 
 ## Parser benchmark
 
@@ -41,7 +40,7 @@ Six configurations on the full tender, no OpenAI calls ([details](backend/benchm
 | E Docling + TableFormer fast | 111 | 4/22 | 2/20 | 282 |
 | F A for lines + D for tables | 251 | 22/22 | 20/20 | 396 |
 
-**Decision:** PyMuPDF is the primary reader (about 1 s per tender). With table structure on, Docling reads each LV page as one big table cell and drops about 15% of the component-list rows. Docling stays in the pipeline as an independent cross-check (`DOCLING_TABLES=true`), flagging pages where the two readers disagree. It also detects figures and is the route for scanned or unfamiliar layouts.
+**Decision:** PyMuPDF is the primary reader (about 1 s per tender). With table structure on, Docling reads each LV page as one big table cell and drops about 15% of the component-list rows. Docling is kept out of the main image; it runs as an optional cross-check in its own container (`make crosscheck`), flagging pages where the two readers disagree. It also detects figures and is the route for scanned or unfamiliar layouts.
 
 ## Layout
 

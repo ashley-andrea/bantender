@@ -1,4 +1,4 @@
-"""API smoke test: upload → parse → fetch, with Docling off for speed."""
+"""API smoke test: upload → parse → fetch."""
 
 import importlib
 
@@ -12,7 +12,6 @@ from .conftest import TENDER_PDF
 def client(tmp_path_factory):
     mp = pytest.MonkeyPatch()
     mp.setenv("DATA_DIR", str(tmp_path_factory.mktemp("data")))
-    mp.setenv("DOCLING_TABLES", "false")
     from app import config
     config.get_settings.cache_clear()
     import app.api.main as main

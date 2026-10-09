@@ -52,8 +52,7 @@ async def upload_tender(file: UploadFile) -> dict:
         with tempfile.TemporaryDirectory() as tmp:
             pdf = Path(tmp) / "tender.pdf"
             pdf.write_bytes(data)
-            tender, meta = parse_tender(pdf, docling_tables=settings.docling_tables, docling_mode=settings.docling_mode,
-                                        cache_dir=settings.data_dir / "cache" / "docling")
+            tender, meta = parse_tender(pdf)
         meta["filename"] = file.filename
         storage.put(result_key, json.dumps(tender_to_dict(tender, meta), ensure_ascii=False).encode())
     return {"tender_id": tender_id, **summary(tender_id)}

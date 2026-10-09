@@ -13,7 +13,7 @@ services:
     depends_on: [api]
 
   api:
-    build: ./backend
+    build: { context: ./backend, target: api }
     restart: unless-stopped
     env_file: .env
     environment:
@@ -27,6 +27,16 @@ services:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/healthz')"]
       interval: 30s
       timeout: 5s
+
+  # Optional Docling cross-check (large image). Run on demand:
+  #   docker compose --profile docling run --rm docling crosscheck <tender_id>
+  docling:
+    profiles: ["docling"]
+    build: { context: ./backend, target: docling }
+    env_file: .env
+    volumes:
+      - app_data:/data
+      - ./data/reference/v1:/reference/v1:ro
 
 volumes:
   app_data:

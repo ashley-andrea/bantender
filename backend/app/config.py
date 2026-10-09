@@ -20,9 +20,7 @@ class Settings(BaseSettings):
     # Storage: "local" (server volume) now; "azure_blob" later (Azurite on our server, Azure Blob in production).
     storage: str = "local"
 
-    # Parsing: PyMuPDF is the primary reader. Docling (~100 s per tender) is an optional cross-check;
-    # it moves to the background worker in the next layer.
-    docling_tables: bool = False
+    # Parsing: PyMuPDF is the primary reader. Docling is an optional cross-check run in its own container.
     docling_mode: str = "tables_accurate"
 
     # AI: off by default. Budget-capped when on.

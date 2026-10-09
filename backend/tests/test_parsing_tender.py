@@ -67,10 +67,12 @@ def test_component_lists_hand_check(tender):
 
 
 @pytest.mark.skipif(not (TENDER_PDF.parents[2] / "cache" / "docling").exists(), reason="Docling cache not built (run make bench)")
-def test_docling_cross_check_flags_disagreements():
-    from app.parsing.pipeline import parse_tender
+def test_docling_cross_check_flags_disagreements(tender):
+    pytest.importorskip("docling")
+    from app.parsing.pipeline import docling_cross_check, tender_to_dict
 
-    tender, meta = parse_tender(TENDER_PDF, docling_tables=True, cache_dir=TENDER_PDF.parents[2] / "cache" / "docling")
-    assert meta["component_reader"] == "pymupdf" and meta["cross_check"].startswith("docling")
-    assert any(a.code == "reader_disagreement" for a in tender.anomalies)
-    assert len(meta["figures"]) > 0
+    parsed = tender_to_dict(tender, {"pages": 202, "figures": []})
+    parsed = docling_cross_check(TENDER_PDF, parsed, cache_dir=TENDER_PDF.parents[2] / "cache" / "docling")
+    assert parsed["meta"]["cross_check"].startswith("docling")
+    assert any(a["code"] == "reader_disagreement" for a in parsed["anomalies"])
+    assert len(parsed["meta"]["figures"]) > 0

@@ -47,7 +47,7 @@ const ACTION: Partial<Record<Citation['kind'], Key>> = { tender: 'botShowPdf', p
 const SPIN_MS = 2400
 const SPINNER_VERBS = {
   en: ['Shaking', 'Stirring', 'Muddling', 'Pouring', 'Garnishing', 'Mixing', 'Straining', 'Decanting', 'Uncorking', 'Infusing',
-    'Polishing glasses', 'Chilling', 'Tasting', 'Distilling', 'Tapping a fresh one', 'Reading the fine print', 'Checking the bottles', 'Ashleying', 'Pietroing', 'Matteing', 'Sebbing'],
+    'Polishing glasses', 'Chilling', 'Tasting', 'Distilling', 'Tapping a fresh one', 'Reading the fine print', 'Checking the bottles', 'Ashleying', 'Pietroing', 'Matteing', 'Sebaing'],
   de: ['Schüttelt', 'Rührt um', 'Mixt', 'Schenkt ein', 'Garniert', 'Seiht ab', 'Dekantiert', 'Entkorkt', 'Poliert Gläser', 'Kühlt',
     'Verkostet', 'Destilliert', 'Zapft frisch', 'Liest das Kleingedruckte', 'Prüft die Flaschen'],
 }

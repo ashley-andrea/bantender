@@ -61,6 +61,20 @@ body {
   border-radius: 12px;
 }
 
+/* A box floating over the page (the assistant): white right up to the pencil line, so nothing shows through. */
+.panel-solid {
+  background-color: transparent;
+}
+.panel-solid::before {
+  content: '';
+  position: absolute;
+  inset: -4px; /* the border band is 9px; the pencil line runs about 3–4px in from its outer edge */
+  background: var(--color-surface);
+  border-radius: 8px;
+  z-index: -1;
+  pointer-events: none;
+}
+
 .panel-green {
   border-image: var(--sketch-green) 18 / 9px stretch;
 }

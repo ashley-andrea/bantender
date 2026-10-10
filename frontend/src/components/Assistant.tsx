@@ -152,7 +152,7 @@ export function Assistant({ tenderId, view, active, onShow, avoid }: Props) {
     <>
       {open && (
         <section ref={panel} style={pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' } : undefined}
-          className="fixed right-6 bottom-[150px] z-50 w-[400px] max-w-[calc(100vw-40px)] h-[min(620px,calc(100vh-190px))] flex flex-col panel rise"
+          className="fixed right-6 bottom-[150px] z-50 w-[400px] max-w-[calc(100vw-40px)] h-[min(620px,calc(100vh-190px))] flex flex-col panel panel-solid rise"
           aria-label={t('botName')}>
           <header onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}
             onDoubleClick={(e) => !(e.target as HTMLElement).closest('button') && setPos(null)} title={t('botDrag')}

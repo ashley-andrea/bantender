@@ -1,6 +1,6 @@
 # Win-probability model: plan
 
-Status: plan, not yet implemented. Code goes in `backend/app/winprob/`.
+Status: training and testing pipeline implemented (steps 1-4, run with `make winprob`); integration (step 5) not yet done. Code is in `backend/app/winprob/`.
 
 ## 1. Purpose
 
@@ -22,7 +22,9 @@ The UI uses the curve for a slider. The three bid scenarios (Aggressive / Target
   - explainability
   - integration into the pricing result and the API
 - **Not in scope: the real dataset.** It is generated separately and delivered as two CSV files following the data contract in §4. Until it arrives, tests use a small synthetic fixture generated inside the tests (§12).
-- **Starting point:** stubs already exist in `backend/app/winprob/` (`schema.py`, `model.py`, `curve.py`, `service.py`, `explain.py`, `synthetic.py`). They come from an earlier draft. Change their contents and signatures freely to match this plan. `synthetic.py` is not part of this task (the dataset is generated separately); leave it untouched.
+- **Split of work:** a teammate builds the dataset; this task is the training and testing pipeline and its outputs (steps 1-4). Integration into the API (step 5) comes later and `service.py` does not exist yet.
+- **Demo data:** until the real CSVs arrive, `demo_data.py` generates a synthetic history (used by `make winprob` and the tests). `synthetic.py` is the teammate's area; leave it untouched.
+- **Run:** `make winprob` trains, evaluates and prints metrics, feature relevance, the curve, the scenarios and the per-tender explanation. It uses `data/reference/v2/historical_bids.csv` when present, otherwise the demo history. Outputs go to `backend/benchmarks/results/winprob/` (`report.json`, `curve.csv`).
 
 ## 3. Existing code to know
 
@@ -339,7 +341,7 @@ The curve and scenarios are then computed the same way, `win_curve.model` is `"p
 | 2 | `model.py`: pipeline, `train`, `evaluate`, monotonicity check, Laplace band, `PlaceholderWinModel` |
 | 3 | `curve.py`: grid, curve, scenarios |
 | 4 | `explain.py`: global relevance and per-tender breakdown (OpenAI summary optional, off) |
-| 5 | `service.py`, config, parameters, `tender_context.json` fixture, `win_curve` in `price_tender`, `GET /api/win-model` |
+| 5 (later) | `service.py`, config, parameters, `tender_context.json` fixture, `win_curve` in `price_tender`, `GET /api/win-model` |
 | 6 | Once the real dataset is in `data/reference/v2/`: run `evaluate`, check the metrics and feature relevance, adjust nothing in the model structure unless a test fails |
 
 ## 15. Files
@@ -351,7 +353,9 @@ backend/app/winprob/
   curve.py       grid → offer → price position → probability → expected profit; scenarios
   explain.py     global relevance, per-tender breakdown, optional OpenAI summary
   service.py     load, train, check, fallback; model summary
-  synthetic.py   dataset generator (not part of this task)
+  demo_data.py   synthetic history for tests and `make winprob` until the real data exists
+  run.py         `make winprob`: train, evaluate, print and write the outputs
+  synthetic.py   teammate's dataset generator (not part of this task)
 backend/tests/test_winprob.py, backend/tests/conftest.py (fixture)
 data/reference/v2/historical_bids.csv, data/reference/v2/market_snapshots.csv   (delivered separately)
 data/samples/oberglatt/tender_context.json

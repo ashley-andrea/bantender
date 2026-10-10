@@ -11,7 +11,7 @@ COPY --chown=appuser:appuser pyproject.toml uv.lock ./
 # API image: deterministic pipeline only (PyMuPDF), small and fast to start.
 FROM base AS api
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --no-install-project
-COPY --chown=appuser:appuser app ./app
+COPY --chown=appuser:appuser backend/app ./app
 USER appuser
 EXPOSE 8000
 CMD ["uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

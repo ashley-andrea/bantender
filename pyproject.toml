@@ -18,11 +18,19 @@ winprob = [
 ]
 
 [dependency-groups]
+# Default for `uv sync`; the API image uses --no-dev to stay small.
 dev = [
     "httpx>=0.28.1",
     "pytest>=9.1.1",
+    "numpy>=2",
+    "pandas>=2",
+    "scikit-learn>=1.5",
 ]
 
+[tool.uv]
+# OneDrive rejects hardlinks into the uv cache (os error 396).
+link-mode = "copy"
+
 [tool.pytest.ini_options]
-pythonpath = ["."]
-testpaths = ["tests"]
+pythonpath = ["backend"]
+testpaths = ["backend/tests"]

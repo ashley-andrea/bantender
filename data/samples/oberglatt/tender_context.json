@@ -1,0 +1,18 @@
+{
+  "bkp_trade": "244",
+  "building_type": "school",
+  "canton": "ZH",
+  "client_type": "municipality",
+  "procedure": "open",
+  "market_reference_chf": 460000,
+  "n_lots": 1,
+  "price_weight_pct": 60,
+  "zero_at_ratio": 1.5,
+  "n_bidders": 6,
+  "competitive_intensity": 3.5,
+  "strategic_appetite": 3,
+  "available_capacity_pct": 60,
+  "incumbent_present": 0,
+  "prior_wins_with_client": 1,
+  "technical_score_expected": 3.5
+}

@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 .pytest_cache/
 data/runtime/
+backend/benchmarks/results/winprob/
 node_modules/
 dist/
 .DS_Store

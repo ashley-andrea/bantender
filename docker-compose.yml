@@ -18,7 +18,7 @@ services:
     expose: ["80"]
 
   api:
-    build: { context: ./backend, target: api }
+    build: { context: ., dockerfile: backend/Dockerfile, target: api }
     restart: unless-stopped
     env_file: .env
     environment:

@@ -44,6 +44,33 @@ const HINT_KEY = 'bartender-hint-seen'
 const SUGGESTIONS: Key[] = ['botQ5', 'botQ6', 'botQ1', 'botQ3']
 const KIND_ICON = { tender: FileText, bid: Calculator, position: ListTree, data: Database }
 const ACTION: Partial<Record<Citation['kind'], Key>> = { tender: 'botShowPdf', position: 'botOpenPosition' }
+const SPIN_MS = 2400
+const SPINNER_VERBS = {
+  en: ['Shaking', 'Stirring', 'Muddling', 'Pouring', 'Garnishing', 'Mixing', 'Straining', 'Decanting', 'Uncorking', 'Infusing',
+    'Polishing glasses', 'Chilling', 'Tasting', 'Distilling', 'Tapping a fresh one', 'Reading the fine print', 'Checking the bottles', 'Ashleying', 'Pietroing', 'Matteing', 'Sebbing'],
+  de: ['Schüttelt', 'Rührt um', 'Mixt', 'Schenkt ein', 'Garniert', 'Seiht ab', 'Dekantiert', 'Entkorkt', 'Poliert Gläser', 'Kühlt',
+    'Verkostet', 'Destilliert', 'Zapft frisch', 'Liest das Kleingedruckte', 'Prüft die Flaschen'],
+}
+
+/** A different random verb than the last one. */
+function nextVerb(verbs: string[], last?: string) {
+  const pool = verbs.filter((v) => v !== last)
+  return pool[Math.floor(Math.random() * pool.length)]
+}
+
+function Thinking({ lang }: { lang: 'en' | 'de' }) {
+  const verbs = SPINNER_VERBS[lang]
+  const [verb, setVerb] = useState(() => nextVerb(verbs))
+  useEffect(() => {
+    const id = setInterval(() => setVerb((v) => nextVerb(verbs, v)), SPIN_MS)
+    return () => clearInterval(id)
+  }, [verbs])
+  return (
+    <div className="flex items-center gap-2 text-[12.5px] text-muted" aria-live="polite">
+      <Loader2 className="size-3.5 animate-spin" /> <span key={verb} className="rise inline-block">{verb}…</span>
+    </div>
+  )
+}
 
 function hintSeen() {
   try {
@@ -198,11 +225,7 @@ export function Assistant({ tenderId, view, active, onShow, avoid }: Props) {
                 <Answer key={i} answer={m.answer} active={active} onShow={onShow} />
               ),
             )}
-            {busy && (
-              <div className="flex items-center gap-2 text-[12.5px] text-muted">
-                <Loader2 className="size-3.5 animate-spin" /> {t('botThinking')}…
-              </div>
-            )}
+            {busy && <Thinking lang={lang} />}
           </div>
 
           <form className="border-t border-hair p-2 flex items-end gap-2 shrink-0" onSubmit={(e) => { e.preventDefault(); ask(draft) }}>

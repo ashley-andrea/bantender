@@ -77,3 +77,23 @@ def test_pricing_override_settings_and_audit(client):
     assert offer["fields"] and abs(offer["brutto"] - current["project"]["selling_price"]) < 5
     pdf = client.get(f"/api/tenders/{tid}/offer.pdf", params={"download": True})
     assert pdf.content.startswith(b"%PDF") and "attachment" in pdf.headers["content-disposition"]
+
+
+def test_workbook_and_offer_choice(client):
+    import io
+
+    from openpyxl import load_workbook
+
+    tid = client.get("/api/tenders").json()[0]["tender_id"]
+    res = client.get(f"/api/tenders/{tid}/pricing.xlsx")
+    assert res.status_code == 200 and "attachment" in res.headers["content-disposition"]
+    wb = load_workbook(io.BytesIO(res.content))
+    assert wb.sheetnames == ["Overview", "Parameters", "Catalogue", "Productivity", "Positions", "Build-up", "Offer form", "Formulas"]
+    assert wb["Build-up"]["B19"].value.startswith("=CEILING(")  # live formulas, not pasted values
+    assert wb["Positions"]["O2"].value == "=J2*L2*(1+N2/100)"
+
+    chosen = client.post(f"/api/tenders/{tid}/choice", json={"scenario": "Target", "offer": 2_400_000, "margin_pct": 4.2,
+                                                             "win_probability": 0.5}).json()
+    assert chosen["settings"]["margin_pct"] == 4.2 and chosen["choice"]["scenario"] == "Target"
+    assert client.get(f"/api/tenders/{tid}/audit").json()[0]["action"] == "offer_chosen"
+    assert client.delete(f"/api/tenders/{tid}/choice").json()["choice"] is None

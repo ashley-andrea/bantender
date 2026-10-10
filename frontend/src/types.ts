@@ -145,6 +145,18 @@ export interface PricedLine {
   status_key: string
   evidence: { page: number; bbox: BBox }[] | null
   attributes: Attribute[]
+  group: LineGroup | null
+}
+
+/** Display structure from the backend: variants of one item share a virtual parent; parts hang off their item. */
+export type LineGroup = { kind: 'variant'; id: string; index: number; count: number } | { kind: 'part'; parent: string }
+
+export interface OfferChoice {
+  scenario: string
+  offer: number
+  margin_pct: number
+  win_probability: number | null
+  at: string
 }
 
 export interface ProjectCost {
@@ -198,6 +210,7 @@ export interface Pricing {
   tender: { project: TenderProject; lots: Record<string, { name: string | null; systems: string[] }>; systems: Record<string, SystemInfo> }
   anomalies: Anomaly[]
   win_curve?: WinCurve
+  choice?: OfferChoice | null
 }
 
 /** Inputs of the win-probability model for one tender (backend/app/winprob/schema.py::TenderContext). */

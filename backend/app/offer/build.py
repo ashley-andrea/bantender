@@ -14,6 +14,18 @@ and makes the filled form add up to the offer price (up to rounding to centimes)
 from __future__ import annotations
 
 from collections import defaultdict
+from decimal import ROUND_HALF_UP, Decimal
+
+def r2(x: float | Decimal) -> float:
+    """Round to centimes, half up (commercial rounding, as Excel's ROUND does; Python's round() is half-to-even)."""
+    d = x if isinstance(x, Decimal) else Decimal(repr(x))
+    return float(d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+def per_unit(amount: float, quantity: float) -> float:
+    """Unit price from an amount, divided in decimal so 1406.37 / 6 rounds to 234.40 (binary floats give 234.3949…)."""
+    return r2(Decimal(repr(amount)) / Decimal(repr(quantity)))
+
 
 INSTALLED_SECTIONS = {"F"}  # sections whose unit prices include installation
 INCLUDED = {"out_of_scope", "non_priceable"}
@@ -74,14 +86,14 @@ def build_offer(parsed: dict, pricing: dict, settings: dict | None = None) -> di
 
     # 3. Apply the factor and round to centimes, the way the form is filled
     def chf(x: float) -> float:
-        return round(x * factor + 1e-9, 2)
+        return r2(x * factor)
 
     for line_id, ln in lines.items():
         if ln["kind"] != "priced":
             continue
         amount = chf(ln["raw"])
-        ln["unit_price"] = round(amount / ln["quantity"], 2) if ln["quantity"] else amount
-        ln["amount"] = round(ln["unit_price"] * ln["quantity"], 2) if ln["quantity"] else amount
+        ln["unit_price"] = per_unit(amount, ln["quantity"]) if ln["quantity"] else amount
+        ln["amount"] = r2(Decimal(repr(ln["unit_price"])) * Decimal(repr(ln["quantity"]))) if ln["quantity"] else amount
         systems[ln["system"]]["sections"][ln["section"] or "X"] += ln["amount"]
 
     for code, sysd in systems.items():
@@ -95,36 +107,36 @@ def build_offer(parsed: dict, pricing: dict, settings: dict | None = None) -> di
         sec = sysd["sections"]
         sec["B"] += sysd["cad_material"]
         sec["E"] += sysd["montage"] + sysd["services"] + sysd["hygiene"]
-        sysd["total"] = round(sum(sec.values()), 2)
-        sysd["sections"] = {k: round(v, 2) for k, v in sorted(sec.items())}
+        sysd["total"] = r2(sum(sec.values()))
+        sysd["sections"] = {k: r2(v) for k, v in sorted(sec.items())}
 
     lots: dict[str, float] = defaultdict(float)
     for code, sysd in systems.items():
         lots[parsed["systems"][code]["lot"]] += sysd["total"]
-    brutto = round(sum(lots.values()), 2)
+    brutto = r2(sum(lots.values()))
 
     # 4. Conditions scheme (p.2): rates printed by the client; discount and cash discount from the estimator
     cond = parsed.get("conditions") or {}
     discount_pct = float(settings.get("discount_pct", 0.0))
     cash_pct = float(settings.get("cash_discount_pct", 0.0))
     ded_pct, vat_pct = cond.get("deductions_pct", 0.0), cond.get("vat_pct", 0.0)
-    discount = round(brutto * discount_pct / 100, 2)
-    sub1 = round(brutto - discount, 2)
-    cash = round(sub1 * cash_pct / 100, 2)
-    sub2 = round(sub1 - cash, 2)
-    deductions = round(sub2 * ded_pct / 100, 2)
-    sub3 = round(sub2 - deductions, 2)
-    vat = round(sub3 * vat_pct / 100, 2)
+    discount = r2(brutto * discount_pct / 100)
+    sub1 = r2(brutto - discount)
+    cash = r2(sub1 * cash_pct / 100)
+    sub2 = r2(sub1 - cash)
+    deductions = r2(sub2 * ded_pct / 100)
+    sub3 = r2(sub2 - deductions)
+    vat = r2(sub3 * vat_pct / 100)
 
     return {
         "factor": factor,
         "selling_price": p["selling_price"],
         "lines": lines,
         "systems": {code: {k: v for k, v in s.items() if not k.endswith("_raw")} for code, s in systems.items()},
-        "lots": {k: round(v, 2) for k, v in sorted(lots.items())},
+        "lots": {k: r2(v) for k, v in sorted(lots.items())},
         "brutto": brutto,
-        "rounding_difference": round(brutto - p["selling_price"], 2),
+        "rounding_difference": r2(brutto - p["selling_price"]),
         "conditions": {"page": cond.get("page"), "brutto": brutto, "discount_pct": discount_pct, "discount": discount, "sub1": sub1,
                        "cash_discount_pct": cash_pct, "cash_discount": cash, "sub2": sub2, "deductions_pct": ded_pct,
-                       "deductions": deductions, "sub3": sub3, "vat_pct": vat_pct, "vat": vat, "netto": round(sub3 + vat, 2)},
+                       "deductions": deductions, "sub3": sub3, "vat_pct": vat_pct, "vat": vat, "netto": r2(sub3 + vat)},
     }

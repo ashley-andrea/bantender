@@ -14,12 +14,20 @@ const UNIT: Record<string, { en: string; de: string }> = {
 }
 export const fmtUnit = (u: string | null | undefined, lang: 'en' | 'de' = 'en') => (u ? (UNIT[u]?.[lang] ?? u) : '')
 
-/** How a value was obtained (see backend/app/matching/attributes.py). */
+/** How a value was obtained (see backend/app/matching/attributes.py): one highlighter colour each. */
 export const LEVEL_COLOR: Record<Level, string> = {
   read: '#2e9e6a',
-  derived: '#e39a12',
-  assumed: '#d6453d',
-  missing: '#d6453d',
-  'n/a': '#98a3ab',
+  derived: '#d9a400',
+  assumed: '#e0457b',
+  missing: '#8b959c',
+  'n/a': '#8b959c',
+}
+/** The same meaning as a translucent highlighter (PDF marks). */
+export const LEVEL_MARKER: Record<Level, string> = {
+  read: 'rgb(127 211 160 / 0.55)',
+  derived: 'rgb(255 225 77 / 0.7)',
+  assumed: 'rgb(255 143 176 / 0.6)',
+  missing: 'rgb(199 205 210 / 0.7)',
+  'n/a': 'rgb(199 205 210 / 0.7)',
 }
 export const LEVEL_RANK: Record<Level, number> = { read: 0, 'n/a': 0, derived: 1, assumed: 2, missing: 3 }

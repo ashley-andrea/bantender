@@ -8,17 +8,21 @@ Estimators told us where the time goes: reading and extracting positions, retypi
 
 ## The flow
 
-The estimator drops one PDF into the Extraction step; its first page is shown being read until the positions are in. The tender page stays on the left in Extraction and Catalogue (and does not reload when switching between them):
+The app opens on the bartender with "bantender × Equans"; the wordmark then settles top left, the bartender bottom right ("waiting for your tender"), with the recent tenders in a dropdown at the top and the upload in the middle. After upload the Extraction step opens directly, with nothing selected: the tender's highlights appear only once a position is picked.
 
 | Step | What the estimator sees | Can change |
 | --- | --- | --- |
-| 1 Extraction | How long reading took, then the positions. For each position, a graph: the position on top, what the tender says about it below (type, quantity, size, airflow, make, system, section). Edge style shows how each value was obtained; hovering a value outlines its row in the PDF. | Quantity |
-| 2 Catalogue | The same graph with the catalogue product, its net price and the installation time. The matched row is highlighted in its catalogue family. | Supplier quote (only for supplier-package items) |
-| 3 Price | Left: every position with catalogue net price → unit price on the form. Centre: the selected position, its catalogue row, and the few steps from net price to unit price (waste, allowance, installation if included, factor m). Right: sliders for every coefficient in `project_parameters.json`, each undoable, plus reset all. Bottom: direct cost + overhead and risk + margin = offer price, always visible. | Quantity, hours per unit, every parameter, mounting height per system |
-| 4 Offer options | Reserved for the AI bid-optimisation loop. Placeholder only. | — |
-| 5 Export | The filled PDF, the filled pages in document order grouped by system, conditions, download. | Discount, cash discount |
+| 1 Extraction | The PDF (zoom with +/− or a pinch), the positions, and a graph: the type on top, what the tender says below (quantity, size, airflow, make, system, section). Colour = how a value was obtained; hovering a value marks its row in the PDF with a highlighter. An assumed value also marks what the assumption rests on (e.g. the device name behind a quantity of 1). | Quantity |
+| 2 Catalogue | The same graph with the product, its net price and the installation time; below, the catalogue rows (`catalog.csv`) and the installation rule (`productivity.csv`) the position is priced from. | Supplier quote (supplier-package items only) |
+| 3 Price | Left: every position, catalogue net price → unit price on the form. Centre: the catalogue and productivity rows, the recap (quantity, hours, unit price, amount) and the few steps from net to unit price. Right: every parameter, each undoable, plus reset all. Bottom: the offer price and an **Excel** download of the whole calculation with live formulas. | Quantity, hours per unit, every parameter, mounting height per system |
+| 4 Offer options | Aggressive / Target (recommended) / Conservative from the win-probability model (`backend/app/winprob`), each with margin, chance of winning and expected profit, stacked on the right; the curve on the left to explore any offer in between. Choosing one sets the margin and records the choice (`history/chosen_offers.json` in the data volume, input for retraining). | The offer |
+| 5 Export | The filled PDF, the chosen offer, the filled pages in document order grouped by system, conditions, download. | Discount, cash discount |
 
-Columns can be resized by dragging their edges (within a readable range; widths are remembered per browser). Moving from Catalogue to Price slides the PDF out and brings the parameters in, with the same positions list now showing net → final prices. The top bar shows the offer price from the Offer options step on. Flags are limited to what needs a person: 28 supplier-package items waiting for a quote, and one position whose quantity the tender leaves blank. The English view uses English throughout; German names from the tender (systems, sections, lots) are translated with a small glossary.
+**Variants and parts.** Positions that are the same item in another size or quantity (e.g. two exhaust valves, DN100 × 5 and DN125 × 6) are listed once, as a parent with its variants underneath; accessories that belong to an item (an air-handling unit's "Zubehör", a rain cap's colour coating) hang under that item as parts. One graph per parent: closed, it shows the parent's values (a sum where it can, e.g. 11 pc; a count where the children differ, e.g. "2 sizes"); clicking such a value, or picking a child in the list, opens it with each child's own value underneath. Same item = same rule, name, unit and catalogue family, so a ground-duct block is not added up across metres and pieces (`backend/app/matching/groups.py`).
+
+Columns can be resized by dragging their edges (within a readable range, remembered per browser). The English view uses English throughout; German names from the tender are translated with a small glossary.
+
+**Excel.** `GET /api/tenders/{id}/pricing.xlsx`: Parameters (inputs in yellow) · Catalogue and Productivity (the rows used) · Positions (material, hours, installation, direct cost per line, as formulas) · Build-up (to the offer price) · Offer form (unit prices and amounts, per system, conditions) · Formulas (in words). Changing a parameter in Excel updates every sheet; recalculated in LibreOffice it matches the app to the centime on every line. The form rounds half up, as Excel does.
 
 **How a value was obtained** (one level per value, not a probability):
 

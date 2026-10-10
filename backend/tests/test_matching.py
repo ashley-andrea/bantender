@@ -168,3 +168,16 @@ def test_attributes_have_sources_levels_and_no_overlapping_boxes(parsed, ref):
     # A blank quantity reads the same everywhere: assumed when priced, n/a when included elsewhere, missing otherwise.
     assert levels[("quantity", "assumed")] + levels[("quantity", "n/a")] + levels[("quantity", "missing")] == 5
     assert levels[("quantity", "missing")] == 1
+
+
+def test_variants_and_parts_are_grouped(parsed, ref):
+    rows = {r["line_id"]: r for r in price_tender(parsed[1], ref)["lines"]}
+    valves = [r for r in rows.values() if r["title_en"] == "Exhaust air disc valve" and r["system"] == "244.01"]
+    assert len(valves) == 2 and valves[0]["group"]["id"] == valves[1]["group"]["id"] and valves[0]["group"]["count"] == 2
+    ahu = next(r for r in rows.values() if r["decision"]["rule_key"] == "ahu" and r["system"] == "244.01")
+    parts = [r for r in rows.values() if r["group"] and r["group"]["kind"] == "part" and r["group"]["parent"] == ahu["line_id"]]
+    assert len(parts) == 2 and all(p["decision"]["rule_key"] == "ahu_part" for p in parts)
+    # A ground-duct block is not summed across units or component families.
+    for gid in {r["group"]["id"] for r in rows.values() if r["group"] and r["group"]["kind"] == "variant"}:
+        members = [r for r in rows.values() if r["group"] and r["group"].get("id") == gid]
+        assert len({m["decision"]["unit"] for m in members}) == 1, gid

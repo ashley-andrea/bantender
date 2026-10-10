@@ -56,7 +56,9 @@ def line_attributes(line: dict, decision: dict, mismatch_pages: set[int]) -> lis
     elif tender_qty is None and qty is None:
         add("quantity", T("Quantity", "Menge"), None, qty_rows, "missing", T("Blank in the tender; needed for a price", "In der Ausschreibung leer; für den Preis nötig"))
     elif tender_qty is None:
-        add("quantity", T("Quantity", "Menge"), f"{qty:g} {decision['unit']}", qty_rows, "assumed", T("Blank in the tender, taken as 1", "In der Ausschreibung leer, als 1 angenommen"))
+        # The assumption rests on the item's own name (one numbered device, e.g. "Zuluftgerät 1-1"): show both.
+        add("quantity", T("Quantity", "Menge"), f"{qty:g} {decision['unit']}", qty_rows + title_rows[:1], "assumed",
+            T("Blank in the tender; one device is named, so 1 is assumed", "In der Ausschreibung leer; ein Gerät ist benannt, daher 1 angenommen"))
     elif qty != tender_qty:
         add("quantity", T("Quantity", "Menge"), f"{qty:g} {decision['unit']}", qty_rows, "derived",
             T(f"Converted from {tender_qty:g} {unit}", f"Umgerechnet aus {tender_qty:g} {unit}"))
@@ -77,7 +79,8 @@ def line_attributes(line: dict, decision: dict, mismatch_pages: set[int]) -> lis
             inherited = "wie vorbeschrieben" in fold(line["description"])
             table = _rows_matching(rows, lambda r: r["role"] in ("attribute", "own")
                                    and (r["text"].startswith("Mod.") or re.match(r"^[A-Z0-9.][\w\-.]*\s+\d", r["text"])))
-            add("size", T("Size", "Grösse"), key, table[-1:] if table else [], "derived",
+            inherit_rows = _rows_matching(rows, lambda r: "wie vorbeschrieben" in fold(r["text"])) if inherited else []
+            add("size", T("Size", "Grösse"), key, inherit_rows[:1] + (table[-1:] if table else []), "derived",
                 T("Same as the item above" if inherited else "Combined from a table row and its header",
                   "Wie vorbeschrieben" if inherited else "Aus Tabellenzeile und Kopf zusammengesetzt"))
     if sizes.airflow_m3h:
@@ -109,7 +112,7 @@ def line_attributes(line: dict, decision: dict, mismatch_pages: set[int]) -> lis
 
 def _reference_value(rows: list[dict]) -> dict:
     """'Fabrikat z.B. X' / 'Typ z.B. Y' → 'X · Y' (make and model; the tender says 'or equivalent')."""
-    parts = [re.sub(r"^(Fabrikat|Typ)\s*(z\.\s?B\.?)?\s*", "", r["text"]).strip() for r in rows]
+    parts = [re.sub(r"^(Fabrikat|Typ)\s*:?\s*(z\.\s?B\.?)?\s*:?\s*", "", r["text"]).strip() for r in rows]
     value = " · ".join(p for p in parts if p)
     return {"en": value, "de": value}
 

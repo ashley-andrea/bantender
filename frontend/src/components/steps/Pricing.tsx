@@ -1,61 +1,119 @@
-import { Loader2, RotateCcw } from 'lucide-react'
+import { FileSpreadsheet, Loader2, RotateCcw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { EditField } from '../../api'
 import { fmtChf, fmtNum, fmtPct, fmtUnit } from '../../format'
-import { LOCATION_LABEL, PARAM_LABELS, humanize, systemName, useI18n } from '../../i18n'
+import { LOCATION_LABEL, PARAM_LABELS, humanize, systemName, tx, useI18n } from '../../i18n'
 import type { Offer, Parsed, Pricing, PricedLine, ReferenceParameters, Settings } from '../../types'
 import { InlineNumber } from '../InlineNumber'
-import { FamilyTable, useCatalog } from './Catalogue'
-import { LineHeader } from './Extraction'
+import { selectedLine, type Selection } from '../../tree'
+import { References, selectionLines } from './Catalogue'
+import { SelectionHeader } from './Extraction'
 
-/** One position: its recap, the catalogue row it is priced from, and the few steps from net price to unit price. */
-export function PriceDetail({ line, systems, offer, settings, onEdit, busy }: {
-  line: PricedLine; systems: Parsed['systems']; offer: Offer | null; settings: Settings
+/** A selection on the price step: where its numbers come from, its recap, and the few steps to the unit price. */
+export function PriceDetail({ sel, systems, offer, settings, onEdit, busy }: {
+  sel: Selection; systems: Parsed['systems']; offer: Offer | null; settings: Settings
   onEdit: (field: EditField, v: number | null) => void; busy: boolean
 }) {
-  const { t, lang } = useI18n()
-  const ctx = useCatalog(line.decision.product_id)
-  const o = offer?.lines[line.line_id]
-  const c = line.cost
-  const unit = fmtUnit(line.decision.unit, lang)
+  const { t } = useI18n()
+  const line = selectedLine(sel)
+  const lines = selectionLines(sel)
   const m = offer?.factor ?? 1
 
   return (
-    <div className="h-full min-h-0 overflow-auto scroll-thin panel p-5">
-      <LineHeader line={line} systems={systems} />
-      {ctx && (
-        <div data-cite="pos:product" className="mt-5">
-          <div className="text-[12.5px] font-semibold">{t('catalogueRef')} <span className="font-normal text-muted">· {ctx.item.product_id}</span></div>
-          <FamilyTable ctx={ctx} className="mt-1" />
-        </div>
+    <div className="h-full min-h-0 overflow-auto scroll-thin panel p-6">
+      <SelectionHeader sel={sel} systems={systems} />
+      <References lines={lines} className="mt-7" />
+      {line ? (
+        <LineRecap line={line} offer={offer} settings={settings} m={m} onEdit={onEdit} busy={busy} />
+      ) : (
+        <VariantsTable lines={lines} offer={offer} />
       )}
-      <div className="mt-5 grid grid-cols-4 gap-4 text-[13px] rounded-md bg-canvas px-4 py-3">
-        <Cell cite="pos:quantity" label={t('quantity')}>
-          {line.source === 'lv' ? (
-            <InlineNumber value={line.decision.quantity} suffix={unit} edited={line.decision.overridden.includes('quantity')} busy={busy}
-              onSave={(v) => onEdit('quantity', v)} onReset={() => onEdit('quantity', null)} />
-          ) : `${fmtNum(line.decision.quantity)} ${unit}`}
-        </Cell>
-        <Cell cite="pos:hours" label={t('hoursPerUnit')}>
-          {c && line.decision.install_code ? (
-            <InlineNumber value={c.base_hours} suffix="h" edited={line.decision.overridden.includes('hours_per_unit')} busy={busy}
-              onSave={(v) => onEdit('hours_per_unit', v)} onReset={() => onEdit('hours_per_unit', null)} />
-          ) : '—'}
-        </Cell>
-        <Cell cite="pos:unit_price" label={t('unitPrice')}><span className="num font-semibold">{o?.kind === 'priced' ? fmtChf(o.unit_price, 2) : o?.kind === 'included' ? t('included') : '—'}</span></Cell>
-        <Cell cite="pos:amount" label={t('amount')}><span className="num font-semibold text-green">{o?.kind === 'priced' ? fmtChf(o.amount, 2) : '—'}</span></Cell>
-      </div>
-      {c && (
-        <p data-cite="pos:direct" className="mt-2 px-4 text-[12px] text-muted num">
-          {t('directCost')}: <span className="font-semibold text-ink">CHF {fmtChf(c.direct_cost, 2)}</span>
-        </p>
-      )}
+      {lines[0].source === 'cad' && <p className="mt-8 text-[13px] text-muted">{t('cadNote')}</p>}
+      {!line && <p className="mt-3 text-[12px] text-muted">{t('pickVariant')}</p>}
+    </div>
+  )
+}
 
+function LineRecap({ line, offer, settings, m, onEdit, busy }: {
+  line: PricedLine; offer: Offer | null; settings: Settings; m: number; onEdit: (field: EditField, v: number | null) => void; busy: boolean
+}) {
+  const { t, lang } = useI18n()
+  const o = offer?.lines[line.line_id]
+  const c = line.cost
+  const unit = fmtUnit(line.decision.unit, lang)
+  return (
+    <>
+      <div className="mt-9">
+        <span className="title-hand">{t('recap')}</span>
+        <div className="mt-3 grid grid-cols-4 gap-4 text-[13px] rounded-lg bg-canvas px-4 py-3">
+          <Cell cite="pos:quantity" label={t('quantity')}>
+            {line.source === 'lv' ? (
+              <InlineNumber value={line.decision.quantity} suffix={unit} edited={line.decision.overridden.includes('quantity')} busy={busy}
+                onSave={(v) => onEdit('quantity', v)} onReset={() => onEdit('quantity', null)} />
+            ) : `${fmtNum(line.decision.quantity)} ${unit}`}
+          </Cell>
+          <Cell cite="pos:hours" label={t('hoursPerUnit')}>
+            {c && line.decision.install_code ? (
+              <InlineNumber value={c.base_hours} suffix="h" edited={line.decision.overridden.includes('hours_per_unit')} busy={busy}
+                onSave={(v) => onEdit('hours_per_unit', v)} onReset={() => onEdit('hours_per_unit', null)} />
+            ) : '—'}
+          </Cell>
+          <Cell cite="pos:unit_price" label={t('unitPrice')}><span className="num font-semibold">{o?.kind === 'priced' ? fmtChf(o.unit_price, 2) : o?.kind === 'included' ? t('included') : '—'}</span></Cell>
+          <Cell cite="pos:amount" label={t('amount')}><span className="num font-semibold text-green">{o?.kind === 'priced' ? fmtChf(o.amount, 2) : '—'}</span></Cell>
+        </div>
+        {c && (
+          <p data-cite="pos:direct" className="mt-2 px-4 text-[12px] text-muted num">
+            {t('directCost')}: <span className="font-semibold text-ink">CHF {fmtChf(c.direct_cost, 2)}</span>
+          </p>
+        )}
+      </div>
       {c && o?.kind === 'priced' && o.raw != null && (o.quantity ?? 0) > 0 && (
         <Steps line={line} settings={settings} m={m} raw={o.raw / o.quantity!} unitPrice={o.unit_price!} includesLabour={!!o.includes_labour} />
       )}
-      {!c && o?.kind === 'included' && <p className="mt-6 text-[13px] text-muted">{t('includedNote')}</p>}
-      {line.source === 'cad' && <p className="mt-6 text-[13px] text-muted">{t('cadNote')}</p>}
+      {!c && o?.kind === 'included' && <p className="mt-8 text-[13px] text-muted">{t('includedNote')}</p>}
+    </>
+  )
+}
+
+/** A variant parent: each variant on the form, and their total. */
+function VariantsTable({ lines, offer }: { lines: PricedLine[]; offer: Offer | null }) {
+  const { t, lang } = useI18n()
+  const total = lines.reduce((s, l) => s + (offer?.lines[l.line_id]?.amount ?? 0), 0)
+  return (
+    <div className="mt-9">
+      <span className="title-hand">{t('variantsOnForm')}</span>
+      <table className="tbl mt-3 w-full text-[12.5px] num">
+        <thead>
+          <tr className="text-left text-[11.5px] text-muted border-b border-hair">
+            <th className="py-1.5 font-medium">#</th>
+            <th className="py-1.5 font-medium">{t('size')}</th>
+            <th className="py-1.5 font-medium text-right">{t('quantity')}</th>
+            <th className="py-1.5 font-medium text-right">{t('netPrice')}</th>
+            <th className="py-1.5 font-medium text-right">{t('unitPrice')}</th>
+            <th className="py-1.5 font-medium text-right">{t('amount')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((l, i) => {
+            const o = offer?.lines[l.line_id]
+            const size = l.attributes.find((a) => a.key === 'size')
+            return (
+              <tr key={l.line_id} className="border-b border-hair/70">
+                <td className="py-1.5">{i + 1}</td>
+                <td className="py-1.5">{size ? tx(size.value, lang) : `p.${l.page}`}</td>
+                <td className="py-1.5 text-right">{fmtNum(l.decision.quantity)} {fmtUnit(l.decision.unit, lang)}</td>
+                <td className="py-1.5 text-right text-muted">{l.cost ? fmtChf(l.cost.net_unit_cost, 2) : '—'}</td>
+                <td className="py-1.5 text-right">{o?.kind === 'priced' ? fmtChf(o.unit_price, 2) : o?.kind === 'included' ? t('included') : '—'}</td>
+                <td className="py-1.5 text-right font-semibold">{o?.kind === 'priced' ? fmtChf(o.amount, 2) : '—'}</td>
+              </tr>
+            )
+          })}
+          <tr className="font-semibold">
+            <td className="pt-2" colSpan={5}>{t('total')}</td>
+            <td className="pt-2 text-right text-green">{fmtChf(total, 2)}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -85,9 +143,9 @@ function Steps({ line, settings, m, raw, unitPrice, includesLabour }: {
     rows.push({ label: `${t('labour')} ${fmtNum(Math.round(hours * 10) / 10)} h × CHF ${fmtNum(c.hourly_rate)}`, value: labour, sign: '+' })
   }
   return (
-    <div data-cite="pos:steps" className="mt-6">
-      <div className="text-[12.5px] font-semibold">{t('stepsTitle')} <span className="font-normal text-muted">/ {fmtUnit(line.decision.unit, lang)}</span></div>
-      <table className="mt-1 w-full text-[13px] num">
+    <div data-cite="pos:steps" className="mt-9">
+      <span className="title-hand">{t('stepsTitle')}</span> <span className="text-[12px] text-muted">/ {fmtUnit(line.decision.unit, lang)}</span>
+      <table className="tbl mt-3 w-full text-[13px] num">
         <tbody>
           {rows.map((r, i) => (
             <tr key={i} data-cite={r.cite} className="border-b border-hair/70">
@@ -124,7 +182,7 @@ function Cell({ cite, label, children }: { cite: string; label: string; children
 }
 
 /** Locked to the bottom of the price step: how the positions add up to the offer price. */
-export function OfferBar({ pricing, busy }: { pricing: Pricing; busy: boolean }) {
+export function OfferBar({ pricing, busy, workbook }: { pricing: Pricing; busy: boolean; workbook: string }) {
   const { t } = useI18n()
   const p = pricing.project
   return (
@@ -136,8 +194,11 @@ export function OfferBar({ pricing, busy }: { pricing: Pricing; busy: boolean })
       <Part cite="margin" label={`${t('margin')} ${fmtPct(p.margin_pct)}`} value={p.selling_price - p.baseline} />
       <div data-cite="offer-price" className="ml-auto flex items-baseline gap-3">
         {busy && <Loader2 className="size-4 animate-spin text-muted self-center" />}
-        <span className="text-muted">{t('offerPrice')}</span>
+        <span className="text-[13px] text-muted">{t('offerPrice')}</span>
         <span className="text-[24px] font-semibold text-navy">CHF {fmtChf(p.selling_price)}</span>
+        <a href={workbook} title={t('excelHint')} className="btn btn-paper self-center ml-2 px-3 py-1.5 text-[12.5px]">
+          <FileSpreadsheet className="size-4 text-green" /> Excel
+        </a>
       </div>
     </div>
   )
@@ -222,17 +283,17 @@ export function ParameterPanel({ settings, systems, defaults, onChange, busy }: 
     setDraft((d) => (path.length === 1 ? { ...d, [path[0]]: v } : { ...d, [path[0]]: { ...(d as unknown as Nested)[path[0]], [path[1]]: v } }))
 
   return (
-    <div className={`h-full min-h-0 overflow-auto scroll-thin panel p-4 ${busy ? 'opacity-80' : ''}`}>
+    <div className={`h-full min-h-0 overflow-auto scroll-thin panel p-5 ${busy ? 'opacity-80' : ''}`}>
       <div className="flex items-center">
-        <span className="text-[13px] font-semibold">{t('parameters')}</span>
+        <span className="title-hand">{t('parameters')}</span>
         <button disabled={busy || !base || (!changedParams && !changedLocations)} onClick={() => base && onChange({ ...base, locations: {} })}
-          className="ml-auto inline-flex items-center gap-1 rounded-md border border-hair px-2 py-1 text-[12px] font-semibold text-green hover:bg-green/5 disabled:text-faint disabled:hover:bg-transparent">
+          className="btn btn-paper ml-auto px-2.5 py-1 text-[12px] text-green">
           <RotateCcw className="size-3.5" /> {t('resetAll')}
         </button>
       </div>
       {specs(draft).map((g) => (
-        <div key={g.group} className="mt-3">
-          <div className="text-[11.5px] font-semibold text-muted">{t(g.group)}</div>
+        <div key={g.group} className="mt-7">
+          <div className="text-[12px] font-semibold text-muted mb-1">{t(g.group)}</div>
           {g.items.map((s) => {
             const key = s.path[s.path.length - 1]
             const v = read(draft, s.path)
@@ -247,8 +308,8 @@ export function ParameterPanel({ settings, systems, defaults, onChange, busy }: 
         </div>
       ))}
       {Object.keys(settings.locations).length > 0 && settings.location_options.length > 0 && (
-        <div className="mt-3">
-          <div className="text-[11.5px] font-semibold text-muted">{t('gLocations')}</div>
+        <div className="mt-7">
+          <div className="text-[12px] font-semibold text-muted mb-1">{t('gLocations')}</div>
           {Object.entries(settings.locations).map(([sys, loc]) => (
             <div key={sys} data-cite={`location:${sys}`} className="flex items-center gap-2 py-1 text-[12.5px]">
               <span className="truncate">{sys} {systemName(systems[sys], lang)}</span>
@@ -286,7 +347,7 @@ function Slider({ cite, label, value, spec, changed, busy, onInput, onCommit, on
 }) {
   const max = Math.max(spec.max, value)
   return (
-    <div data-cite={cite} className="py-1">
+    <div data-cite={cite} className="py-1.5">
       <div className="flex items-center gap-1.5 text-[12.5px]">
         <span>{label}</span>
         <span className="ml-auto inline-flex items-center gap-1.5">

@@ -1,4 +1,4 @@
-import type { AssistantAnswer, AssistantStatus, AssistantView, CatalogContext, ChatTurn, Offer, Parsed, Pricing, ReferenceParameters, TenderSummary, WinModelSummary } from './types'
+import type { AssistantAnswer, AssistantStatus, AssistantView, CatalogContext, ChatTurn, Offer, Parsed, Pricing, ProductivityRule, ReferenceParameters, TenderSummary, WinModelSummary } from './types'
 
 export type EditField = 'quantity' | 'unit_price' | 'hours_per_unit'
 
@@ -25,6 +25,11 @@ export const api = {
   getTender: (id: string) => fetch(`/api/tenders/${id}`).then((r) => json<Parsed>(r)),
   getPricing: (id: string) => fetch(`/api/tenders/${id}/pricing`).then((r) => json<Pricing>(r)),
   getOffer: (id: string) => fetch(`/api/tenders/${id}/offer`).then((r) => json<Offer>(r)),
+  rule: (code: string) => fetch(`/api/rules/${code}`).then((r) => json<ProductivityRule>(r)),
+  workbookUrl: (id: string) => `/api/tenders/${id}/pricing.xlsx`,
+  choose: (id: string, body: { scenario: string; offer: number; margin_pct: number; win_probability: number | null }) =>
+    send<Pricing>(`/api/tenders/${id}/choice`, 'POST', body),
+  unchoose: (id: string) => send<Pricing>(`/api/tenders/${id}/choice`, 'DELETE'),
   catalog: (productId: string) => fetch(`/api/catalog/${productId}`).then((r) => json<CatalogContext>(r)),
   override: (id: string, lineId: string, body: { quantity?: number; unit_price?: number; unit_price_source?: string; hours_per_unit?: number; note?: string }) =>
     send<Pricing>(`/api/tenders/${id}/lines/${lineId}`, 'PATCH', body),

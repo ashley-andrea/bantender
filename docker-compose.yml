@@ -24,9 +24,12 @@ services:
     environment:
       DATA_DIR: /data
       REFERENCE_DIR: /reference/v2
+      WIN_CONTEXT_PATH: /context/tender_context.json
     volumes:
       - app_data:/data
       - ./data/reference/v2:/reference/v2:ro   # company reference data, mounted read-only
+      # Tender facts the parser does not read (client estimate, bidders …): stand-in for the CRM / ingestion pipeline.
+      - ./data/samples/oberglatt/tender_context.json:/context/tender_context.json:ro
     expose: ["8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/healthz')"]

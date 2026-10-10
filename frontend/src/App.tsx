@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Flow } from './components/Flow'
 import { LangProvider } from './i18n'
+import { SketchDefs } from './components/Sketch'
 import { STEPS, type Step } from './route'
 
 // Route: #/t/<tender_id>/<step>; anything else is the extraction step before a tender is uploaded.
@@ -30,6 +31,7 @@ export default function App() {
 
   return (
     <LangProvider>
+      <SketchDefs />
       <Flow tenderId={route.id} step={route.step} onStep={(s) => go(route.id, s)} onOpen={(id) => go(id)} onHome={() => go(null)} />
     </LangProvider>
   )

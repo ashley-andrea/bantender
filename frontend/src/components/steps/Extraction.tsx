@@ -53,7 +53,7 @@ export function LineHeader({ line, systems }: { line: PricedLine; systems: Parse
   const { lang } = useI18n()
   return (
     <div>
-      <div className="text-[18px] font-semibold leading-snug">{lineTitle(line, lang)}</div>
+      <div className="display text-[26px] leading-tight !tracking-[-0.03em]">{lineTitle(line, lang)}</div>
       <div className="text-[12.5px] text-muted">
         {line.system} {systemName(systems[line.system], lang)} · {line.section} {sectionName(line, lang)} · p.{line.page}
       </div>

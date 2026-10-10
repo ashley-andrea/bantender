@@ -29,7 +29,7 @@ export function PriceDetail({ line, systems, offer, settings, onEdit, busy }: {
           <FamilyTable ctx={ctx} className="mt-1" />
         </div>
       )}
-      <div className="mt-5 grid grid-cols-4 gap-4 text-[13px] rounded-md bg-canvas px-4 py-3">
+      <div className="mt-5 grid grid-cols-4 gap-4 text-[13px] rounded-md bg-mint px-4 py-3">
         <Cell label={t('quantity')}>
           {line.source === 'lv' ? (
             <InlineNumber value={line.decision.quantity} suffix={unit} edited={line.decision.overridden.includes('quantity')} busy={busy}
@@ -42,8 +42,8 @@ export function PriceDetail({ line, systems, offer, settings, onEdit, busy }: {
               onSave={(v) => onEdit('hours_per_unit', v)} onReset={() => onEdit('hours_per_unit', null)} />
           ) : '—'}
         </Cell>
-        <Cell label={t('unitPrice')}><span className="num font-semibold">{o?.kind === 'priced' ? fmtChf(o.unit_price, 2) : o?.kind === 'included' ? t('included') : '—'}</span></Cell>
-        <Cell label={t('amount')}><span className="num font-semibold text-green">{o?.kind === 'priced' ? fmtChf(o.amount, 2) : '—'}</span></Cell>
+        <Cell label={t('unitPrice')}><span className="figure text-[22px] leading-none">{o?.kind === 'priced' ? fmtChf(o.unit_price, 2) : o?.kind === 'included' ? t('included') : '—'}</span></Cell>
+        <Cell label={t('amount')}><span className="figure text-[22px] leading-none">{o?.kind === 'priced' ? fmtChf(o.amount, 2) : '—'}</span></Cell>
       </div>
 
 
@@ -113,8 +113,8 @@ function Steps({ line, settings, m, raw, unitPrice, includesLabour }: {
 function Cell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[11.5px] text-muted">{label}</div>
-      <div className="mt-0.5">{children}</div>
+      <div className="eyebrow !text-ink/60">{label}</div>
+      <div className="mt-1">{children}</div>
     </div>
   )
 }
@@ -124,16 +124,16 @@ export function OfferBar({ pricing, busy }: { pricing: Pricing; busy: boolean })
   const { t } = useI18n()
   const p = pricing.project
   return (
-    <div className="panel px-5 py-3 flex items-center gap-8 text-[13px] num">
+    <div className="rounded-[var(--radius-card)] bg-ink text-white px-6 py-3.5 flex items-center gap-8 text-[13px] num">
       <Part label={t('directCost')} value={p.direct} />
-      <span className="text-faint">+</span>
+      <span className="text-white/30">+</span>
       <Part label={t('overheadRisk')} value={p.baseline - p.direct} />
-      <span className="text-faint">+</span>
+      <span className="text-white/30">+</span>
       <Part label={`${t('margin')} ${fmtPct(p.margin_pct)}`} value={p.selling_price - p.baseline} />
       <div className="ml-auto flex items-baseline gap-3">
         {busy && <Loader2 className="size-4 animate-spin text-muted self-center" />}
-        <span className="text-muted">{t('offerPrice')}</span>
-        <span className="text-[24px] font-semibold text-navy">CHF {fmtChf(p.selling_price)}</span>
+        <span className="font-mono text-[10.5px] uppercase tracking-wider text-white/50">{t('offerPrice')}</span>
+        <span className="figure text-[40px] leading-none text-mint">CHF {fmtChf(p.selling_price)}</span>
       </div>
     </div>
   )
@@ -142,8 +142,8 @@ export function OfferBar({ pricing, busy }: { pricing: Pricing; busy: boolean })
 function Part({ label, value }: { label: string; value: number }) {
   return (
     <div>
-      <div className="text-[11.5px] text-muted">{label}</div>
-      <div className="font-semibold">{fmtChf(value)}</div>
+      <div className="font-mono text-[10.5px] uppercase tracking-wider text-white/50">{label}</div>
+      <div className="mt-0.5 text-[15px] font-semibold">{fmtChf(value)}</div>
     </div>
   )
 }
@@ -220,15 +220,15 @@ export function ParameterPanel({ settings, systems, defaults, onChange, busy }: 
   return (
     <div className={`h-full min-h-0 overflow-auto scroll-thin panel p-4 ${busy ? 'opacity-80' : ''}`}>
       <div className="flex items-center">
-        <span className="text-[13px] font-semibold">{t('parameters')}</span>
+        <span className="display text-[17px]">{t('parameters')}</span>
         <button disabled={busy || !base || (!changedParams && !changedLocations)} onClick={() => base && onChange({ ...base, locations: {} })}
-          className="ml-auto inline-flex items-center gap-1 rounded-md border border-hair px-2 py-1 text-[12px] font-semibold text-green hover:bg-green/5 disabled:text-faint disabled:hover:bg-transparent">
+          className="ml-auto inline-flex items-center gap-1 rounded-md border border-hair px-2 py-1 text-[12px] font-semibold text-ink hover:bg-mint disabled:text-faint disabled:hover:bg-transparent">
           <RotateCcw className="size-3.5" /> {t('resetAll')}
         </button>
       </div>
       {specs(draft).map((g) => (
         <div key={g.group} className="mt-3">
-          <div className="text-[11.5px] font-semibold text-muted">{t(g.group)}</div>
+          <div className="eyebrow">{t(g.group)}</div>
           {g.items.map((s) => {
             const key = s.path[s.path.length - 1]
             const v = read(draft, s.path)
@@ -244,7 +244,7 @@ export function ParameterPanel({ settings, systems, defaults, onChange, busy }: 
       ))}
       {Object.keys(settings.locations).length > 0 && settings.location_options.length > 0 && (
         <div className="mt-3">
-          <div className="text-[11.5px] font-semibold text-muted">{t('gLocations')}</div>
+          <div className="eyebrow">{t('gLocations')}</div>
           {Object.entries(settings.locations).map(([sys, loc]) => (
             <div key={sys} className="flex items-center gap-2 py-1 text-[12.5px]">
               <span className="truncate">{sys} {systemName(systems[sys], lang)}</span>

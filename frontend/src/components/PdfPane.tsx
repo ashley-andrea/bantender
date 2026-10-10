@@ -72,8 +72,8 @@ export function PdfPane({ url, page, pageCount, pageSize, highlights, caption, o
           </button>
         </div>
       </div>
-      <div ref={scroller} className="flex-1 overflow-auto scroll-thin bg-[#e9edef] p-3">
-        <div ref={box} className="relative bg-white shadow-sm">
+      <div ref={scroller} className="flex-1 overflow-auto scroll-thin well p-3">
+        <div ref={box} className="relative bg-white rounded-md overflow-hidden shadow-[0_4px_0_color-mix(in_srgb,var(--color-green)_18%,transparent)]">
           <Document file={url} loading={<div className="h-[60vh] grid place-items-center text-muted text-sm">…</div>}>
             <Page pageNumber={page} width={width} renderTextLayer={false} renderAnnotationLayer={false} />
           </Document>
@@ -89,7 +89,7 @@ export function PdfPane({ url, page, pageCount, pageSize, highlights, caption, o
                   width: (x1 - x0 + 8) * scale,
                   height: (y1 - y0 + 4) * scale,
                   border: `${h.strong ? 2 : 1}px solid ${h.color}`,
-                  background: `${h.color}${h.strong ? '2e' : '12'}`,
+                  background: `color-mix(in srgb, ${h.color} ${h.strong ? 18 : 7}%, transparent)`,
                 }}
               >
                 {h.label && h.strong && (

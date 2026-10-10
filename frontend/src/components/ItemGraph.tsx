@@ -71,21 +71,21 @@ export function ItemGraph({ line, stage, catalog, active, onActive }: Props) {
       {/* catalogue stage: item → product → installation time */}
       {stage === 'catalog' && catalog && (
         <>
-          <line x1={itemX + R_ITEM} y1={TOP} x2={prodX - 40} y2={TOP} stroke="#008163" strokeWidth={3} />
-          {rule && <line x1={prodX + 40} y1={TOP} x2={ruleX - 30} y2={TOP} stroke="#008163" strokeOpacity={0.5} strokeWidth={2} />}
+          <line x1={itemX + R_ITEM} y1={TOP} x2={prodX - 40} y2={TOP} stroke="var(--color-green)" strokeWidth={3} />
+          {rule && <line x1={prodX + 40} y1={TOP} x2={ruleX - 30} y2={TOP} stroke="var(--color-green)" strokeOpacity={0.5} strokeWidth={2} />}
           <g className="rise">
-            <circle cx={prodX} cy={TOP} r={40} fill="#008163" />
-            <text x={prodX} y={TOP - 4} textAnchor="middle" fontSize={10.5} fill="#cfe9dd">{catalog.item.product_id}</text>
-            <text x={prodX} y={TOP + 13} textAnchor="middle" fontSize={13} fontWeight={700} fill="#fff">{fmtChf(catalog.item.net_cost_chf)}</text>
-            <text x={prodX} y={TOP + 58} textAnchor="middle" fontSize={11.5} fill="#5d6b75">
+            <circle cx={prodX} cy={TOP} r={40} fill="var(--color-mint)" stroke="var(--color-ink)" strokeWidth={2} />
+            <text x={prodX} y={TOP - 4} textAnchor="middle" fontSize={10.5} fill="var(--color-ink)" fillOpacity={0.6}>{catalog.item.product_id}</text>
+            <text x={prodX} y={TOP + 13} textAnchor="middle" fontSize={13} fontWeight={700} fill="var(--color-ink)">{fmtChf(catalog.item.net_cost_chf)}</text>
+            <text x={prodX} y={TOP + 58} textAnchor="middle" fontSize={11.5} fill="var(--color-muted)">
               {lang === 'en' ? 'net CHF' : 'netto CHF'} / {fmtUnit(catalog.item.unit, lang)}
             </text>
           </g>
           {rule && (
             <g className="rise" style={{ animationDelay: '80ms' }}>
-              <circle cx={ruleX} cy={TOP} r={30} fill="#fff" stroke="#008163" strokeWidth={2} />
-              <text x={ruleX} y={TOP + 5} textAnchor="middle" fontSize={13} fontWeight={700} fill="#0f1f2b">{rule.base_hours_per_unit} h</text>
-              <text x={ruleX} y={TOP + 48} textAnchor="middle" fontSize={11.5} fill="#5d6b75">
+              <circle cx={ruleX} cy={TOP} r={30} fill="#fff" stroke="var(--color-ink)" strokeWidth={2} />
+              <text x={ruleX} y={TOP + 5} textAnchor="middle" fontSize={13} fontWeight={700} fill="var(--color-ink)">{rule.base_hours_per_unit} h</text>
+              <text x={ruleX} y={TOP + 48} textAnchor="middle" fontSize={11.5} fill="var(--color-muted)">
                 {lang === 'en' ? 'install' : 'Montage'} / {fmtUnit(rule.unit, lang)}
               </text>
             </g>
@@ -95,11 +95,11 @@ export function ItemGraph({ line, stage, catalog, active, onActive }: Props) {
 
       {/* the position */}
       <g>
-        <circle cx={itemX} cy={TOP} r={R_ITEM} fill="#002439" />
+        <circle cx={itemX} cy={TOP} r={R_ITEM} fill="var(--color-navy)" />
         {wrap(title, 13, 2).map((t, i, all) => (
           <text key={i} x={itemX} y={TOP - (all.length - 1) * 8 + i * 16 - 4} textAnchor="middle" fontSize={12.5} fontWeight={600} fill="#fff">{t}</text>
         ))}
-        <text x={itemX} y={TOP + 27} textAnchor="middle" fontSize={12} fontWeight={600} fill="#70bd95">{qty}</text>
+        <text x={itemX} y={TOP + 27} textAnchor="middle" fontSize={12} fontWeight={600} fill="var(--color-mint)">{qty}</text>
       </g>
 
       {/* what the tender says */}
@@ -112,12 +112,12 @@ export function ItemGraph({ line, stage, catalog, active, onActive }: Props) {
           <g key={a.key} className="cursor-pointer" onMouseEnter={() => onActive(a.key)} onClick={() => onActive(a.key)}>
             <title>{`${tx(a.label, lang)}: ${value}`}</title>
             <circle cx={x} cy={BOTTOM} r={on ? R_ATTR + 3 : R_ATTR} fill={on ? c : '#fff'} stroke={c} strokeWidth={3} className="transition-all" />
-            <text x={x} y={BOTTOM + 4} textAnchor="middle" fontSize={11} fontWeight={600} fill={on ? '#fff' : '#0f1f2b'}>
+            <text x={x} y={BOTTOM + 4} textAnchor="middle" fontSize={11} fontWeight={600} fill={on ? '#fff' : 'var(--color-ink)'}>
               {SHORT[a.key]?.[lang] ?? tx(a.label, lang)}
             </text>
             {wrap(value, Math.max(9, Math.floor(step / 7)), 2).map((t, j) => (
               <text key={j} x={x} y={BOTTOM + R_ATTR + 18 + j * 14} textAnchor="middle" fontSize={11.5}
-                fill={on ? '#0f1f2b' : '#5d6b75'} fontWeight={on ? 600 : 400}>{t}</text>
+                fill={on ? 'var(--color-ink)' : 'var(--color-muted)'} fontWeight={on ? 600 : 400}>{t}</text>
             ))}
           </g>
         )

@@ -210,10 +210,10 @@ export const LOCATION_LABEL: Record<string, { en: string; de: string }> = {
 export function LangToggle({ dark }: { dark?: boolean }) {
   const { lang, setLang } = useI18n()
   return (
-    <div className={`inline-flex rounded-md p-0.5 text-[12px] font-semibold ${dark ? 'bg-white/10' : 'bg-hair/60'}`}>
+    <div className={`inline-flex rounded p-0.5 font-mono text-[11px] ${dark ? 'border border-white/20' : 'border border-hair'}`}>
       {(['en', 'de'] as Lang[]).map((l) => (
         <button key={l} onClick={() => setLang(l)}
-          className={`px-2 py-0.5 rounded uppercase ${lang === l ? (dark ? 'bg-white text-navy' : 'bg-surface text-ink') : dark ? 'text-white/70' : 'text-muted'}`}>
+          className={`px-2 py-0.5 rounded-sm uppercase transition-colors ${lang === l ? (dark ? 'bg-white text-ink' : 'bg-ink text-white') : dark ? 'text-white/60 hover:text-white' : 'text-muted hover:text-ink'}`}>
           {l}
         </button>
       ))}

@@ -5,6 +5,7 @@ import { LEVEL_COLOR, fmtChf } from '../format'
 import { LangToggle, tx, useI18n, type Key } from '../i18n'
 import { STEPS, type Step } from '../route'
 import type { Offer, Parsed, PricedLine, Pricing, ReferenceParameters } from '../types'
+import { StepGlyph } from './Art'
 import { Col, Handle, useWidths } from './Columns'
 import { PdfPane, type Highlight } from './PdfPane'
 import { PositionsList } from './PositionsList'
@@ -44,6 +45,11 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
   })
   const [dragging, setDragging] = useState(false)
   const listWidth = step === 'price' ? widths.priceList : widths.list
+
+  // Each page wears its own palette (index.css `[data-page]`).
+  useEffect(() => {
+    document.documentElement.dataset.page = tenderId ? step : 'home'
+  }, [tenderId, step])
 
   useEffect(() => {
     api.reference().then((r) => setDefaults(r.parameters)).catch(() => setDefaults(null))
@@ -232,7 +238,7 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
           <div className="h-full flex">
             <div className="flex-1 min-w-[400px] h-full">
             <PdfPane url={api.offerPdfUrl(tenderId, false, version)} page={exportAt} pageCount={parsed.meta.pages} pageSize={parsed.meta.page_sizes[String(exportAt)]}
-              highlights={offer.fields.filter((f) => f.page === exportAt).map((f) => ({ bbox: f.bbox, color: '#008163' }))}
+              highlights={offer.fields.filter((f) => f.page === exportAt).map((f) => ({ bbox: f.bbox, color: 'var(--color-green)' }))}
               caption={parsed.meta.filename ?? ''} onPage={setExportPage} />
             </div>
             <Handle invert value={widths.export} min={320} max={560} onChange={(w) => setWidth('export', w)} onDrag={setDragging} animate={!dragging} />
@@ -265,33 +271,37 @@ function TopBar({ title, step, enabled, onStep, price, busy, onHome }: {
   const current = STEPS.indexOf(step)
 
   return (
-    <header className="h-14 shrink-0 bg-navy text-white px-4 flex items-center gap-5">
-      <button onClick={onHome} className="shrink-0" title={t('recent')}>
-        <img src="/equans-logo-white.png" alt="Equans" className="h-6" />
-      </button>
-      <div className="text-[13px] text-white/75 truncate max-w-56">{title}</div>
-      <nav className="flex-1 flex justify-center">
-        <ol className="flex items-center gap-2">
-          {STEPS.map((s, i) => (
-            <li key={s}>
-              <button onClick={() => onStep(s)} disabled={!enabled && s !== 'extract'}
-                className={`relative px-6 h-14 text-[13px] font-medium disabled:cursor-default disabled:text-white/30 ${s === step ? 'text-white' : i < current ? 'text-white/80 hover:text-white' : 'text-white/55 hover:text-white/85'}`}>
-                <span className="num mr-1.5 text-white/50">{i + 1}</span>{t(STEP_LABEL[s])}
-                {s === step && <span className="absolute left-6 right-6 bottom-0 h-[3px] bg-mint" />}
-              </button>
-            </li>
-          ))}
-        </ol>
-      </nav>
-      {price != null && (
-        <div className="flex items-baseline gap-2">
-          {busy && <Loader2 className="size-3.5 animate-spin text-white/60 self-center" />}
-          {delta !== 0 && <span className={`rise text-[12px] font-semibold num ${delta > 0 ? 'text-mint' : 'text-[#ff8a80]'}`}>{delta > 0 ? '+' : '−'}{fmtChf(Math.abs(delta))}</span>}
-          <span className="text-[11px] text-white/60">CHF</span>
-          <span className="text-[17px] font-semibold num">{fmtChf(price)}</span>
-        </div>
-      )}
-      <LangToggle dark />
+    <header className="shrink-0 bg-ink text-white">
+      <div className="h-14 px-4 flex items-center gap-5">
+        <button onClick={onHome} className="shrink-0 opacity-90 hover:opacity-100" title={t('recent')}>
+          <img src="/equans-logo-white.png" alt="Equans" className="h-5" />
+        </button>
+        <div className="display text-[14px] text-white/60 truncate max-w-56">{title}</div>
+        <nav className="flex-1 flex justify-center">
+          <ol className="flex items-center gap-1">
+            {STEPS.map((s, i) => (
+              <li key={s}>
+                <button onClick={() => onStep(s)} disabled={!enabled && s !== 'extract'}
+                  className={`group display flex items-center gap-2 rounded px-3 h-9 text-[13.5px] transition-colors disabled:cursor-default disabled:text-white/25 ${s === step ? 'bg-mint text-ink' : i < current ? 'text-white/85 hover:bg-white/10' : 'text-white/55 hover:bg-white/10 hover:text-white/85'}`}>
+                  <span className={`font-mono text-[10.5px] ${s === step ? 'text-ink/60' : 'text-white/35'}`}>0{i + 1}</span>
+                  <StepGlyph step={s} className="size-[15px]" />
+                  {t(STEP_LABEL[s])}
+                </button>
+              </li>
+            ))}
+          </ol>
+        </nav>
+        {price != null && (
+          <div className="flex items-baseline gap-2">
+            {busy && <Loader2 className="size-3.5 animate-spin text-white/60 self-center" />}
+            {delta !== 0 && <span className={`rise text-[12px] font-semibold num ${delta > 0 ? 'text-lime' : 'text-pink'}`}>{delta > 0 ? '+' : '−'}{fmtChf(Math.abs(delta))}</span>}
+            <span className="font-mono text-[10.5px] text-white/50">CHF</span>
+            <span className="figure text-[24px] leading-none text-mint">{fmtChf(price)}</span>
+          </div>
+        )}
+        <LangToggle dark />
+      </div>
+      <div className="h-1 bg-mint" />
     </header>
   )
 }

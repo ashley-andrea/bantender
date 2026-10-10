@@ -45,14 +45,14 @@ export function PositionsList({ lines, systems, stage, offer, selected, onSelect
         <div className="relative">
           <Search className="size-3.5 text-faint absolute left-2 top-1/2 -translate-y-1/2" />
           <input value={query} onChange={(e) => onQuery(e.target.value)} placeholder={t('search')}
-            className="w-full rounded-md bg-canvas pl-7 pr-2 py-1.5 text-[13px] outline-none focus:ring-1 focus:ring-green" />
+            className="w-full rounded-md bg-canvas pl-7 pr-2 py-1.5 text-[13px] outline-none focus:ring-1 focus:ring-ink" />
         </div>
         {extra}
       </div>
       <div className="flex-1 min-h-0 overflow-auto scroll-thin">
         {groups.map((g) => (
           <div key={g.code}>
-            <div className="sticky top-0 z-10 bg-canvas px-3 py-1 text-[11.5px] font-semibold text-muted border-b border-hair">
+            <div className="sticky top-0 z-10 bg-canvas px-3 py-1.5 font-mono text-[10.5px] uppercase tracking-wider text-muted border-b border-hair">
               {g.code} {systemName(systems[g.code], lang)}
             </div>
             {g.lines.map((l) => {
@@ -61,10 +61,10 @@ export function PositionsList({ lines, systems, stage, offer, selected, onSelect
               const level = worstLevel(l)
               return (
                 <button key={l.line_id} ref={(el) => { refs.current[l.line_id] = el }} onClick={() => onSelect(l)}
-                  className={`w-full text-left flex items-baseline gap-2 px-3 py-1.5 border-b border-hair/70 ${active ? 'bg-green/8 shadow-[inset_2px_0_0_var(--color-green)]' : 'hover:bg-canvas'}`}>
+                  className={`w-full text-left flex items-baseline gap-2 px-3 py-1.5 border-b border-hair/70 ${active ? 'bg-mint shadow-[inset_3px_0_0_var(--color-ink)]' : 'hover:bg-canvas'}`}>
                   <span className="min-w-0 flex-1">
                     <span className="block text-[13px] truncate">{lineTitle(l, lang)}</span>
-                    <span className="block text-[11px] text-faint num">p.{l.page}{l.source === 'cad' ? ` · ${t('fromCad')}` : ''}</span>
+                    <span className={`block text-[11px] num ${active ? 'text-ink/55' : 'text-faint'}`}>p.{l.page}{l.source === 'cad' ? ` · ${t('fromCad')}` : ''}</span>
                   </span>
                   <span className="shrink-0 text-right text-[12.5px] num">
                     {stage === 'extract' && (

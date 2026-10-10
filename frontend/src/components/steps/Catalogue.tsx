@@ -78,7 +78,7 @@ export function FamilyTable({ ctx, className = '' }: { ctx: CatalogContext; clas
   return (
     <table className={`w-full text-[12.5px] ${className}`}>
       <thead>
-        <tr className="text-left text-[11.5px] text-muted border-b border-hair">
+        <tr className="text-left font-mono text-[10.5px] uppercase tracking-wider text-muted border-b border-hair">
           <th className="py-1 font-medium">{ctx.item.subcategory}</th>
           <th className="py-1 font-medium text-right">{t('listPrice')}</th>
           <th className="py-1 font-medium text-right">{t('discount')}</th>
@@ -89,7 +89,7 @@ export function FamilyTable({ ctx, className = '' }: { ctx: CatalogContext; clas
         {ctx.family.map((i) => {
           const on = i.product_id === ctx.item.product_id
           return (
-            <tr key={i.product_id} className={`border-b border-hair/70 ${on ? 'bg-green/10 font-semibold text-ink' : 'text-muted'}`}>
+            <tr key={i.product_id} className={`border-b border-hair/70 ${on ? 'bg-mint font-semibold text-ink' : 'text-muted'}`}>
               <td className="py-1 pr-2 truncate max-w-[260px]">{i.description}</td>
               <td className="py-1 text-right num">{fmtChf(i.list_price_chf, 2)}</td>
               <td className="py-1 text-right num">{i.discount_pct} %</td>

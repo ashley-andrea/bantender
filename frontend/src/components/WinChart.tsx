@@ -4,10 +4,10 @@ import { useI18n, type Key } from '../i18n'
 import type { WinPoint, WinScenario } from '../types'
 import { CHART_MARGIN, chfCompact, nearestIndex, pct } from '../winFormat'
 
-const GREEN = '#008163' // chance of winning (line + band wash)
-const NAVY = '#002439' // expected profit; current offer
-const GRID = '#e3e7ea'
-const RANGE = 'rgb(112 189 149 / 0.14)' // recommended range wash (mint)
+const GREEN = 'var(--color-green)' // chance of winning (line + band wash)
+const NAVY = 'var(--color-navy)' // expected profit; current offer
+const GRID = 'var(--color-hair)'
+const RANGE = 'color-mix(in srgb, var(--color-mint) 35%, transparent)' // recommended range wash (light accent)
 
 const M = CHART_MARGIN
 const P = { top: 26, h: 190 } // chance plot
@@ -135,14 +135,14 @@ export function WinChart({ points, scenarios, current, selected, onSelect }: Pro
         <text x={x(current.offer) + 6} y={P.top + P.h - 6} className="fill-ink text-[11px] font-semibold">{t('winCurrent')}</text>
 
         {/* slider position */}
-        <line x1={x(sel.offer)} x2={x(sel.offer)} y1={P.top} y2={E.top + E.h} stroke="#0f1f2b" strokeOpacity={0.55} />
+        <line x1={x(sel.offer)} x2={x(sel.offer)} y1={P.top} y2={E.top + E.h} stroke="var(--color-ink)" strokeOpacity={0.55} />
         <circle cx={x(sel.offer)} cy={yP(sel.win_probability)} r={5} fill="#fff" stroke={GREEN} strokeWidth={2.5} />
         <circle cx={x(sel.offer)} cy={yE(sel.expected_profit)} r={5} fill="#fff" stroke={NAVY} strokeWidth={2.5} />
 
         {/* hover crosshair */}
         {h && (
           <g pointerEvents="none">
-            <line x1={x(h.offer)} x2={x(h.offer)} y1={P.top} y2={E.top + E.h} stroke="#0f1f2b" strokeOpacity={0.25} />
+            <line x1={x(h.offer)} x2={x(h.offer)} y1={P.top} y2={E.top + E.h} stroke="var(--color-ink)" strokeOpacity={0.25} />
             <circle cx={x(h.offer)} cy={yP(h.win_probability)} r={4} fill={GREEN} stroke="#fff" strokeWidth={2} />
             <circle cx={x(h.offer)} cy={yE(h.expected_profit)} r={4} fill={NAVY} stroke="#fff" strokeWidth={2} />
           </g>

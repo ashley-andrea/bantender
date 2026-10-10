@@ -1,23 +1,76 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter';
+@import '@fontsource-variable/instrument-sans';
+@import '@fontsource/instrument-serif/400.css';
+@import '@fontsource/instrument-serif/400-italic.css';
+@import '@fontsource-variable/jetbrains-mono';
 
-/* Equans colours (navy, greens) on calm neutrals. Status colours have one meaning each. */
+/* Paper and ink, with one saturated pastel per page. Token names are kept from the first design so components
+   don't change: navy = ink (deep tone), green = the page accent (readable on white), mint = the page's pastel
+   block. Status colours keep one meaning each on every page. */
 @theme {
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --color-canvas: #f4f6f7;
+  --font-display: 'Instrument Sans Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-canvas: #f5f4ef;
   --color-surface: #ffffff;
-  --color-ink: #0f1f2b;
-  --color-muted: #5d6b75;
-  --color-faint: #98a3ab;
-  --color-hair: #e3e7ea;
-  --color-navy: #002439; /* Equans navy: top bar, item node, primary text on dark */
-  --color-green: #008163; /* Equans green: primary action, catalogue, filled fields */
-  --color-mint: #70bd95; /* Equans light green */
-  --color-sel: #008163;
-  --color-good: #2e9e6a;
-  --color-bad: #d6453d;
-  --color-warn: #e39a12;
-  --radius-card: 8px;
+  --color-ink: #0e0e0d;
+  --color-muted: #67655e;
+  --color-faint: #a9a69d;
+  --color-hair: #e4e2da;
+  --color-navy: #0e0e0d;
+  --color-green: #0e0e0d;
+  --color-mint: #7fe3ff;
+  --color-sel: var(--color-green);
+  --color-good: #1fae7a;
+  --color-bad: #e5484d;
+  --color-warn: #f2a516;
+  /* the five step colours, also used together on the home page */
+  --color-cyan: #7fe3ff;
+  --color-peri: #c4d4ff;
+  --color-lime: #d8f5a2;
+  --color-pink: #ffc2ec;
+  --color-lilac: #dccbff;
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius: 4px;
+  --radius-md: 5px;
+  --radius-card: 10px;
+}
+
+/* Registered so a page change fades from one colour to the next. */
+@property --color-green { syntax: '<color>'; inherits: true; initial-value: #0e0e0d; }
+@property --color-mint { syntax: '<color>'; inherits: true; initial-value: #7fe3ff; }
+
+:root {
+  transition: --color-green 500ms ease, --color-mint 500ms ease;
+}
+
+/* 1 · Extraction: cyan */
+:root[data-page='extract'] {
+  --color-mint: #7fe3ff;
+  --color-green: #0083bd;
+}
+/* 2 · Catalogue: periwinkle */
+:root[data-page='catalog'] {
+  --color-mint: #c4d4ff;
+  --color-green: #3456f5;
+}
+/* 3 · Price: lime */
+:root[data-page='price'] {
+  --color-mint: #d8f5a2;
+  --color-green: #4a8600;
+}
+/* 4 · Offer options: pink */
+:root[data-page='offers'] {
+  --color-mint: #ffc2ec;
+  --color-green: #d12f8c;
+}
+/* 5 · Export: lilac */
+:root[data-page='export'] {
+  --color-mint: #dccbff;
+  --color-green: #6c3ff0;
 }
 
 html,
@@ -33,19 +86,73 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+h1,
+h2,
+h3,
+.display {
+  font-family: var(--font-display);
+  font-weight: 560;
+  letter-spacing: -0.02em;
+}
+
+/* Large figures: serif, like a printed price. */
+.figure {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  font-variant-numeric: lining-nums;
+}
+
+/* Small uppercase labels. */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
 .num {
   font-variant-numeric: tabular-nums;
 }
 
-.panel {
-  background: var(--color-surface);
-  border: 1px solid var(--color-hair);
-  border-radius: var(--radius-card);
+@layer components {
+  /* Cards: white sheets with a hairline edge, no shadow. */
+  .panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-hair);
+    border-radius: var(--radius-card);
+  }
+
+  /* The surface behind a PDF page: paper with a dot grid. */
+  .well {
+    background-color: var(--color-canvas);
+    background-image: radial-gradient(color-mix(in srgb, var(--color-ink) 14%, transparent) 1px, transparent 1.3px);
+    background-size: 16px 16px;
+  }
+
+  /* Primary call to action: the one round thing on the page. */
+  .cta {
+    border-radius: 999px;
+    background: var(--color-ink);
+    color: #fff;
+    font-weight: 600;
+    transition: background-color 160ms ease, color 160ms ease;
+  }
+  .cta:hover:not(:disabled) {
+    background: var(--color-mint);
+    color: var(--color-ink);
+  }
+  .cta:disabled {
+    background: var(--color-hair);
+    color: var(--color-faint);
+  }
 }
 
 .scroll-thin {
   scrollbar-width: thin;
-  scrollbar-color: #cfd6db transparent;
+  scrollbar-color: #cfccc2 transparent;
 }
 
 @keyframes rise {
@@ -63,34 +170,38 @@ body {
   animation: rise 200ms ease-out both;
 }
 
-/* Parameter sliders: filled part in Equans green, rest hairline. */
+/* Parameter sliders: track filled with the page accent, ink knob ringed in the page colour. */
 .range {
   appearance: none;
   width: 100%;
-  height: 3px;
+  height: 4px;
   border-radius: 999px;
   background: linear-gradient(to right, var(--color-green) var(--p, 0%), var(--color-hair) var(--p, 0%));
   outline: none;
 }
 .range::-webkit-slider-thumb {
   appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 999px;
-  background: #fff;
-  border: 2px solid var(--color-green);
+  background: var(--color-ink);
+  border: 3px solid var(--color-mint);
   cursor: grab;
+  transition: transform 120ms ease;
+}
+.range::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
 }
 .range::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 999px;
-  background: #fff;
-  border: 2px solid var(--color-green);
+  background: var(--color-ink);
+  border: 3px solid var(--color-mint);
   cursor: grab;
 }
 .range:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 3px rgb(0 129 99 / 0.25);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-green) 30%, transparent);
 }
 
 @keyframes slide {
@@ -109,4 +220,22 @@ body {
   to {
     transform: translateY(1200%);
   }
+}
+
+/* Home illustration: the dashed journey line drifts, the stations float. */
+@keyframes march {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+.march {
+  animation: march 1.2s linear infinite;
+}
+@keyframes bob {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+.bob {
+  animation: bob 3.2s ease-in-out infinite;
 }

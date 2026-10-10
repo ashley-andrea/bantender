@@ -8,7 +8,7 @@ import { InlineNumber } from '../InlineNumber'
 import { CHART_MARGIN, chfCompact, nearestIndex, pct } from '../../winFormat'
 import { WinChart } from '../WinChart'
 
-const POS = '#008163' // raises the chance
+const POS = 'var(--color-green)' // raises the chance
 const NEG = '#e3a33a' // lowers it (always shown with its signed value)
 
 const SCENARIO: Record<WinScenario['name'], { label: Key; hint: Key }> = {
@@ -70,7 +70,7 @@ function Options({ wc, pricing, summary, busy, onSettings }: { wc: Required<WinC
       <div className="flex-1 min-w-0 h-full overflow-auto scroll-thin flex flex-col gap-3">
         <div className="panel px-5 py-4">
           <div className="flex items-baseline gap-3">
-            <span className="text-[17px] font-semibold">{t('aiTitle')}</span>
+            <span className="display text-[28px] leading-none !tracking-[-0.035em]">{t('aiTitle')}</span>
             {busy && <Loader2 className="size-4 animate-spin text-muted self-center" />}
             {wc.model !== 'ml' && <span className="ml-auto rounded bg-canvas px-2 py-0.5 text-[12px] text-muted">{t('placeholderNote')}</span>}
           </div>
@@ -91,7 +91,7 @@ function Options({ wc, pricing, summary, busy, onSettings }: { wc: Required<WinC
         <div className="panel p-4">
           <WinChart points={wc.points} scenarios={wc.scenarios} current={wc.current} selected={selected} onSelect={setSelected} />
           <div style={{ paddingLeft: CHART_MARGIN.l, paddingRight: CHART_MARGIN.r }}>
-            <div className="mt-1 text-[11.5px] font-semibold text-muted">{t('explore')}</div>
+            <div className="eyebrow mt-1">{t('explore')}</div>
             <input type="range" aria-label={t('explore')} min={0} max={wc.points.length - 1} step={1} value={selected}
               style={{ '--p': `${(selected / (wc.points.length - 1)) * 100}%` } as React.CSSProperties}
               onChange={(e) => setSelected(Number(e.target.value))} className="range mt-2" />
@@ -101,7 +101,7 @@ function Options({ wc, pricing, summary, busy, onSettings }: { wc: Required<WinC
               <Stat label={t('winChance')} value={pct(sel.win_probability)} sub={`${pct(sel.p_low)}–${pct(sel.p_high)}`} />
               <Stat label={t('expectedProfit')} value={fmtChf(sel.expected_profit)} />
               <button disabled={busy || isCurrent(selOffer)} onClick={() => applyMargin(sel.margin_pct)}
-                className="ml-auto rounded-md bg-green px-4 py-2 text-[13px] font-semibold text-white hover:brightness-110 disabled:bg-canvas disabled:text-faint">
+                className="cta ml-auto px-5 py-2 text-[13px]">
                 {isCurrent(selOffer) ? t('inUse') : t('useOffer')}
               </button>
             </div>
@@ -125,18 +125,18 @@ function OptionCard({ label, hint, offer, margin, chance, profit, dark, accent, 
   const { t } = useI18n()
   const muted = dark ? 'text-white/65' : 'text-muted'
   return (
-    <div className={`rounded-[var(--radius-card)] p-4 flex flex-col ${dark ? 'bg-navy text-white' : `panel ${accent ? 'ring-2 ring-green/60' : ''}`}`}>
-      <div className="text-[13px] font-semibold">{label}</div>
+    <div className={`rounded-[var(--radius-card)] p-4 flex flex-col ${dark ? 'bg-ink text-white' : `panel ${accent ? '!bg-mint !border-ink' : ''}`}`}>
+      <div className="display text-[15px]">{label}</div>
       <div className={`text-[11.5px] ${muted} min-h-4`}>{hint}</div>
-      <div className="mt-2 text-[20px] font-semibold">CHF {fmtChf(offer)}</div>
+      <div className={`figure mt-3 text-[32px] leading-none ${dark ? 'text-mint' : ''}`}><span className="font-mono text-[11px] align-top mr-1">CHF</span>{fmtChf(offer)}</div>
       <div className={`text-[12px] ${muted} num`}>{t('margin')} {fmtPct(Math.round(margin * 10) / 10)}</div>
       <div className="mt-3 grid grid-cols-2 gap-2 text-[12px]">
-        <div><div className={muted}>{t('winChance')}</div><div className="text-[16px] font-semibold">{pct(chance)}</div></div>
-        <div><div className={muted}>{t('expectedProfit')}</div><div className="text-[16px] font-semibold">{chfCompact(profit)}</div></div>
+        <div><div className={muted}>{t('winChance')}</div><div className="figure text-[24px] leading-none mt-0.5">{pct(chance)}</div></div>
+        <div><div className={muted}>{t('expectedProfit')}</div><div className="figure text-[24px] leading-none mt-0.5">{chfCompact(profit)}</div></div>
       </div>
       {onUse && (
         <button disabled={busy || inUse} onClick={onUse}
-          className="mt-3 rounded-md border border-green px-3 py-1.5 text-[12.5px] font-semibold text-green hover:bg-green/5 disabled:border-hair disabled:text-faint disabled:hover:bg-transparent">
+          className="mt-4 rounded-full border-[1.5px] border-ink px-3 py-1.5 text-[12.5px] font-semibold text-ink hover:bg-ink hover:text-white transition-colors disabled:border-ink/15 disabled:text-ink/35 disabled:hover:bg-transparent">
           {inUse ? t('inUse') : t('useOffer')}
         </button>
       )}
@@ -147,8 +147,8 @@ function OptionCard({ label, hint, offer, margin, chance, profit, dark, accent, 
 function Stat({ label, value, sub, strong }: { label: string; value: string; sub?: string; strong?: boolean }) {
   return (
     <div>
-      <div className="text-[11.5px] text-muted">{label}</div>
-      <div className={`num ${strong ? 'text-[16px] font-semibold text-navy' : 'font-semibold'}`}>
+      <div className="eyebrow">{label}</div>
+      <div className={`num mt-0.5 ${strong ? 'figure text-[26px] leading-none' : 'font-semibold'}`}>
         {value} {sub && <span className="text-[11.5px] font-normal text-muted">({sub})</span>}
       </div>
     </div>

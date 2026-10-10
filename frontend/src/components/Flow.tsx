@@ -247,7 +247,7 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
             {step === 'price' && <div className="pt-3 rise"><OfferBar pricing={pricing} busy={busy} workbook={api.workbookUrl(tenderId)} /></div>}
           </div>
         )}
-        {step === 'offers' && <OfferOptions pricing={pricing} busy={busy} onSettings={(patch) => apply(api.settings(tenderId, patch))} onChoose={(c) => apply(api.choose(tenderId, c))} />}
+        {step === 'offers' && <OfferOptions pricing={pricing} busy={busy} onChoose={(c) => apply(api.choose(tenderId, c))} />}
         {step === 'export' && (offer ? (
           <div className="h-full flex">
             <div className="flex-1 min-w-[400px] h-full">

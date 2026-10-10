@@ -114,6 +114,20 @@ body {
 .tbl th:last-child {
   padding-right: 10px;
 }
+/* Column names on one line, numbers too; reference tables (catalogue, productivity) share one fixed layout. */
+.tbl th,
+.tbl td.num,
+.tbl.num td {
+  white-space: nowrap;
+}
+.tbl.ref {
+  table-layout: fixed;
+}
+.tbl.ref td:not(:first-child),
+.tbl.ref th:not(:first-child) {
+  white-space: nowrap;
+  text-align: right;
+}
 
 /* Highlighter strokes on the tender PDF: translucent, multiplied onto the text so it stays readable. */
 .hl {

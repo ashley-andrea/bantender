@@ -133,7 +133,8 @@ export function FamilyTable({ ctx, used, className = '' }: { ctx: CatalogContext
   const { t } = useI18n()
   const on = (pid: string) => (used ? used.has(pid) : pid === ctx.item.product_id)
   return (
-    <table className={`tbl w-full text-[12.5px] ${className}`}>
+    <table className={`tbl ref w-full text-[12.5px] ${className}`}>
+      <colgroup><col /><col className="w-[118px]" /><col className="w-[118px]" /><col className="w-[118px]" /></colgroup>
       <thead>
         <tr className="text-left text-[11.5px] text-muted border-b border-hair">
           <th className="py-1.5 font-medium">{ctx.item.subcategory}</th>
@@ -145,7 +146,7 @@ export function FamilyTable({ ctx, used, className = '' }: { ctx: CatalogContext
       <tbody>
         {ctx.family.map((i) => (
           <tr key={i.product_id} className={`border-b border-hair/70 ${on(i.product_id) ? 'bg-hl-read/35 font-semibold text-ink' : 'text-muted'}`}>
-            <td className="py-1.5 pr-2 truncate max-w-[280px]">{i.description}</td>
+            <td className="py-1.5 pr-2 truncate">{i.description}</td>
             <td className="py-1.5 px-2 text-right num">{fmtChf(i.list_price_chf, 2)}</td>
             <td className="py-1.5 px-2 text-right num">{i.discount_pct} %</td>
             <td className="py-1.5 text-right num">{fmtChf(i.net_cost_chf, 2)}</td>
@@ -159,12 +160,13 @@ export function FamilyTable({ ctx, used, className = '' }: { ctx: CatalogContext
 export function RuleTable({ rules, className = '' }: { rules: ProductivityRule[]; className?: string }) {
   const { t, lang } = useI18n()
   return (
-    <table className={`tbl w-full text-[12.5px] ${className}`}>
+    <table className={`tbl ref w-full text-[12.5px] ${className}`}>
+      <colgroup><col /><col className="w-[118px]" /><col className="w-[118px]" /><col className="w-[118px]" /></colgroup>
       <thead>
         <tr className="text-left text-[11.5px] text-muted border-b border-hair">
           <th className="py-1.5 font-medium">{t('workType')}</th>
           <th className="py-1.5 font-medium text-right">{t('hoursPerUnit')}</th>
-          <th className="py-1.5 font-medium px-2">{t('labourRole')}</th>
+          <th className="py-1.5 font-medium text-right">{t('labourRole')}</th>
           <th className="py-1.5 font-medium text-right">{t('rate')}</th>
         </tr>
       </thead>
@@ -176,7 +178,7 @@ export function RuleTable({ rules, className = '' }: { rules: ProductivityRule[]
               {r.factor_keys.length > 0 && <div className="font-normal text-[11.5px] text-muted">× {r.factor_keys.map((k) => humanize(k)).join(', ')}</div>}
             </td>
             <td className="py-1.5 px-2 text-right num">{fmtNum(r.base_hours_per_unit)} h / {fmtUnit(r.unit, lang)}</td>
-            <td className="py-1.5 px-2">{humanize(r.labour_role)}</td>
+            <td className="py-1.5 px-2 text-right">{humanize(r.labour_role)}</td>
             <td className="py-1.5 text-right num">{fmtNum(r.default_hourly_rate_chf)} /h</td>
           </tr>
         ))}

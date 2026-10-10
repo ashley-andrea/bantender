@@ -101,7 +101,7 @@ try {
   await page.click('nav button:has-text("Offer options")')
   await page.waitForSelector('text=Choose this offer')
   await shot('5-offers')
-  await page.locator('.panel-green button:has-text("Choose this offer")').click()
+  await page.locator('.panel-green button:has-text("Choose this offer")').first().click()
   await page.waitForTimeout(1500)
   const chosen = await api(`/api/tenders/${id}/pricing`)
   check(chosen.choice?.scenario === 'Target', 'choosing the recommended offer records it')

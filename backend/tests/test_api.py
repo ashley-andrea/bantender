@@ -56,8 +56,20 @@ def test_pricing_override_settings_and_audit(client):
     assert lower["settings"]["margin_pct"] == 2.5
     audit = client.get(f"/api/tenders/{tid}/audit").json()
     assert [a["action"] for a in audit[:2]] == ["settings", "override"]
+    # Installation hours per unit: replaces the rule's value, the project factors still apply.
+    hours = client.patch(f"/api/tenders/{tid}/lines/{target['line_id']}", json={"hours_per_unit": 50, "quantity": 2}).json()
+    row = next(r for r in hours["lines"] if r["line_id"] == target["line_id"])
+    assert row["cost"]["base_hours"] == 50 and row["decision"]["quantity"] == 2
+    assert abs(row["cost"]["adjusted_hours"] - 2 * 50 * row["cost"]["factor"]) < 1e-6
+    assert set(row["decision"]["overridden"]) == {"quantity", "unit_price", "hours_per_unit"}
+    # Reset one field, then the rest.
+    one = client.delete(f"/api/tenders/{tid}/lines/{target['line_id']}/override", params={"field": "unit_price"}).json()
+    row = next(r for r in one["lines"] if r["line_id"] == target["line_id"])
+    assert set(row["decision"]["overridden"]) == {"quantity", "hours_per_unit"} and row["status_key"] == "supplier_quote_required"
     reset = client.delete(f"/api/tenders/{tid}/lines/{target['line_id']}/override").json()
-    assert next(r for r in reset["lines"] if r["line_id"] == target["line_id"])["status_key"] == "supplier_quote_required"
+    row = next(r for r in reset["lines"] if r["line_id"] == target["line_id"])
+    assert row["status_key"] == "supplier_quote_required" and row["decision"]["overridden"] == []
+    assert row["cost"]["base_hours"] == next(r for r in base["lines"] if r["line_id"] == target["line_id"])["cost"]["base_hours"]
     ctx = client.get("/api/catalog/P-AIR-001").json()
     assert ctx["item"]["net_cost_chf"] == 74.8 and ctx["rule"]["install_code"] == "DIFFUSER" and len(ctx["family"]) >= 2
     offer = client.get(f"/api/tenders/{tid}/offer").json()

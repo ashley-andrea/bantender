@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from app.config import get_settings
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.offer.build import build_offer
 from app.offer.pdf_fill import fill_offer
@@ -158,6 +158,7 @@ class LineOverride(BaseModel):
     quantity: float | None = None
     unit_price: float | None = None  # net unit price, e.g. from a supplier quote
     unit_price_source: str | None = None  # estimator_input | quote
+    hours_per_unit: float | None = Field(default=None, ge=0)  # installation hours per unit, before project factors
     note: str | None = None
 
 
@@ -174,11 +175,21 @@ def override_line(tender_id: str, line_id: str, body: LineOverride) -> dict:
     return _pricing(tender_id)
 
 
+OVERRIDE_FIELDS = {"quantity": ("quantity",), "unit_price": ("unit_price", "unit_price_source"), "hours_per_unit": ("hours_per_unit",)}
+
+
 @app.delete("/api/tenders/{tender_id}/lines/{line_id}/override")
-def reset_line(tender_id: str, line_id: str) -> dict:
+def reset_line(tender_id: str, line_id: str, field: str | None = None) -> dict:
+    """Remove the estimator's edits on a line: all of them, or one (?field=quantity|unit_price|hours_per_unit)."""
+    if field is not None and field not in OVERRIDE_FIELDS:
+        raise HTTPException(400, f"Unknown field: {field}")
     key = f"tenders/{tender_id}/overrides.json"
     overrides = _get_json(key, {})
     old = overrides.pop(line_id, None)
+    if field and old:
+        rest = {k: v for k, v in old.items() if k not in OVERRIDE_FIELDS[field] and k != "note"}
+        if rest:
+            overrides[line_id] = rest
     _put_json(key, overrides)
     _audit(tender_id, {"line_id": line_id, "action": "reset", "before": old})
     return _pricing(tender_id)

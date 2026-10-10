@@ -38,7 +38,7 @@ def effective_parameters(ref: ReferenceData, settings: dict) -> ProjectParameter
 
 
 def apply_override(d: Decision, ov: dict) -> dict:
-    """The estimator's edits: a corrected quantity, or a unit price (typically from a supplier quote)."""
+    """The estimator's edits: a corrected quantity, installation hours per unit, or a unit price (typically a supplier quote)."""
     changed = []
     if ov.get("quantity") is not None:
         d.quantity = float(ov["quantity"])
@@ -53,6 +53,8 @@ def apply_override(d: Decision, ov: dict) -> dict:
                        f"Einheitspreis CHF {price} {'aus Lieferantenofferte' if quote else 'vom Kalkulator eingegeben'}.")]
         d.checks.append(Check("estimator", T("Net unit price entered", "Netto-Einheitspreis eingegeben"), "pass", 1.0, ov.get("note") or ""))
         changed.append("unit_price")
+    if ov.get("hours_per_unit") is not None:
+        changed.append("hours_per_unit")
     out = asdict(d)
     out["overridden"] = changed
     out["override_note"] = ov.get("note")
@@ -64,6 +66,7 @@ def _cost_input(line_id: str, d: dict, ov: dict) -> LineInput:
         line_id=line_id, quantity=d["quantity"] or 0.0, unit=d["unit"] or "", product_id=d["product_id"],
         install_code=d["install_code"], location=d["location"],
         unit_cost_override=ov.get("unit_price"), unit_cost_source=ov.get("unit_price_source", "estimator_input") if ov.get("unit_price") is not None else None,
+        hours_override=ov.get("hours_per_unit"),
     )
 
 

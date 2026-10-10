@@ -15,5 +15,5 @@ logs:
 smoke:           ## smoke-test a running stack (default https://localhost)
 	./deploy/smoke.sh $(BASE)
 
-e2e:             ## UI consistency check against a running stack (chips = rows, counts add up)
-	cd e2e && npm install --silent && npx playwright install chromium >/dev/null && node consistency.mjs $(BASE)
+e2e:             ## walk the guided flow against a running stack; numbers on screen must match the API
+	cd e2e && npm install --silent && npx playwright install chromium >/dev/null && node flow.mjs $(BASE)

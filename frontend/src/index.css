@@ -284,3 +284,26 @@ body {
     transform: translateY(-3px) rotate(1deg);
   }
 }
+
+/* Esteban thinking: three small dots that rise and fade one after the other. */
+@keyframes think {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+.think > span {
+  animation: think 1.2s ease-in-out infinite;
+}
+.think > span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.think > span:nth-child(3) {
+  animation-delay: 0.3s;
+}

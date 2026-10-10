@@ -6,6 +6,13 @@
                 "-y",
                 "@drawio/mcp"
             ]
+        },
+        "cap": {
+            "command": "cap",
+            "args": [
+                "mcp",
+                "serve"
+            ]
         }
     }
 }

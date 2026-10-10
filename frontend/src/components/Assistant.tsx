@@ -1,4 +1,4 @@
-import { Calculator, ChevronRight, Database, FileText, ListTree, Loader2, RotateCcw, SendHorizontal, X } from 'lucide-react'
+import { Calculator, ChevronLeft, ChevronRight, ChevronsRight, Database, FileText, ListTree, Loader2, RotateCcw, SendHorizontal, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import { useI18n, type Key } from '../i18n'
@@ -40,7 +40,6 @@ function offTarget(box: DOMRect, target: DOMRect): Point {
 
 type Message = { role: 'user'; text: string } | { role: 'assistant'; answer: AssistantAnswer } | { role: 'error'; text: string }
 
-const HINT_KEY = 'bartender-hint-seen'
 const SUGGESTIONS: Key[] = ['botQ5', 'botQ6', 'botQ1', 'botQ3']
 const KIND_ICON = { tender: FileText, bid: Calculator, position: ListTree, data: Database }
 const ACTION: Partial<Record<Citation['kind'], Key>> = { tender: 'botShowPdf', position: 'botOpenPosition' }
@@ -72,25 +71,32 @@ function Thinking({ lang }: { lang: 'en' | 'de' }) {
   )
 }
 
-function hintSeen() {
-  try {
-    return localStorage.getItem(HINT_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
 /** The answer as plain text, for the conversation history sent with the next question. */
 function asText(a: AssistantAnswer) {
   return a.status === 'answered' ? a.statements.map((s) => s.text).join(' ') : a.message
 }
 
+/** Busy: three green dots that take turns, as if he were thinking. Unread: one green dot. */
+function Status({ busy, label, className }: { busy: boolean; label: string; className: string }) {
+  return busy ? (
+    <span className={`think absolute flex items-center gap-[3px] px-1.5 py-[5px] rounded-full bg-white border border-hair shadow-sm ${className}`} aria-label={label}>
+      <span className="size-1.5 rounded-full bg-green" />
+      <span className="size-1.5 rounded-full bg-green" />
+      <span className="size-1.5 rounded-full bg-green" />
+    </span>
+  ) : (
+    <span className={`absolute size-4 rounded-full border-2 border-white bg-green ${className}`} aria-label={label} />
+  )
+}
+
 /** Esteban, the bartender: a button in the lower right; a small chat window that leaves the page usable beside it.
- *  While the window is closed, a dot on the button shows he is working (pulsing amber) or has an answer (green). */
+ *  He can be moved aside to the screen edge, where a small tab brings him back.
+ *  While the window is closed, a badge shows he is thinking (three dots) or has an answer (green dot). */
 export function Assistant({ tenderId, view, active, onShow, avoid }: Props) {
   const { t, lang } = useI18n()
   const [open, setOpen] = useState(false)
-  const [hint, setHint] = useState(!hintSeen())
+  const [hint, setHint] = useState(true) // the speech bubble, until closed or Esteban is opened
+  const [aside, setAside] = useState(false) // moved to the screen edge, so the page behind him shows
   const [enabled, setEnabled] = useState<boolean | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [draft, setDraft] = useState('')
@@ -148,11 +154,6 @@ export function Assistant({ tenderId, view, active, onShow, avoid }: Props) {
     setOpen((o) => !o)
     setHint(false)
     setUnread(false)
-    try {
-      localStorage.setItem(HINT_KEY, '1')
-    } catch {
-      /* storage unavailable: the hint shows again next time */
-    }
   }
 
   const ask = async (question: string) => {
@@ -185,10 +186,7 @@ export function Assistant({ tenderId, view, active, onShow, avoid }: Props) {
             onDoubleClick={(e) => !(e.target as HTMLElement).closest('button') && setPos(null)} title={t('botDrag')}
             className="flex items-center gap-3 px-3 py-2.5 border-b border-hair shrink-0 cursor-grab active:cursor-grabbing select-none touch-none">
             <img src="/esteban-sticker.png" alt="" className="h-11 w-auto -my-1 select-none" draggable={false} />
-            <div className="min-w-0 flex-1">
-              <div className="title-hand">{t('botName')}</div>
-              <div className="text-[11.5px] text-muted truncate">{t('botSub')}</div>
-            </div>
+            <div className="min-w-0 flex-1"><span className="title-hand">{t('botName')}</span></div>
             {messages.length > 0 && (
               <button className="p-1.5 rounded-md text-muted hover:bg-canvas hover:text-ink" title={t('botNew')} onClick={() => setMessages([])} disabled={busy}>
                 <RotateCcw className="size-4" />
@@ -246,31 +244,42 @@ export function Assistant({ tenderId, view, active, onShow, avoid }: Props) {
         </section>
       )}
 
-      {/* Esteban: the sticker in the corner, laid over the page; a speech bubble the first time. */}
-      <div className="fixed right-5 bottom-3 z-50 flex items-end gap-1 pointer-events-none">
+      {/* Esteban: the sticker in the corner, laid over the page; a speech bubble until closed. Moved aside, he slides off the edge. */}
+      <div aria-hidden={aside} className={`fixed right-5 bottom-3 z-50 flex items-end gap-1 pointer-events-none transition-transform duration-300 ${aside ? 'translate-x-[calc(100%+80px)] ease-in' : 'delay-200 ease-out'}`}>
         {hint && !open && (
           <div className="rise relative pointer-events-auto mb-16 mr-1 bg-surface border-[1.6px] border-ink rounded-[18px_14px_16px_12px/12px_16px_14px_18px] pl-3.5 pr-8 py-2 text-[13px] font-medium max-w-60">
             {t('botHint')}
-            <button className="absolute top-1.5 right-1.5 p-1 text-faint hover:text-ink" onClick={() => setHint(false)} aria-label={t('botClose')}>
-              <X className="size-3" />
+            <button className="absolute top-1.5 right-1.5 p-1 rounded-md text-muted hover:bg-canvas hover:text-ink" onClick={() => setHint(false)} aria-label={t('botClose')} title={t('botClose')}>
+              <X className="size-3.5" />
             </button>
             <svg className="absolute -right-[15px] bottom-2" width="18" height="16" viewBox="0 0 18 16" aria-hidden>
               <path d="M1 2 C 7 4, 12 8, 17 15 C 11 12, 6 11, 1 11" fill="#ffffff" stroke="#1c2933" strokeWidth="1.6" strokeLinejoin="round" />
             </svg>
           </div>
         )}
-        <button onClick={toggle} title={!open && busy ? t('botWorking') : !open && unread ? t('botReady') : t('botHint')} aria-expanded={open}
-          className={`relative pointer-events-auto transition-transform duration-200 hover:-rotate-3 hover:scale-105 ${open ? '-rotate-2' : 'rotate-2'}`}>
-          <img src="/esteban-sticker.png" alt={t('botName')} draggable={false}
-            className="h-[128px] w-auto select-none drop-shadow-[0_3px_6px_rgb(0_36_57/0.22)]" />
-          {!open && (busy || unread) && (
-            <span className="absolute top-2 right-3 grid place-items-center size-4" aria-label={busy ? t('botWorking') : t('botReady')}>
-              {busy && <span className="absolute inset-0 rounded-full bg-warn opacity-60 animate-ping" />}
-              <span className={`relative size-4 rounded-full border-2 border-white ${busy ? 'bg-warn' : 'bg-green'}`} />
-            </span>
-          )}
-        </button>
+        <div className="group relative pointer-events-auto">
+          <button onClick={toggle} title={!open && busy ? t('botWorking') : !open && unread ? t('botReady') : t('botHint')} aria-expanded={open} tabIndex={aside ? -1 : 0}
+            className={`relative block transition-transform duration-200 hover:-rotate-3 hover:scale-105 ${open ? '-rotate-2' : 'rotate-2'}`}>
+            <img src="/esteban-sticker.png" alt={t('botName')} draggable={false}
+              className="h-[128px] w-auto select-none drop-shadow-[0_3px_6px_rgb(0_36_57/0.22)]" />
+            {!open && (busy || unread) && <Status busy={busy} label={busy ? t('botWorking') : t('botReady')} className="top-2 right-3" />}
+          </button>
+          {/* Move aside: a small round button left of him; on hover its label opens to the left, away from him. */}
+          <button onClick={() => setAside(true)} title={t('botAside')} aria-label={t('botAside')} tabIndex={aside ? -1 : 0}
+            className={`absolute right-full mr-0.5 bottom-3 flex items-center h-7 px-1.5 rounded-full bg-surface border-[1.4px] border-ink/60 text-muted shadow-sm hover:text-ink hover:border-ink transition-opacity ${aside ? 'opacity-0' : ''}`}>
+            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[11.5px] font-medium transition-[max-width,margin] duration-200 group-hover:max-w-40 group-hover:mr-1 group-hover:ml-0.5">{t('botAside')}</span>
+            <ChevronsRight className="size-4 shrink-0" />
+          </button>
+        </div>
       </div>
+
+      {/* Moved aside: a tab on the right edge with Esteban peeking out; a click brings him back. */}
+      <button onClick={() => setAside(false)} title={t('botBack')} aria-label={t('botBack')} tabIndex={aside ? 0 : -1}
+        className={`fixed right-0 bottom-8 z-50 flex items-center gap-0.5 pl-1 pr-1.5 py-1 bg-surface border-[1.6px] border-r-0 border-ink rounded-l-[14px] shadow-md transition-transform duration-200 ${aside ? 'translate-x-0 delay-300 ease-out hover:-translate-x-1' : 'translate-x-[calc(100%+12px)] ease-in'}`}>
+        <ChevronLeft className="size-4 text-muted" />
+        <img src="/esteban-sticker.png" alt="" draggable={false} className="h-11 w-auto select-none" />
+        {!open && (busy || unread) && <Status busy={busy} label={busy ? t('botWorking') : t('botReady')} className="-top-2 left-1" />}
+      </button>
     </>
   )
 }
@@ -282,8 +291,9 @@ function Answer({ answer, active, onShow }: { answer: AssistantAnswer; active: C
     return <p className="max-w-[92%] rounded-[12px_14px_14px_3px/14px_12px_12px_3px] border-[1.4px] border-ink/70 bg-surface text-[13px] px-3 py-2">{answer.message}</p>
   }
   const byN = new Map(answer.citations.map((c) => [c.n, c]))
-  const isActive = (c: Citation) => active?.source === c.source && active.quote === c.quote
-  const n = answer.citations.length
+  const isActive = (cs: Citation[]) => cs.some((c) => active?.source === c.source && active.quote === c.quote)
+  const groups = samePlace(answer.citations)
+  const n = groups.length
   // A number in the text opens the list and shows that source.
   const show = (c: Citation) => {
     setOpen(true)
@@ -295,10 +305,10 @@ function Answer({ answer, active, onShow }: { answer: AssistantAnswer; active: C
         {answer.statements.map((s, i) => (
           <p key={i}>
             {s.text}
-            {s.refs.map((r) => (
-              <button key={r} onClick={() => show(byN.get(r)!)}
-                className={`ml-1 align-super text-[10px] font-semibold num px-1 rounded ${isActive(byN.get(r)!) ? 'bg-navy text-white' : 'bg-white text-green border border-hair hover:border-green'}`}>
-                {r}
+            {samePlace(s.refs.map((r) => byN.get(r)!)).map((cs) => (
+              <button key={cs[0].n} onClick={() => show(cs[0])}
+                className={`ml-1 align-super text-[10px] font-semibold num px-1 rounded ${isActive(cs) ? 'bg-navy text-white' : 'bg-white text-green border border-hair hover:border-green'}`}>
+                {cs.map((c) => c.n).join(', ')}
               </button>
             ))}
           </p>
@@ -314,8 +324,8 @@ function Answer({ answer, active, onShow }: { answer: AssistantAnswer; active: C
         </button>
         {open && (
           <ol className="border-t border-hair divide-y divide-hair">
-            {answer.citations.map((c) => (
-              <SourceItem key={c.n} c={c} active={isActive(c)} onShow={onShow} />
+            {groups.map((cs) => (
+              <SourceItem key={cs[0].n} cs={cs} active={isActive(cs)} onShow={onShow} />
             ))}
           </ol>
         )}
@@ -330,6 +340,22 @@ function Answer({ answer, active, onShow }: { answer: AssistantAnswer; active: C
   )
 }
 
+/** Where clicking a citation leads: the outlined spot on a tender page, else the source's step and element.
+ *  (Two rows of one position, such as its title and status, open the same field.) */
+function place(c: Citation) {
+  return c.kind === 'tender' ? `${c.source}|${JSON.stringify(c.bboxes)}` : `${c.source}|${c.step ?? ''}#${c.anchor ?? ''}`
+}
+
+/** Citations grouped by where they lead: numbers that open the same place share one entry. */
+function samePlace(citations: Citation[]) {
+  const groups = new Map<string, Citation[]>()
+  for (const c of citations) {
+    const key = place(c)
+    groups.set(key, [...(groups.get(key) ?? []), c])
+  }
+  return [...groups.values()]
+}
+
 /** Where the answer comes from, in one line: "Tender p. 9, 13 · Our offer · catalog.csv". */
 function sourceSummary(citations: Citation[], t: (k: Key) => string) {
   const pages = [...new Set(citations.filter((c) => c.kind === 'tender').map((c) => c.page!))].sort((a, b) => a - b)
@@ -341,18 +367,21 @@ function sourceSummary(citations: Citation[], t: (k: Key) => string) {
   return parts.join(' · ')
 }
 
-function SourceItem({ c, active, onShow }: { c: Citation; active: boolean; onShow: (c: Citation) => void }) {
+function SourceItem({ cs, active, onShow }: { cs: Citation[]; active: boolean; onShow: (c: Citation) => void }) {
   const { t } = useI18n()
+  const c = cs[0]
   const Icon = KIND_ICON[c.kind]
   const action = ACTION[c.kind] ?? (c.step ? 'botShowThere' : undefined)
   return (
     <li className={`px-2.5 py-2 ${active ? 'bg-navy/5' : ''}`}>
       <div className="flex items-center gap-2 text-[11.5px]">
-        <span className={`size-4 shrink-0 grid place-items-center rounded-full text-[10px] font-semibold num ${active ? 'bg-navy text-white' : 'bg-canvas text-ink'}`}>{c.n}</span>
+        <span className={`h-4 min-w-4 px-1 shrink-0 grid place-items-center rounded-full text-[10px] font-semibold num ${active ? 'bg-navy text-white' : 'bg-canvas text-ink'}`}>{cs.map((x) => x.n).join(', ')}</span>
         <Icon className="size-3.5 shrink-0 text-muted" />
         <span className="font-medium text-ink truncate" title={c.label}>{c.label}</span>
       </div>
-      <blockquote className="mt-1.5 ml-6 pl-2 border-l-2 border-hair text-[12px] text-ink/85 line-clamp-4">{c.quote}</blockquote>
+      {[...new Set(cs.map((x) => x.quote))].map((q) => (
+        <blockquote key={q} className="mt-1.5 ml-6 pl-2 border-l-2 border-hair text-[12px] text-ink/85 line-clamp-4">{q}</blockquote>
+      ))}
       {action && (
         <button onClick={() => onShow(c)} className="mt-1.5 ml-6 text-[11.5px] font-medium text-green hover:underline">
           {t(action)} →

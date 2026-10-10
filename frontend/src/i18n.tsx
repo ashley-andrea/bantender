@@ -112,7 +112,6 @@ const STRINGS = {
   botHint: { en: 'Need help? Ask Esteban about this tender.', de: 'Hilfe gefällig? Fragen Sie Esteban zur Ausschreibung.' },
   botWorking: { en: 'Esteban is looking it up', de: 'Esteban schaut nach' },
   botReady: { en: 'Esteban has an answer', de: 'Esteban hat eine Antwort' },
-  botSub: { en: 'Answers from the tender and our data, with sources', de: 'Antworten aus Ausschreibung und Firmendaten, mit Quellen' },
   botIntro: {
     en: 'Ask anything about this tender, our offer or our data. Every answer quotes where it comes from; click a source to see it in the document.',
     de: 'Fragen Sie zur Ausschreibung, unserem Angebot oder unseren Daten. Jede Antwort zitiert ihre Quelle; ein Klick zeigt sie im Dokument.',
@@ -139,6 +138,8 @@ const STRINGS = {
   botOff: { en: 'The assistant is off. Set AI_PROVIDER=openai and OPENAI_API_KEY on the server.', de: 'Der Assistent ist aus. AI_PROVIDER=openai und OPENAI_API_KEY auf dem Server setzen.' },
   botNew: { en: 'New conversation', de: 'Neues Gespräch' },
   botClose: { en: 'Close', de: 'Schliessen' },
+  botAside: { en: 'Move Esteban aside', de: 'Esteban zur Seite schieben' },
+  botBack: { en: 'Bring Esteban back', de: 'Esteban zurückholen' },
   // groups, references, landing (added with the restyle)
   variants: { en: 'variants', de: 'Varianten' },
   partsWord: { en: 'parts', de: 'Teile' },

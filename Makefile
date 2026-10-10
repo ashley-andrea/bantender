@@ -1,4 +1,4 @@
-.PHONY: test api winprob winprob-data deploy logs smoke e2e
+.PHONY: test api winprob winprob-data assistant-eval deploy logs smoke e2e
 
 test:            ## run all backend tests (no OpenAI calls)
 	uv run pytest -q
@@ -8,6 +8,9 @@ winprob:         ## train + evaluate the win-probability model, print curve and 
 
 winprob-data:    ## regenerate the synthetic bid history + market snapshots (data/reference/v2), deterministic
 	cd backend && uv run python -m app.winprob.synthetic --summary
+
+assistant-eval:  ## ask the assistant real questions on the sample tender (calls OpenAI; needs the key in .env)
+	cd backend && uv run python -m benchmarks.assistant_eval
 
 api:             ## run the API for development
 	cd backend && uv run uvicorn app.api.main:app --reload --port 8000

@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # The repo-root .env also applies when the API is started from backend/ (make api).
+    model_config = SettingsConfigDict(env_file=(ROOT / ".env", ".env"), extra="ignore")
 
     environment: str = "dev"
     data_dir: Path = ROOT / "data" / "runtime"
@@ -27,8 +28,15 @@ class Settings(BaseSettings):
 
     # AI: off by default. Budget-capped when on.
     ai_provider: str = "off"  # off | openai | azure
-    openai_model: str = "gpt-4.1-mini"
+    openai_api_key: str = ""
+    openai_model: str = "gpt-5.2"
+    openai_reasoning_effort: str = "low"
+    openai_embedding_model: str = "text-embedding-3-small"
     openai_budget_usd: float = 5.0
+    # USD per million tokens, for the budget cap (gpt-5.2 input / output, text-embedding-3-small).
+    openai_price_input: float = 1.75
+    openai_price_output: float = 14.0
+    openai_price_embedding: float = 0.02
 
     cors_origins: list[str] = ["http://localhost:5173"]
 

@@ -30,6 +30,25 @@ Columns can be resized by dragging their edges (within a readable range; widths 
 | Missing | Not in the tender and needed for a price | blank quantity on p.169 |
 | Not needed | Not in the tender, and the position is included elsewhere | blank quantity on an accessory block |
 
+## The assistant (Esteban)
+
+Esteban, the bartender in the lower right, answers questions about the tender, our offer and the company's data. Its window is small and leaves the page usable. Each answer is a list of statements, and each statement comes with numbered sources. Clicking a tender source opens its page and outlines the quoted words. A position source opens the position; the offer source opens the price step.
+
+What it can look at (`backend/app/assistant/`):
+- the tender text, from the parser's rows (`read_rows`), split into ~900-character chunks and searched with BM25 plus OpenAI embeddings (`text-embedding-3-small`). The index is built once per tender and stored;
+- our offer as calculated (offer price, cost build-up, positions);
+- every CSV and JSON file in the reference folder (catalogue, productivity rules, parameters, past bids, market snapshots), filtered and aggregated in code, not by the model.
+
+How it avoids making things up. The model (gpt-5.2) must cite a source id and a verbatim quote for every statement. Then two checks run:
+1. **Grounding** (code): each quote is looked up in the cited source. Matching ignores line breaks, hyphenation and spacing, and reads two-column pages row by row and column by column. A statement with no quote found is removed.
+2. **Support check** (a second model call): it sees each statement and its quotes in context. It removes statements that misread their quote, e.g. the start date of a schedule task read as the submission deadline.
+
+The window says how many statements were removed. A reply without sources (a greeting, or "not found") may not contain figures.
+
+Turning it on: `AI_PROVIDER=openai`, `OPENAI_API_KEY` and `OPENAI_BUDGET_USD` in `.env`. Spend is counted per deployment, and the assistant stops when the budget is used up. Expect about USD 0.03 and 5–20 s per question.
+
+Tests: `make test` covers retrieval, grounding and the loop with a scripted model, with no network. `make assistant-eval` asks gpt-5.2 18 real questions on the Oberglatt tender: facts from the conditions, our bid and our data, three questions the documents cannot answer, and two with a wrong premise. Latest run: 18/18.
+
 ## Writing back into the tender
 
 The tender requires the original LV to be returned filled in, with the text unchanged (p.97: "zwingend das zugestellte Originalleistungsverzeichnis ausgefüllt einzureichen"). The filler only adds numbers. It finds each field from the page itself (the column under "Einheitspreis" / "Betrag", the row of the position, the dotted placeholders) and writes into the blank space, so nothing is hardcoded to this tender.
@@ -103,6 +122,7 @@ backend/app/
   matching/    lexicon (German HVAC terms → catalogue), product choice by size, CAD duct lines, attributes with certainty
   pricing/     engine (line + project formulas with trace), service (overrides, settings), scenarios (hook for the AI loop)
   offer/       build.py: prices on the form; pdf_fill.py: write them into the original PDF
+  assistant/   Esteban, the assistant: tender index, tools, grounding and support check
   api/         FastAPI
 backend/tests/ golden positions, parsing completeness, matching, offer reconciliation, API
 data/reference/v1, v2   company reference data (server-side; v2 = v1 + synthetic rows)
@@ -121,6 +141,6 @@ Each server component maps to an Azure service:
 - Caddy → Front Door;
 - containers → Container Apps;
 - storage volume → Blob Storage;
-- OpenAI → Azure OpenAI, for the bid-optimisation loop.
+- OpenAI → Azure OpenAI, for the assistant and the bid-optimisation loop.
 
-Configuration comes from environment variables only. Storage sits behind an interface with a local implementation now; an Azure one plugs in without code changes elsewhere. Reference data is a versioned folder the company maintains. No OpenAI calls are made today (`AI_PROVIDER=off`).
+Configuration comes from environment variables only. Storage sits behind an interface with a local implementation now; an Azure one plugs in without code changes elsewhere. Reference data is a versioned folder the company maintains. OpenAI is called only by the assistant, and only with `AI_PROVIDER=openai`; the pipeline and the tests make no calls.

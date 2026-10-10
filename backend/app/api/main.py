@@ -16,6 +16,7 @@ from fastapi.responses import Response
 from app.config import get_settings
 from pydantic import BaseModel, Field
 
+from app.assistant import BudgetExceeded, make_assistant
 from app.offer.build import build_offer
 from app.offer.pdf_fill import fill_offer
 from app.parsing.pipeline import PARSER_VERSION, parse_tender, tender_to_dict
@@ -28,6 +29,7 @@ settings = get_settings()
 storage = make_storage(settings.storage, settings.data_dir)
 reference = load_reference(settings.reference_dir)
 win = WinService(settings.reference_dir, reference.parameters, settings.win_context_path, settings.win_model)  # trains here
+assistant = make_assistant(settings, storage)
 
 app = FastAPI(title="Tender Pricing API", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["*"], allow_headers=["*"])
@@ -266,3 +268,34 @@ def get_offer_pdf(tender_id: str, download: bool = False) -> Response:
     name = f"Offer_{(parsed['meta'].get('filename') or tender_id).removesuffix('.pdf')}.pdf"
     disposition = "attachment" if download else "inline"
     return Response(data, media_type="application/pdf", headers={"Content-Disposition": f'{disposition}; filename="{name}"'})
+
+
+# ---- assistant: questions about the tender, our offer and the company's data, answered with checked quotes ------
+
+@app.get("/api/assistant")
+def assistant_status() -> dict:
+    return assistant.status()
+
+
+class ChatMessage(BaseModel):
+    role: str  # user | assistant
+    content: str = Field(max_length=4000)
+
+
+class Question(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    history: list[ChatMessage] = []
+    lang: str = "en"
+    view: dict = {}  # what the estimator is looking at: step, page, selected position
+
+
+@app.post("/api/tenders/{tender_id}/assistant")
+def ask_assistant(tender_id: str, body: Question) -> dict:
+    _load(tender_id)
+    if not assistant.enabled:
+        raise HTTPException(503, "The assistant is off: set AI_PROVIDER=openai and OPENAI_API_KEY.")
+    try:
+        return assistant.ask(tender_id, body.question, lambda: _pricing(tender_id), history=[m.model_dump() for m in body.history],
+                             lang="de" if body.lang == "de" else "en", view=body.view)
+    except BudgetExceeded as e:
+        raise HTTPException(429, str(e)) from e

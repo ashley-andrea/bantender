@@ -23,7 +23,13 @@ export function PriceDetail({ line, systems, offer, settings, onEdit, busy }: {
   return (
     <div className="h-full min-h-0 overflow-auto scroll-thin panel p-5">
       <LineHeader line={line} systems={systems} />
-      <div className="mt-4 grid grid-cols-4 gap-4 text-[13px]">
+      {ctx && (
+        <div className="mt-5">
+          <div className="text-[12.5px] font-semibold">{t('catalogueRef')} <span className="font-normal text-muted">· {ctx.item.product_id}</span></div>
+          <FamilyTable ctx={ctx} className="mt-1" />
+        </div>
+      )}
+      <div className="mt-5 grid grid-cols-4 gap-4 text-[13px] rounded-md bg-canvas px-4 py-3">
         <Cell label={t('quantity')}>
           {line.source === 'lv' ? (
             <InlineNumber value={line.decision.quantity} suffix={unit} edited={line.decision.overridden.includes('quantity')} busy={busy}
@@ -40,7 +46,6 @@ export function PriceDetail({ line, systems, offer, settings, onEdit, busy }: {
         <Cell label={t('amount')}><span className="num font-semibold text-green">{o?.kind === 'priced' ? fmtChf(o.amount, 2) : '—'}</span></Cell>
       </div>
 
-      {ctx && <FamilyTable ctx={ctx} className="mt-6" />}
 
       {c && o?.kind === 'priced' && o.raw != null && (o.quantity ?? 0) > 0 && (
         <Steps line={line} settings={settings} m={m} raw={o.raw / o.quantity!} unitPrice={o.unit_price!} includesLabour={!!o.includes_labour} />

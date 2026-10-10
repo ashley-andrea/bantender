@@ -53,6 +53,7 @@ const STRINGS = {
   parameters: { en: 'Parameters', de: 'Parameter' },
   resetAll: { en: 'Reset all', de: 'Alle zurücksetzen' },
   undo: { en: 'Back to the company value', de: 'Zurück zum Firmenwert' },
+  catalogueRef: { en: 'Catalogue reference', de: 'Katalogreferenz' },
   stepsTitle: { en: 'From net price to unit price', de: 'Vom Nettopreis zum Einheitspreis' },
   stepNet: { en: 'Catalogue net price', de: 'Katalog-Nettopreis' },
   labour: { en: 'Installation', de: 'Montage' },

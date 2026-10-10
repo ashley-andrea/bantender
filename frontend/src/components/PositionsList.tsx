@@ -80,7 +80,7 @@ export function PositionsList({ lines, systems, stage, offer, selected, onSelect
                       </span>
                     )}
                     {stage === 'price' && (o?.kind === 'priced' ? (
-                      <span className="whitespace-nowrap">
+                      <span className="whitespace-nowrap rise">
                         {l.cost && l.cost.net_unit_cost > 0 && <span className="text-faint">{fmtChf(l.cost.net_unit_cost, 2)} → </span>}
                         <span className="font-semibold">{fmtChf(o.unit_price, 2)}</span>
                       </span>

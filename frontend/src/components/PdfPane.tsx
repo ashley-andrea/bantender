@@ -31,9 +31,18 @@ export function PdfPane({ url, page, pageCount, pageSize, highlights, caption, o
 
   useEffect(() => {
     if (!box.current) return
-    const ro = new ResizeObserver(([e]) => setWidth(Math.floor(e.contentRect.width)))
+    // Re-render the page only once a resize settles (dragging a column edge would otherwise re-render per pixel).
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const ro = new ResizeObserver(([e]) => {
+      const w = Math.floor(e.contentRect.width)
+      clearTimeout(timer)
+      if (w >= 120) timer = setTimeout(() => setWidth(w), 120)
+    })
     ro.observe(box.current)
-    return () => ro.disconnect()
+    return () => {
+      clearTimeout(timer)
+      ro.disconnect()
+    }
   }, [])
 
   const scale = pageSize ? width / pageSize[0] : 1

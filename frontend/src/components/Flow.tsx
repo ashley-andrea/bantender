@@ -5,6 +5,7 @@ import { LEVEL_COLOR, fmtChf } from '../format'
 import { LangToggle, tx, useI18n, type Key } from '../i18n'
 import { STEPS, type Step } from '../route'
 import type { Offer, Parsed, PricedLine, Pricing, ReferenceParameters } from '../types'
+import { Col, Handle, useWidths } from './Columns'
 import { PdfPane, type Highlight } from './PdfPane'
 import { PositionsList } from './PositionsList'
 import { UploadView } from './Upload'
@@ -37,6 +38,11 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
   const [exportPage, setExportPage] = useState<number | null>(null)
   const [query, setQuery] = useState('')
   const [defaults, setDefaults] = useState<ReferenceParameters | null>(null)
+  const [widths, setWidth] = useWidths({
+    pdf: Math.min(900, Math.max(420, Math.round(window.innerWidth * 0.36))), list: 290, priceList: 360, params: 330, export: 380,
+  })
+  const [dragging, setDragging] = useState(false)
+  const listWidth = step === 'price' ? widths.priceList : widths.list
 
   useEffect(() => {
     api.reference().then((r) => setDefaults(r.parameters)).catch(() => setDefaults(null))
@@ -153,7 +159,7 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
       step={step}
       enabled={ready}
       onStep={onStep}
-      price={step === 'price' ? null : pricing?.project.selling_price ?? null}
+      price={step === 'offers' || step === 'export' ? pricing?.project.selling_price ?? null : null}
       busy={busy}
       onHome={onHome}
     />
@@ -186,40 +192,53 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
     <div className="h-full flex flex-col">
       {top}
       <main className="flex-1 min-h-0 p-3">
-        {/* Extraction and catalogue share one layout, so the PDF and its highlights stay put when switching. */}
-        {(step === 'extract' || step === 'catalog') && line && (
-          <div className="h-full grid grid-cols-[minmax(0,1fr)_290px_minmax(0,1.05fr)] gap-3">
-            <PdfPane url={api.pdfUrl(tenderId)} page={page} pageCount={parsed.meta.pages} pageSize={parsed.meta.page_sizes[String(page)]}
-              highlights={highlights} caption={parsed.meta.filename ?? ''} onPage={setPage} />
-            <PositionsList lines={lines} systems={parsed.systems} stage={step} offer={offer} selected={selectedId} onSelect={select}
-              query={query} onQuery={setQuery} extra={nextQuote} />
-            {step === 'extract' ? (
-              <ExtractionPanel line={line} systems={parsed.systems} active={active} onActive={activate} onEdit={edit} busy={busy} />
-            ) : (
-              <CataloguePanel line={line} systems={parsed.systems} active={active} onActive={activate} busy={busy} onQuote={(v) => edit('unit_price', v)} />
-            )}
-          </div>
-        )}
-        {step === 'price' && line && (
-          <div className="h-full flex flex-col gap-3">
-            <div className="flex-1 min-h-0 grid grid-cols-[360px_minmax(0,1fr)_330px] gap-3">
-              <PositionsList lines={lines} systems={parsed.systems} stage="price" offer={offer} selected={selectedId} onSelect={select}
-                query={query} onQuery={setQuery} />
-              <PriceDetail line={line} systems={parsed.systems} offer={offer} settings={pricing.settings} onEdit={edit} busy={busy} />
-              <ParameterPanel settings={pricing.settings} systems={parsed.systems} defaults={defaults} busy={busy}
-                onChange={(patch) => apply(api.settings(tenderId, patch))} />
+        {/* Extraction, catalogue and price share one row of columns. The PDF stays mounted (no reload or
+            re-animation between the first two steps); moving to the price step slides the PDF out to the left,
+            the same positions list moves over and the parameters come in from the right. */}
+        {(step === 'extract' || step === 'catalog' || step === 'price') && line && (
+          <div className="h-full flex flex-col">
+            <div className="flex-1 min-h-0 flex">
+              <Col width={step === 'price' ? 0 : widths.pdf} full={widths.pdf} align="end" animate={!dragging}>
+                <PdfPane url={api.pdfUrl(tenderId)} page={page} pageCount={parsed.meta.pages} pageSize={parsed.meta.page_sizes[String(page)]}
+                  highlights={highlights} caption={parsed.meta.filename ?? ''} onPage={setPage} />
+              </Col>
+              <Handle visible={step !== 'price'} value={widths.pdf} min={360} max={960} onChange={(w) => setWidth('pdf', w)} onDrag={setDragging} animate={!dragging} />
+              <Col width={listWidth} full={listWidth} animate={!dragging}>
+                <PositionsList lines={lines} systems={parsed.systems} stage={step} offer={offer} selected={selectedId} onSelect={select}
+                  query={query} onQuery={setQuery} extra={nextQuote} />
+              </Col>
+              <Handle value={listWidth} min={240} max={480} onChange={(w) => setWidth(step === 'price' ? 'priceList' : 'list', w)} onDrag={setDragging} animate={!dragging} />
+              <div className="flex-1 min-w-[380px] h-full">
+                <div key={step} className="h-full rise">
+                  {step === 'extract' && <ExtractionPanel line={line} systems={parsed.systems} active={active} onActive={activate} onEdit={edit} busy={busy} />}
+                  {step === 'catalog' && <CataloguePanel line={line} systems={parsed.systems} active={active} onActive={activate} busy={busy} onQuote={(v) => edit('unit_price', v)} />}
+                  {step === 'price' && <PriceDetail line={line} systems={parsed.systems} offer={offer} settings={pricing.settings} onEdit={edit} busy={busy} />}
+                </div>
+              </div>
+              <Handle visible={step === 'price'} invert value={widths.params} min={280} max={480} onChange={(w) => setWidth('params', w)} onDrag={setDragging} animate={!dragging} />
+              <Col width={step === 'price' ? widths.params : 0} full={widths.params} animate={!dragging}>
+                {step === 'price' && (
+                  <ParameterPanel settings={pricing.settings} systems={parsed.systems} defaults={defaults} busy={busy}
+                    onChange={(patch) => apply(api.settings(tenderId, patch))} />
+                )}
+              </Col>
             </div>
-            <OfferBar pricing={pricing} busy={busy} />
+            {step === 'price' && <div className="pt-3 rise"><OfferBar pricing={pricing} busy={busy} /></div>}
           </div>
         )}
         {step === 'offers' && <OfferOptions pricing={pricing} />}
         {step === 'export' && (offer ? (
-          <div className="h-full grid grid-cols-[minmax(0,1fr)_380px] gap-3">
+          <div className="h-full flex">
+            <div className="flex-1 min-w-[400px] h-full">
             <PdfPane url={api.offerPdfUrl(tenderId, false, version)} page={exportAt} pageCount={parsed.meta.pages} pageSize={parsed.meta.page_sizes[String(exportAt)]}
               highlights={offer.fields.filter((f) => f.page === exportAt).map((f) => ({ bbox: f.bbox, color: '#008163' }))}
               caption={parsed.meta.filename ?? ''} onPage={setExportPage} />
+            </div>
+            <Handle invert value={widths.export} min={320} max={560} onChange={(w) => setWidth('export', w)} onDrag={setDragging} animate={!dragging} />
+            <Col width={widths.export} full={widths.export} animate={false}>
             <ExportPanel offer={offer} parsed={parsed} page={exportAt} url={api.offerPdfUrl(tenderId, true, version)}
               onJump={setExportPage} onConditions={(patch) => apply(api.settings(tenderId, patch))} busy={busy} />
+            </Col>
           </div>
         ) : <Centered><Loader2 className="size-6 animate-spin text-muted" /></Centered>)}
       </main>
@@ -251,13 +270,13 @@ function TopBar({ title, step, enabled, onStep, price, busy, onHome }: {
       </button>
       <div className="text-[13px] text-white/75 truncate max-w-56">{title}</div>
       <nav className="flex-1 flex justify-center">
-        <ol className="flex items-center">
+        <ol className="flex items-center gap-2">
           {STEPS.map((s, i) => (
             <li key={s}>
               <button onClick={() => onStep(s)} disabled={!enabled && s !== 'extract'}
-                className={`relative px-3 h-14 text-[13px] font-medium disabled:cursor-default disabled:text-white/30 ${s === step ? 'text-white' : i < current ? 'text-white/80 hover:text-white' : 'text-white/55 hover:text-white/85'}`}>
+                className={`relative px-6 h-14 text-[13px] font-medium disabled:cursor-default disabled:text-white/30 ${s === step ? 'text-white' : i < current ? 'text-white/80 hover:text-white' : 'text-white/55 hover:text-white/85'}`}>
                 <span className="num mr-1.5 text-white/50">{i + 1}</span>{t(STEP_LABEL[s])}
-                {s === step && <span className="absolute left-3 right-3 bottom-0 h-[3px] bg-mint" />}
+                {s === step && <span className="absolute left-6 right-6 bottom-0 h-[3px] bg-mint" />}
               </button>
             </li>
           ))}

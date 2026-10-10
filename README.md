@@ -18,7 +18,7 @@ The estimator drops one PDF into the Extraction step; its first page is shown be
 | 4 Offer options | Reserved for the AI bid-optimisation loop. Placeholder only. | — |
 | 5 Export | The filled PDF, the filled pages in document order grouped by system, conditions, download. | Discount, cash discount |
 
-The top bar shows the offer price. Flags are limited to what needs a person: 28 supplier-package items waiting for a quote, and one position whose quantity the tender leaves blank. The English view uses English throughout; German names from the tender (systems, sections, lots) are translated with a small glossary.
+Columns can be resized by dragging their edges (within a readable range; widths are remembered per browser). Moving from Catalogue to Price slides the PDF out and brings the parameters in, with the same positions list now showing net → final prices. The top bar shows the offer price from the Offer options step on. Flags are limited to what needs a person: 28 supplier-package items waiting for a quote, and one position whose quantity the tender leaves blank. The English view uses English throughout; German names from the tender (systems, sections, lots) are translated with a small glossary.
 
 **How a value was obtained** (one level per value, not a probability):
 

@@ -130,36 +130,35 @@ export function Landing({ onOpen }: { onOpen: (id: string) => void }) {
 
       {/* page content */}
       <main className={`absolute inset-x-0 top-14 bottom-0 flex flex-col items-center transition-opacity duration-500 ${intro ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-        {/* recent tenders: top centre, as a dropdown */}
-        <div className="relative mt-6">
-          <button disabled={!recent.length || !!file} onClick={() => setMenu((m) => !m)}
-            className="btn btn-paper px-4 py-1.5 text-[14px]">
-            {t('recent')} {recent.length > 0 && <span className="num text-[13px] text-muted">({recent.length})</span>}
-            <ChevronDown className={`size-4 transition-transform ${menu ? 'rotate-180' : ''}`} />
-          </button>
-          {menu && (
-            <div className="absolute left-1/2 -translate-x-1/2 mt-3 w-[460px] panel p-2 z-30 rise">
-              {recent.map((r) => (
-                <button key={r.tender_id} onClick={() => onOpen(r.tender_id)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded hover:bg-canvas">
-                  <FileText className="size-4 text-muted shrink-0" />
-                  <span className="flex-1 min-w-0 truncate text-[14px]">{r.project?.name ?? r.filename ?? r.tender_id}</span>
-                  <span className="text-[12px] text-muted num whitespace-nowrap">{r.pages} {t('pages')} · {fmtNum(r.lines)} {t('positions')}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
         {/* upload, in the middle */}
-        <div className="flex-1 w-full grid place-items-center pb-[12vh]">
+        <div className="flex-1 w-full grid place-items-center pb-[8vh]">
           {!file ? (
             <div className={`panel w-[min(520px,90vw)] px-10 py-12 flex flex-col items-center gap-3 transition-colors ${drag ? 'panel-green bg-hl-read/20' : ''}`}>
-              <div className="text-[23px] font-semibold">{t('tagline')}</div>
+              <div className="text-[23px] font-semibold text-center">{t('tagline')}</div>
               <p className="text-[13.5px] text-muted text-center max-w-sm">{t('subline')}</p>
               <button className="btn btn-green mt-4 px-5 py-2.5 text-[15px]" onClick={() => input.current?.click()}>
                 <UploadIcon className="size-4" /> {t('uploadTender')}
               </button>
               <div className="text-[12px] text-faint">{t('orDrop')}</div>
+              {/* recent tenders, as a dropdown under the upload */}
+              <div className="relative mt-5">
+                <button disabled={!recent.length || !!file} onClick={() => setMenu((m) => !m)}
+                  className="btn btn-paper px-4 py-1.5 text-[14px]">
+                  {t('recent')} {recent.length > 0 && <span className="num text-[13px] text-muted">({recent.length})</span>}
+                  <ChevronDown className={`size-4 transition-transform ${menu ? 'rotate-180' : ''}`} />
+                </button>
+                {menu && (
+                  <div className="absolute left-1/2 -translate-x-1/2 mt-3 w-[460px] panel p-2 z-30 rise">
+                    {recent.map((r) => (
+                      <button key={r.tender_id} onClick={() => onOpen(r.tender_id)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded hover:bg-canvas">
+                        <FileText className="size-4 text-muted shrink-0" />
+                        <span className="flex-1 min-w-0 truncate text-[14px]">{r.project?.name ?? r.filename ?? r.tender_id}</span>
+                        <span className="text-[12px] text-muted num whitespace-nowrap">{r.pages} {t('pages')} · {fmtNum(r.lines)} {t('positions')}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <input ref={input} type="file" accept="application/pdf" className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) run(f) }} />
             </div>

@@ -171,8 +171,8 @@ export function PdfPane({ url, page, pageCount, pageSize, highlights, caption, o
           </button>
         </div>
       </div>
-      <div ref={scroller} className="flex-1 overflow-auto scroll-thin bg-[#ebe6da] p-3">
-        <div className="relative bg-white shadow-[2px_3px_0_rgb(28_41_51/0.12)]" style={{ width, height }}>
+      <div ref={scroller} className="flex-1 overflow-auto scroll-thin bg-[#f1f1ef] p-3">
+        <div className="relative bg-white border border-hair" style={{ width, height }}>
           <div className="absolute left-0 top-0 origin-top-left" style={{ transform: `scale(${zoom / rendered})` }}>
             <Document file={url} loading={<div className="h-[60vh] grid place-items-center text-muted text-sm">…</div>}>
               <Page pageNumber={page} width={base * rendered} renderTextLayer={false} renderAnnotationLayer={false} />

@@ -1,18 +1,15 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter';
-@import '@fontsource/kalam/400.css';
-@import '@fontsource/kalam/700.css';
 
 /*
- * Sketchbook on a company tool: paper background, pencil-drawn boxes, highlighter marks on the tender, a hand font
- * for titles only. Body text stays Inter so tables and numbers read cleanly. Equans navy is the ink, Equans green the
+ * Sketchbook touches on a clean company tool: white background, pencil-drawn boxes, highlighter marks on the tender,
+ * one clean font (Inter) for readability. Equans navy is the ink, Equans green the
  * action colour. Each highlighter colour has one meaning (how a value was obtained).
  */
 @theme {
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-hand: 'Kalam', 'Segoe Print', 'Bradley Hand', cursive;
-  --color-canvas: #f5f2ea;
-  --color-surface: #fffdf8;
+  --color-canvas: #f4f4f2;
+  --color-surface: #ffffff;
   --color-ink: #1c2933;
   --color-muted: #5f6a72;
   --color-faint: #9aa2a8;
@@ -36,7 +33,6 @@
      scroll with the content of a scrolling panel. */
   --sketch: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><g fill='none' stroke='%231c2933' stroke-linecap='round' stroke-linejoin='round'><path stroke-width='2.1' stroke-opacity='0.78' d='M6.5 5.6 C32 4.4 74 6.6 113.6 4.9 C115.5 34 114.1 78 115.3 114.4 C82 115.7 38 113.7 5.6 115.1 C4.3 80 6.1 38 6.5 5.6 Z'/><path stroke-width='1.1' stroke-opacity='0.32' d='M4.6 7.3 C42 5.4 82 8.2 115.2 6.1 C116.6 42 113.4 86 114.1 116.2 C70 114.1 30 116.9 6.9 113.9 C5.4 72 3.7 30 4.6 7.3'/></g></svg>");
   --sketch-green: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><g fill='none' stroke='%23008163' stroke-linecap='round' stroke-linejoin='round'><path stroke-width='2.4' stroke-opacity='0.9' d='M6.5 5.6 C32 4.4 74 6.6 113.6 4.9 C115.5 34 114.1 78 115.3 114.4 C82 115.7 38 113.7 5.6 115.1 C4.3 80 6.1 38 6.5 5.6 Z'/></g></svg>");
-  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.3  0 0 0 0 0.27  0 0 0 0 0.2  0 0 0 0.05 0'/></filter><rect width='160' height='160' filter='url(%23g)'/></svg>");
 }
 
 html,
@@ -46,15 +42,10 @@ body,
 }
 
 body {
-  background-color: var(--color-canvas);
-  background-image: var(--paper-grain);
+  background-color: #ffffff;
   color: var(--color-ink);
   font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
-}
-
-.font-hand {
-  font-family: var(--font-hand);
 }
 
 .num {
@@ -76,10 +67,8 @@ body {
 
 /* Section title in the hand font with a light marker swash under it. */
 .title-hand {
-  font-family: var(--font-hand);
-  font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 0.2px;
+  font-weight: 600;
+  font-size: 13.5px;
   background: linear-gradient(transparent 62%, rgb(112 189 149 / 0.35) 62%, rgb(112 189 149 / 0.35) 88%, transparent 88%);
   padding: 0 3px;
   margin-left: -3px;
@@ -95,21 +84,17 @@ body {
   font-weight: 600;
   border: 1.6px solid var(--color-ink);
   border-radius: 14px 9px 12px 8px / 8px 12px 9px 14px;
-  box-shadow: 2px 2px 0 rgb(28 41 51 / 0.85);
-  transition: transform 120ms ease, box-shadow 120ms ease;
+  transition: filter 120ms ease, background-color 120ms ease;
 }
 .btn:hover:not(:disabled) {
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0 rgb(28 41 51 / 0.85);
+  filter: brightness(0.96);
 }
 .btn:active:not(:disabled) {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0 rgb(28 41 51 / 0.85);
+  filter: brightness(0.9);
 }
 .btn:disabled {
   opacity: 0.45;
   cursor: default;
-  box-shadow: none;
 }
 .btn-green {
   background: var(--color-green);
@@ -143,15 +128,13 @@ body {
 .hl-tag {
   position: absolute;
   white-space: nowrap;
-  font-family: var(--font-hand);
-  font-weight: 700;
-  font-size: 13px;
+  font-weight: 600;
+  font-size: 11.5px;
   line-height: 1;
   padding: 4px 8px 3px;
   background: var(--color-surface);
   border: 1.4px solid var(--color-ink);
   border-radius: 9px 5px 8px 4px / 4px 8px 5px 9px;
-  box-shadow: 1.5px 1.5px 0 rgb(28 41 51 / 0.7);
   transform: rotate(-2deg);
   pointer-events: none;
   z-index: 5;

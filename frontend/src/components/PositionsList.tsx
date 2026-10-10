@@ -96,7 +96,7 @@ export function PositionsList({ entries, systems, stage, offer, selected, expand
       <div className="flex-1 min-h-0 overflow-auto scroll-thin">
         {groups.map((g) => (
           <div key={g.code}>
-            <div className="sticky top-0 z-10 bg-surface/95 backdrop-blur px-3 py-1 font-hand font-bold text-[13.5px] text-muted border-b border-dashed border-hair">
+            <div className="sticky top-0 z-10 bg-surface/95 backdrop-blur px-3 py-1 font-semibold text-[12px] text-muted border-b border-dashed border-hair">
               {g.code} {systemName(systems[g.code], lang)}
             </div>
             {g.entries.map((e) => {
@@ -114,14 +114,14 @@ export function PositionsList({ entries, systems, stage, offer, selected, expand
                     ) : <span className="w-[18px] -ml-1 shrink-0" />}
                     title={entryTitle(e, lang)}
                     sub={<>p.{[...new Set(e.members.map((m) => m.page))].join(', ')}{first.source === 'cad' ? ` · ${t('fromCad')}` : ''}
-                      {isGroup ? <span className="text-green font-hand font-bold text-[12.5px]"> · {e.members.length} {t('variants')} · {entryQuantity(e, lang)}</span> : ''}
+                      {isGroup ? <span className="text-green font-semibold text-[11px]"> · {e.members.length} {t('variants')} · {entryQuantity(e, lang)}</span> : ''}
                       {!isGroup && hasKids ? <span className="text-muted"> · {e.children.length} {t('partsWord')}</span> : ''}</>}
                     right={right(e.members, isGroup)} />
                   {open && e.children.map((c) => (
                     <Row key={c.id} id={c.id} refs={refs} active={selected === c.id} onClick={() => onSelect(c.id)} child
                       chevron={<span className="w-[18px] -ml-1 shrink-0" />}
                       title={c.role === 'variant' ? variantLabel(c.line, lang) : lineTitle(c.line, lang)}
-                      sub={<>p.{c.line.page}{c.role === 'part' ? <span className="font-hand"> · {t('partWord')}</span> : ''}</>}
+                      sub={<>p.{c.line.page}{c.role === 'part' ? <span> · {t('partWord')}</span> : ''}</>}
                       right={right([c.line], false)} />
                   ))}
                 </div>

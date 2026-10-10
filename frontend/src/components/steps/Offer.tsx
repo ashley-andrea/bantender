@@ -1,5 +1,5 @@
-import { Download } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { ChevronLeft, ChevronRight, Download } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { fmtChf, fmtPct } from '../../format'
 import { systemName, useI18n } from '../../i18n'
 import type { Offer, OfferChoice, Parsed } from '../../types'
@@ -44,6 +44,24 @@ export function ExportPanel({ choice, offer, parsed, page, url, onJump, onCondit
     return out
   }, [offer, parsed, c.page, t, lang])
   const pageCount = groups.reduce((n, g) => n + g.pages.length, 0)
+  // Step through the filled pages in document order (arrows here, or ← / → on the keyboard).
+  const filled = groups.flatMap((g) => g.pages.map((p) => p.page))
+  const at = filled.indexOf(page)
+  const go = (d: number) => {
+    const i = at < 0 ? (d > 0 ? filled.findIndex((p) => p > page) : filled.length - 1 - [...filled].reverse().findIndex((p) => p < page)) : at + d
+    if (filled[i] != null) onJump(filled[i])
+  }
+  const goRef = useRef(go)
+  goRef.current = go
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).tagName === 'INPUT') return
+      if (e.key === 'ArrowRight') goRef.current(1)
+      if (e.key === 'ArrowLeft') goRef.current(-1)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   return (
     <div className="h-full min-h-0 flex flex-col panel overflow-hidden">
@@ -52,7 +70,7 @@ export function ExportPanel({ choice, offer, parsed, page, url, onJump, onCondit
           <Download className="size-4" /> {t('download')}
         </a>
         {choice && (
-          <div className="mt-3 font-hand text-[15px] text-ink">
+          <div className="mt-3 text-[13px] text-ink">
             {t('chosenOffer')}: <b>{SCENARIO_LABEL[choice.scenario]?.[lang] ?? choice.scenario}</b>
             {choice.win_probability != null && <span className="text-muted"> · {Math.round(choice.win_probability * 100)} % {t('winChanceShort')}</span>}
           </div>
@@ -68,9 +86,14 @@ export function ExportPanel({ choice, offer, parsed, page, url, onJump, onCondit
           </tbody>
         </table>
       </div>
-      <div className="px-4 pt-3 pb-1 flex items-baseline text-[12.5px]">
+      <div className="px-4 pt-3 pb-1 flex items-center gap-2 text-[12.5px]">
         <span className="title-hand">{t('filledPages')}</span>
-        <span className="ml-auto text-muted num">{pageCount} {t('pages')} · {offer.fields.length} {t('fields')}</span>
+        <span className="text-muted num">{pageCount} · {offer.fields.length} {t('fields')}</span>
+        <span className="ml-auto inline-flex items-center gap-1">
+          <button className="btn btn-paper p-1" disabled={at <= 0} onClick={() => go(-1)} title={t('prevFilled')}><ChevronLeft className="size-4" /></button>
+          <span className="num text-muted w-14 text-center">{at >= 0 ? at + 1 : '–'} / {pageCount}</span>
+          <button className="btn btn-paper p-1" disabled={at >= pageCount - 1} onClick={() => go(1)} title={t('nextFilled')}><ChevronRight className="size-4" /></button>
+        </span>
       </div>
       <div className="flex-1 min-h-0 overflow-auto scroll-thin px-4 pb-3">
         {groups.map((g) => (
@@ -87,9 +110,6 @@ export function ExportPanel({ choice, offer, parsed, page, url, onJump, onCondit
             </div>
           </div>
         ))}
-      </div>
-      <div className="px-4 py-3 border-t border-hair text-[12px] text-muted">
-        <span className="font-semibold text-ink">{t('notFilled')}: </span>{t('notFilledBody')}
       </div>
     </div>
   )

@@ -89,7 +89,6 @@ export function Landing({ onOpen }: { onOpen: (id: string) => void }) {
       onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files[0]; if (f && !file) run(f) }}>
       {/* header strip: the wordmark lands here */}
       <header className={`h-14 px-5 flex items-center justify-end gap-4 transition-opacity duration-500 ${intro ? 'opacity-0' : 'opacity-100'}`}>
-        <img src="/equans-logo.png" alt="Equans" className="h-4 opacity-80" />
         <LangToggle />
         <svg className="absolute left-0 right-0 top-[54px] w-full h-1.5" viewBox="0 0 1000 6" preserveAspectRatio="none" aria-hidden>
           <path d="M0 3 C 150 1.5, 300 4.5, 500 3 S 850 1.8, 1000 3.2" stroke="#1c2933" strokeOpacity="0.55" strokeWidth="1.4" fill="none" />
@@ -113,17 +112,17 @@ export function Landing({ onOpen }: { onOpen: (id: string) => void }) {
       <div className="fixed z-20 flex items-center gap-4" style={{
         left: '50vw', top: 'calc(17vh + 38vh + 22px)', transition: 'opacity 500ms ease', opacity: intro ? 1 : 0, transform: 'translateX(-14px)',
       }}>
-        <span className="font-hand text-[26px] text-muted">×</span>
+        <span className="text-[22px] text-muted">×</span>
         <img src="/equans-logo.png" alt="Equans" className="h-[34px]" />
       </div>
 
       {/* speech bubble */}
       {bubble && (
         <div key={bubble} className="fixed z-20 grow" style={{ right: `calc(${imgH * RATIO}vh + 18px)`, top: `calc(100vh - ${imgH}vh - 34px)`, transformOrigin: 'right bottom' }}>
-          <div className="relative font-hand text-[19px] font-bold text-ink bg-surface px-4 py-2 border-[1.6px] border-ink rounded-[18px_14px_16px_12px/12px_16px_14px_18px] shadow-[2px_2px_0_rgb(28_41_51/0.8)]">
+          <div className="relative text-[15px] font-semibold text-ink bg-surface px-4 py-2 border-[1.6px] border-ink rounded-[18px_14px_16px_12px/12px_16px_14px_18px]">
             {t(bubble)}
             <svg className="absolute -right-[15px] bottom-1" width="18" height="16" viewBox="0 0 18 16" aria-hidden>
-              <path d="M1 2 C 7 4, 12 8, 17 15 C 11 12, 6 11, 1 11" fill="#fffdf8" stroke="#1c2933" strokeWidth="1.6" strokeLinejoin="round" />
+              <path d="M1 2 C 7 4, 12 8, 17 15 C 11 12, 6 11, 1 11" fill="#ffffff" stroke="#1c2933" strokeWidth="1.6" strokeLinejoin="round" />
             </svg>
           </div>
         </div>
@@ -134,7 +133,7 @@ export function Landing({ onOpen }: { onOpen: (id: string) => void }) {
         {/* recent tenders: top centre, as a dropdown */}
         <div className="relative mt-6">
           <button disabled={!recent.length || !!file} onClick={() => setMenu((m) => !m)}
-            className="btn btn-paper px-4 py-1.5 font-hand text-[16px]">
+            className="btn btn-paper px-4 py-1.5 text-[14px]">
             {t('recent')} {recent.length > 0 && <span className="num text-[13px] text-muted">({recent.length})</span>}
             <ChevronDown className={`size-4 transition-transform ${menu ? 'rotate-180' : ''}`} />
           </button>
@@ -155,7 +154,7 @@ export function Landing({ onOpen }: { onOpen: (id: string) => void }) {
         <div className="flex-1 w-full grid place-items-center pb-[12vh]">
           {!file ? (
             <div className={`panel w-[min(520px,90vw)] px-10 py-12 flex flex-col items-center gap-3 transition-colors ${drag ? 'panel-green bg-hl-read/20' : ''}`}>
-              <div className="font-hand text-[26px] font-bold">{t('tagline')}</div>
+              <div className="text-[23px] font-semibold">{t('tagline')}</div>
               <p className="text-[13.5px] text-muted text-center max-w-sm">{t('subline')}</p>
               <button className="btn btn-green mt-4 px-5 py-2.5 text-[15px]" onClick={() => input.current?.click()}>
                 <UploadIcon className="size-4" /> {t('uploadTender')}
@@ -166,7 +165,7 @@ export function Landing({ onOpen }: { onOpen: (id: string) => void }) {
             </div>
           ) : (
             <div className="panel w-[min(560px,90vw)] p-5 flex gap-5 items-center rise">
-              <div className="relative w-40 shrink-0 bg-white overflow-hidden shadow-[2px_3px_0_rgb(28_41_51/0.12)]">
+              <div className="relative w-40 shrink-0 bg-white overflow-hidden border border-hair">
                 <Document file={file.url} loading={<div className="h-52" />}>
                   <Page pageNumber={1} width={160} renderTextLayer={false} renderAnnotationLayer={false} />
                 </Document>
@@ -174,7 +173,7 @@ export function Landing({ onOpen }: { onOpen: (id: string) => void }) {
               </div>
               <div className="min-w-0">
                 <div className="text-[13px] text-muted truncate">{file.name}</div>
-                <div className="mt-1 font-hand text-[20px] font-bold">{t('reading')}</div>
+                <div className="mt-1 text-[17px] font-semibold">{t('reading')}</div>
                 <div className="mt-1 text-[32px] font-semibold num">{startedAt ? ((now - startedAt) / 1000).toFixed(1) : '0.0'} s</div>
                 <div className="mt-3 w-48 h-1 rounded-full bg-hair overflow-hidden">
                   <div className="h-full w-1/3 bg-green animate-[slide_1s_ease-in-out_infinite]" />

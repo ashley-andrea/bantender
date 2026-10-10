@@ -189,7 +189,7 @@ export function OfferBar({ pricing, busy, workbook }: { pricing: Pricing; busy: 
       <Part label={`${t('margin')} ${fmtPct(p.margin_pct)}`} value={p.selling_price - p.baseline} />
       <div className="ml-auto flex items-baseline gap-3">
         {busy && <Loader2 className="size-4 animate-spin text-muted self-center" />}
-        <span className="font-hand text-[16px] text-muted">{t('offerPrice')}</span>
+        <span className="text-[13px] text-muted">{t('offerPrice')}</span>
         <span className="text-[24px] font-semibold text-navy">CHF {fmtChf(p.selling_price)}</span>
         <a href={workbook} title={t('excelHint')} className="btn btn-paper self-center ml-2 px-3 py-1.5 text-[12.5px]">
           <FileSpreadsheet className="size-4 text-green" /> Excel
@@ -288,7 +288,7 @@ export function ParameterPanel({ settings, systems, defaults, onChange, busy }: 
       </div>
       {specs(draft).map((g) => (
         <div key={g.group} className="mt-7">
-          <div className="font-hand font-bold text-[14px] text-muted mb-1">{t(g.group)}</div>
+          <div className="text-[12px] font-semibold text-muted mb-1">{t(g.group)}</div>
           {g.items.map((s) => {
             const key = s.path[s.path.length - 1]
             const v = read(draft, s.path)
@@ -304,7 +304,7 @@ export function ParameterPanel({ settings, systems, defaults, onChange, busy }: 
       ))}
       {Object.keys(settings.locations).length > 0 && settings.location_options.length > 0 && (
         <div className="mt-7">
-          <div className="font-hand font-bold text-[14px] text-muted mb-1">{t('gLocations')}</div>
+          <div className="text-[12px] font-semibold text-muted mb-1">{t('gLocations')}</div>
           {Object.entries(settings.locations).map(([sys, loc]) => (
             <div key={sys} className="flex items-center gap-2 py-1 text-[12.5px]">
               <span className="truncate">{sys} {systemName(systems[sys], lang)}</span>

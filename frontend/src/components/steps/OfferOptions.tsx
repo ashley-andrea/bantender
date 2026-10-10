@@ -39,7 +39,7 @@ export function OfferOptions({ pricing, busy, onSettings, onChoose }: Props) {
     return (
       <div className="h-full grid place-items-center">
         <div className="panel p-6 max-w-md text-center">
-          <div className="font-hand text-[18px] font-bold">{t('unavailable')}</div>
+          <div className="text-[16px] font-semibold">{t('unavailable')}</div>
           {wc?.reason && <p className="mt-1 text-[12.5px] text-muted">{wc.reason}</p>}
         </div>
       </div>
@@ -75,7 +75,7 @@ function Options({ wc, pricing, summary, busy, onSettings, onChoose }: { wc: Req
           <span className="title-hand text-[19px]">{t('aiTitle')}</span>
           {busy && <Loader2 className="size-4 animate-spin text-muted self-center" />}
           <span className="text-[13px] text-muted">{t('winShort')}</span>
-          {wc.model !== 'ml' && <span className="ml-auto font-hand text-[13px] text-warn">{t('placeholderNote')}</span>}
+          {wc.model !== 'ml' && <span className="ml-auto text-[12px] text-warn">{t('placeholderNote')}</span>}
         </div>
 
         <div className="grid grid-cols-3 gap-4">
@@ -141,8 +141,8 @@ function OptionCard({ label, hint, offer, margin, chance, profit, recommended, c
   const { t } = useI18n()
   return (
     <div className={`panel ${recommended ? 'panel-green' : ''} p-5 flex flex-col relative`}>
-      {recommended && <span className="absolute -top-1 right-4 font-hand text-[13px] font-bold text-green rotate-[-3deg] bg-surface px-1.5">{t('recommended')}</span>}
-      <div className="font-hand text-[19px] font-bold leading-none">{label}</div>
+      {recommended && <span className="absolute -top-1 right-4 text-[11.5px] font-semibold text-green bg-surface px-1.5">{t('recommended')}</span>}
+      <div className="text-[16px] font-semibold leading-none">{label}</div>
       <div className="mt-1 text-[12px] text-muted min-h-4">{hint}</div>
       <div className="mt-4 text-[22px] font-semibold num">CHF {fmtChf(offer)}</div>
       <div className="text-[12px] text-muted num">{t('margin')} {fmtPct(Math.round(margin * 10) / 10)}</div>

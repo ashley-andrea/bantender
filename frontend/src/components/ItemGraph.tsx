@@ -108,7 +108,7 @@ export function ItemGraph({ spec, products, hours, active, onActive }: Props) {
           )}
           {hours && (
             <g className="grow" style={{ animationDelay: '80ms' }}>
-              <circle cx={ruleX} cy={TOP} r={30} fill="#fffdf8" stroke="#008163" strokeWidth={2.2} filter="url(#pencil)" />
+              <circle cx={ruleX} cy={TOP} r={30} fill="#ffffff" stroke="#008163" strokeWidth={2.2} filter="url(#pencil)" />
               <text x={ruleX} y={TOP + 5} textAnchor="middle" fontSize={13} fontWeight={700} fill="#1c2933">{hours.value} h</text>
               <text x={ruleX} y={TOP + 50} textAnchor="middle" fontSize={11.5} fill="#5f6a72">{lang === 'en' ? 'install' : 'Montage'} / {fmtUnit(hours.unit, lang)}</text>
             </g>
@@ -125,8 +125,8 @@ export function ItemGraph({ spec, products, hours, active, onActive }: Props) {
           <text key={i} x={topX} y={TOP + 4 - (all.length - 1) * 7.5 + i * 15} textAnchor="middle" fontSize={12.5} fontWeight={600} fill="#fff">{t}</text>
         ))}
         <g transform={`translate(${topX} ${TOP - R_TOP - 9}) rotate(-3)`}>
-          <rect x={-22} y={-10} width={44} height={19} rx={6} fill="#fffdf8" stroke="#1c2933" strokeWidth={1.3} />
-          <text x={0} y={4} textAnchor="middle" fontSize={12} fontWeight={700} fill="#1c2933" fontFamily="Kalam, cursive">{spec.top.label}</text>
+          <rect x={-22} y={-10} width={44} height={19} rx={6} fill="#ffffff" stroke="#1c2933" strokeWidth={1.3} />
+          <text x={0} y={4} textAnchor="middle" fontSize={12} fontWeight={700} fill="#1c2933">{spec.top.label}</text>
         </g>
       </g>
 
@@ -138,7 +138,7 @@ export function ItemGraph({ spec, products, hours, active, onActive }: Props) {
           <text x={topX} y={midY + 5} textAnchor="middle" fontSize={13} fontWeight={700} fill="#1c2933">{spec.mid.label}</text>
           {spec.mid.sub && (
             <g>
-              <rect x={topX + R_MID + 6} y={midY - 11} width={Math.min(260, spec.mid.sub.length * 7 + 14)} height={21} rx={6} fill="#fffdf8" stroke="#1c2933" strokeWidth={1} />
+              <rect x={topX + R_MID + 6} y={midY - 11} width={Math.min(260, spec.mid.sub.length * 7 + 14)} height={21} rx={6} fill="#ffffff" stroke="#1c2933" strokeWidth={1} />
               <text x={topX + R_MID + 13} y={midY + 4} fontSize={12} fill="#1c2933">{spec.mid.sub.length > 36 ? `${spec.mid.sub.slice(0, 35)}…` : spec.mid.sub}</text>
             </g>
           )}
@@ -164,7 +164,7 @@ export function ItemGraph({ spec, products, hours, active, onActive }: Props) {
         return (
           <g key={n.key} className={`cursor-pointer ${spec.mid && n.from === 'mid' ? 'grow' : ''}`} onMouseEnter={() => onActive(n.key)} onClick={() => onActive(n.key)}>
             <title>{`${n.label}: ${n.value}`}</title>
-            <circle cx={x} cy={rowY} r={on ? R + 3 : R} fill={on ? LEVEL_MARKER[n.level] : '#fffdf8'} stroke={ring(n.level)} strokeWidth={2.6}
+            <circle cx={x} cy={rowY} r={on ? R + 3 : R} fill={on ? LEVEL_MARKER[n.level] : '#ffffff'} stroke={ring(n.level)} strokeWidth={2.6}
               filter="url(#pencil)" className="transition-all" />
             <text x={x} y={rowY + 4} textAnchor="middle" fontSize={11} fontWeight={700} fill="#1c2933">{n.label}</text>
             {label.map((t, j) => (
@@ -186,7 +186,7 @@ export function ItemGraph({ spec, products, hours, active, onActive }: Props) {
               <title>{`${v.label}: ${v.value}`}</title>
               <path d={`M ${open.x} ${fromY} C ${open.x} ${fromY + 50}, ${x} ${expandY - 60}, ${x} ${expandY - R_SMALL}`} fill="none"
                 stroke={ring(v.level)} strokeWidth={on ? 2.6 : 1.6} strokeDasharray={DASH} filter="url(#pencil)" />
-              <circle cx={x} cy={expandY} r={on ? R_SMALL + 2 : R_SMALL} fill={on ? LEVEL_MARKER[v.level] : '#fffdf8'} stroke={ring(v.level)} strokeWidth={2.2} filter="url(#pencil)" />
+              <circle cx={x} cy={expandY} r={on ? R_SMALL + 2 : R_SMALL} fill={on ? LEVEL_MARKER[v.level] : '#ffffff'} stroke={ring(v.level)} strokeWidth={2.2} filter="url(#pencil)" />
               <text x={x} y={expandY + 4} textAnchor="middle" fontSize={10.5} fontWeight={700} fill="#1c2933">{i + 1}</text>
               {wrap(v.value, 13, 2).map((t, j) => (
                 <text key={j} x={x} y={expandY + R_SMALL + 15 + j * 13} textAnchor="middle" fontSize={11} fill={on ? '#1c2933' : '#5f6a72'} fontWeight={on ? 600 : 400}>{t}</text>
@@ -205,7 +205,7 @@ function GroupCircle({ x, y, r, label, count, color, on, onClick }: {
   return (
     <g className="cursor-pointer" onClick={onClick} onMouseEnter={onClick}>
       <circle cx={x} cy={y} r={r + 5} fill="none" stroke={color} strokeWidth={1.4} strokeDasharray="3 4" filter="url(#pencil)" />
-      <circle cx={x} cy={y} r={r} fill={on ? `${color}33` : '#fffdf8'} stroke={color} strokeWidth={2.6} filter="url(#pencil)" />
+      <circle cx={x} cy={y} r={r} fill={on ? `${color}33` : '#ffffff'} stroke={color} strokeWidth={2.6} filter="url(#pencil)" />
       <text x={x} y={y + 4} textAnchor="middle" fontSize={11} fontWeight={700} fill="#1c2933">{label}</text>
       <g transform={`translate(${x + r * 0.8} ${y - r * 0.8})`}>
         <circle r={9} fill="#1c2933" />

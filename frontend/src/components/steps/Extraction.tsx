@@ -76,7 +76,7 @@ export function SelectionHeader({ sel, systems }: { sel: Selection; systems: Par
       <div className="text-[19px] font-semibold leading-snug">
         {sel.child ? lineTitle(sel.child.line, lang) : entryTitle(sel.entry, lang)}
         {!sel.child && sel.entry.kind === 'group' && (
-          <span className="ml-2 font-hand text-[15px] text-green">{sel.entry.members.length} {t('variants')} · {entryQuantity(sel.entry, lang)}</span>
+          <span className="ml-2 text-[13px] font-semibold text-green">{sel.entry.members.length} {t('variants')} · {entryQuantity(sel.entry, lang)}</span>
         )}
       </div>
       <div className="text-[12.5px] text-muted">

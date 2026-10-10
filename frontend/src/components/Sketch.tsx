@@ -21,7 +21,7 @@ export function SketchDefs() {
  */
 export function BantenderLogo({ className = '', size = 22 }: { className?: string; size?: number }) {
   return (
-    <span className={`font-hand font-bold tracking-tight leading-none select-none ${className}`} style={{ fontSize: size }}>
+    <span className={`font-bold tracking-tight leading-none select-none ${className}`} style={{ fontSize: size }}>
       ban<span className="text-green">tender</span>
     </span>
   )

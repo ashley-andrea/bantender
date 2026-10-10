@@ -66,7 +66,7 @@ export function CataloguePanel({ sel, systems, active, onActive, onQuote, busy }
       )}
       {needsQuote && line && (
         <div className="mt-5 flex items-center gap-3 rounded-lg border-[1.5px] border-dashed border-warn bg-[#fff6d9] px-3 py-2 text-[13px]">
-          <span className="font-hand font-bold text-[15px]">{t('supplierQuote')}</span>
+          <span className="font-semibold">{t('supplierQuote')}</span>
           <span className="ml-auto text-muted">{t('quotePrice')}</span>
           <InlineNumber value={line.cost?.net_unit_cost ?? null} suffix={`CHF / ${fmtUnit(line.decision.unit, lang)}`}
             edited={line.decision.overridden.includes('unit_price')} busy={busy} onSave={(v) => onQuote(v)} onReset={() => onQuote(null)} />

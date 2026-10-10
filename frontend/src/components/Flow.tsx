@@ -292,7 +292,7 @@ function TopBar({ title, step, enabled, onStep, price, busy, onHome }: {
           {STEPS.map((s, i) => (
             <li key={s}>
               <button onClick={() => onStep(s)} disabled={!enabled && s !== 'extract'}
-                className={`relative px-4 h-14 font-hand text-[16.5px] disabled:cursor-default disabled:text-faint/60 ${s === step ? 'text-ink font-bold' : i < current ? 'text-ink/80 hover:text-ink' : 'text-muted hover:text-ink'}`}>
+                className={`relative px-4 h-14 text-[14px] disabled:cursor-default disabled:text-faint/60 ${s === step ? 'text-ink font-semibold' : i < current ? 'text-ink/80 hover:text-ink' : 'text-muted hover:text-ink'}`}>
                 <span className="num mr-1.5 text-faint text-[13px]">{i + 1}</span>{t(STEP_LABEL[s])}
                 {s === step && (
                   <svg className="absolute left-2 right-2 bottom-2.5 w-[calc(100%-16px)] h-2.5" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden>
@@ -312,7 +312,6 @@ function TopBar({ title, step, enabled, onStep, price, busy, onHome }: {
           <span className="text-[17px] font-semibold num">{fmtChf(price)}</span>
         </div>
       )}
-      <img src="/equans-logo.png" alt="Equans" className="h-4 opacity-80" />
       <LangToggle />
       <svg className="absolute left-0 right-0 bottom-0 w-full h-1.5" viewBox="0 0 1000 6" preserveAspectRatio="none" aria-hidden>
         <path d="M0 3 C 150 1.5, 300 4.5, 500 3 S 850 1.8, 1000 3.2" stroke="#1c2933" strokeOpacity="0.55" strokeWidth="1.4" fill="none" />
@@ -326,7 +325,7 @@ function PickHint() {
   return (
     <div className="h-full panel grid place-items-center">
       <div className="text-center px-8">
-        <div className="font-hand text-[22px] text-muted">← {t('pickPosition')}</div>
+        <div className="text-[17px] font-semibold text-muted">← {t('pickPosition')}</div>
         <div className="mt-1 text-[12.5px] text-faint">{t('pickPositionHint')}</div>
       </div>
     </div>

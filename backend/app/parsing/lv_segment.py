@@ -10,7 +10,7 @@ from collections import defaultdict
 
 from .models import Anomaly, ComponentRow, LVLine, PageInfo, ParsedTender, Row, Segment, SrcText
 from .normalize import normalize_unit, parse_number, parse_sizes
-from .tender_info import location_for, parse_award, parse_lots, parse_project
+from .tender_info import location_for, parse_award, parse_conditions, parse_lots, parse_project
 
 CONTENT_TOP = 60.0  # pt: above this are page header and LV column titles
 CONTENT_BOTTOM = 785.0  # pt: below this is the file-path footer
@@ -282,7 +282,8 @@ def segment(rows_by_page: dict[int, list[Row]], use_bold: bool = True) -> Parsed
             lot_table[info_["lot"]]["systems"].append(code)
     return ParsedTender(pages=pages, lines=lines, component_rows=component_rows,
                         anomalies=_merge_header_flags(anomalies, systems), systems=systems,
-                        project=project, lots=lot_table, award=parse_award(rows_by_page, pages))
+                        project=project, lots=lot_table, award=parse_award(rows_by_page, pages),
+                        conditions=parse_conditions(rows_by_page, pages))
 
 
 def _merge_header_flags(anomalies: list[Anomaly], systems: dict) -> list[Anomaly]:

@@ -122,3 +122,4 @@ class ParsedTender:
     project: dict = field(default_factory=dict)  # name, bkp, trade
     lots: dict = field(default_factory=dict)  # lot -> {name, systems}
     award: dict | None = None  # price-scoring rule from the conditions
+    conditions: dict | None = None  # conditions scheme of the offer form (deductions %, VAT %)

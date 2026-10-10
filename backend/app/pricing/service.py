@@ -9,13 +9,14 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import asdict
 
+from app.matching.attributes import line_attributes, mismatch_pages
 from app.matching.ducts import derive_duct_lines
 from app.matching.matcher import Check, Decision, decide_all
 from app.matching.text import T, chf
 from app.reference.models import ProjectParameters, ReferenceData
 
 from .engine import BuildUpOptions, LineInput, build_project, price_line
-from .scenarios import award_price_points, bid_scenarios
+from .scenarios import award_price_points, bid_scenarios  # bid scenarios: hook for the AI offer loop
 
 UNPRICED_STATUSES = {"out_of_scope", "non_priceable", "insufficient_information"}
 
@@ -28,50 +29,30 @@ def effective_parameters(ref: ReferenceData, settings: dict) -> ProjectParameter
     for key, value in (settings.get("allowances") or {}).items():
         if hasattr(params.allowances, key):
             setattr(params.allowances, key, float(value))
+    for key, value in (settings.get("project_costs") or {}).items():
+        if hasattr(params.project_costs, key):
+            setattr(params.project_costs, key, float(value))
     if settings.get("overhead_pct") is not None:
         params.commercial.overhead_pct = float(settings["overhead_pct"])
     return params
 
 
-def apply_override(d: Decision, ov: dict, ref: ReferenceData) -> Decision:
+def apply_override(d: Decision, ov: dict) -> dict:
+    """The estimator's edits: a corrected quantity, or a unit price (typically from a supplier quote)."""
     changed = []
-    if "quantity" in ov and ov["quantity"] is not None:
+    if ov.get("quantity") is not None:
         d.quantity = float(ov["quantity"])
         changed.append("quantity")
-        if d.status == "insufficient_information":
-            d.status = "review_required"
-    if ov.get("product_id"):
-        item = ref.catalog[ov["product_id"]]
-        d.product_id, d.install_code = item.product_id, item.install_code
-        d.priced = True
-        d.status = "supplier_quote_required" if item.supplier_quote_required and not ov.get("unit_price") else "calculated"
-        d.checks.append(Check("estimator", T("Product chosen by the estimator", "Produkt vom Kalkulator gewählt"), "pass", 1.0, item.description))
-        changed.append("product")
-    if ov.get("labour_only") and d.install_code:
-        d.product_id, d.priced, d.status = None, True, "calculated"
-        d.reasons = [T("Priced as labour only, decided by the estimator.", "Nur Montage kalkuliert, vom Kalkulator entschieden.")]
-        d.checks.append(Check("estimator", T("Labour only, decided by the estimator", "Nur Montage, vom Kalkulator entschieden"), "pass", 1.0, ""))
-        changed.append("labour_only")
+        if d.status == "insufficient_information" and d.install_code:
+            d.status, d.priced = "assumption_applied", bool(d.product_id or d.install_code)
     if ov.get("unit_price") is not None:
-        d.priced = True
-        d.status = "calculated"
         quote = ov.get("unit_price_source") == "quote"
         price = chf(float(ov["unit_price"]))
+        d.priced, d.status = True, "calculated"
         d.reasons = [T(f"Unit price CHF {price} from {'a supplier quote' if quote else 'the estimator'}.",
                        f"Einheitspreis CHF {price} {'aus Lieferantenofferte' if quote else 'vom Kalkulator eingegeben'}.")]
-        d.checks.append(Check("estimator", T("Unit price set by the estimator", "Einheitspreis vom Kalkulator gesetzt"), "pass", 1.0, ov.get("note") or ""))
+        d.checks.append(Check("estimator", T("Net unit price entered", "Netto-Einheitspreis eingegeben"), "pass", 1.0, ov.get("note") or ""))
         changed.append("unit_price")
-    if ov.get("status"):
-        d.status = ov["status"]
-        d.priced = d.priced and d.status not in UNPRICED_STATUSES
-        changed.append("status")
-    if ov.get("confirmed") and d.priced and d.status in ("review_required", "assumption_applied"):
-        d.status = "calculated"
-        d.checks.append(Check("estimator", T("Confirmed by the estimator", "Vom Kalkulator bestätigt"), "pass", 1.0, ov.get("note", "")))
-        changed.append("confirmed")
-    if changed:
-        d.confidence = 1.0 if d.priced else d.confidence
-        d.band = "high" if d.priced else d.band
     out = asdict(d)
     out["overridden"] = changed
     out["override_note"] = ov.get("note")
@@ -97,9 +78,10 @@ def price_tender(parsed: dict, ref: ReferenceData, overrides: dict | None = None
     entries = [(line, d, "lv") for line, d in zip(parsed["lines"], decisions)] + [(line, d, "cad") for line, d in derived]
 
     costs = []
+    flagged_pages = mismatch_pages(parsed.get("anomalies", []))
     for line, decision, source in entries:
         ov = overrides.get(line["line_id"], {})
-        d = apply_override(decision, ov, ref)
+        d = apply_override(decision, ov)
         cost = None
         if d["priced"] and d["status"] not in UNPRICED_STATUSES:
             c = price_line(_cost_input(line["line_id"], d, ov), ref, params)
@@ -114,6 +96,7 @@ def price_tender(parsed: dict, ref: ReferenceData, overrides: dict | None = None
             "tender_quantity": line["quantity"], "tender_unit": line["unit"], "decision": d, "cost": cost,
             "status_key": status_key(d["status"], cost),
             "evidence": line.get("evidence"), "pages": line.get("pages"),
+            "attributes": line_attributes(line, d, flagged_pages) if source == "lv" else cad_attributes(line, d),
         })
 
     opts = BuildUpOptions(
@@ -133,6 +116,8 @@ def price_tender(parsed: dict, ref: ReferenceData, overrides: dict | None = None
         "award": award_curve(parsed.get("award")),
         "summary": summarize(rows),
         "settings": {"factors": params.productivity_factors, "allowances": params.allowances.model_dump(),
+                     "project_costs": params.project_costs.model_dump(),
+                     "discount_pct": float(settings.get("discount_pct", 0.0)), "cash_discount_pct": float(settings.get("cash_discount_pct", 0.0)),
                      "overhead_pct": params.commercial.overhead_pct, "margin_pct": project.margin_pct,
                      "risk_allowance_chf": opts.risk_allowance_chf, "include_project_costs": opts.include_project_costs,
                      "include_small_material": opts.include_small_material,
@@ -141,6 +126,16 @@ def price_tender(parsed: dict, ref: ReferenceData, overrides: dict | None = None
                      "locations": locations, "location_options": location_options(params),
                      "target_margin_pct": params.commercial.target_margin_pct, "round_to_chf": params.commercial.round_to_chf},
     }
+
+
+def cad_attributes(line: dict, d: dict) -> list[dict]:
+    src = [{"page": e["page"], "bbox": e["bbox"], "text": ""} for e in (line.get("evidence") or [])]
+    return [
+        {"key": "type", "label": T("Item", "Artikel"), "value": {"en": d["title_en"], "de": d["title_de"]}, "sources": src[:1], "certainty": 1.0,
+         "why": T("Listed in the CAD component list", "In der Bauteilliste aufgeführt")},
+        {"key": "quantity", "label": T("Quantity", "Menge"), "value": f"{d['quantity']:g} {d['unit']}", "sources": src, "certainty": 0.8,
+         "why": T(f"Summed over {len(src)} list row(s)", f"Über {len(src)} Listenzeile(n) summiert")},
+    ]
 
 
 HEIGHT_PREFIX = "mounting_height_"

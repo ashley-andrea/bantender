@@ -52,11 +52,16 @@ def test_pricing_override_settings_and_audit(client):
     edited = client.patch(f"/api/tenders/{tid}/lines/{target['line_id']}",
                           json={"unit_price": target["cost"]["net_unit_cost"] * 2, "unit_price_source": "quote"}).json()
     assert edited["project"]["selling_price"] > base["project"]["selling_price"]
-    assert client.patch(f"/api/tenders/{tid}/lines/x", json={"product_id": "NOPE"}).status_code == 400
     lower = client.patch(f"/api/tenders/{tid}/settings", json={"margin_pct": 2.5}).json()
     assert lower["settings"]["margin_pct"] == 2.5
     audit = client.get(f"/api/tenders/{tid}/audit").json()
     assert [a["action"] for a in audit[:2]] == ["settings", "override"]
     reset = client.delete(f"/api/tenders/{tid}/lines/{target['line_id']}/override").json()
     assert next(r for r in reset["lines"] if r["line_id"] == target["line_id"])["status_key"] == "supplier_quote_required"
-    assert client.get("/api/catalog/search", params={"q": "silencer"}).json()
+    ctx = client.get("/api/catalog/P-AIR-001").json()
+    assert ctx["item"]["net_cost_chf"] == 74.8 and ctx["rule"]["install_code"] == "DIFFUSER" and len(ctx["family"]) >= 2
+    offer = client.get(f"/api/tenders/{tid}/offer").json()
+    current = client.get(f"/api/tenders/{tid}/pricing").json()
+    assert offer["fields"] and abs(offer["brutto"] - current["project"]["selling_price"]) < 5
+    pdf = client.get(f"/api/tenders/{tid}/offer.pdf", params={"download": True})
+    assert pdf.content.startswith(b"%PDF") and "attachment" in pdf.headers["content-disposition"]

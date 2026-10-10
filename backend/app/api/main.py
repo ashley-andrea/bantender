@@ -16,7 +16,8 @@ from fastapi.responses import Response
 from app.config import get_settings
 from pydantic import BaseModel
 
-from app.matching.matcher import STATUSES
+from app.offer.build import build_offer
+from app.offer.pdf_fill import fill_offer
 from app.parsing.pipeline import PARSER_VERSION, parse_tender, tender_to_dict
 from app.pricing.service import price_tender
 from app.reference import load_reference
@@ -155,22 +156,14 @@ def get_pricing(tender_id: str) -> dict:
 
 class LineOverride(BaseModel):
     quantity: float | None = None
-    product_id: str | None = None
-    unit_price: float | None = None
+    unit_price: float | None = None  # net unit price, e.g. from a supplier quote
     unit_price_source: str | None = None  # estimator_input | quote
-    labour_only: bool | None = None
-    status: str | None = None
-    confirmed: bool | None = None
     note: str | None = None
 
 
 @app.patch("/api/tenders/{tender_id}/lines/{line_id}")
 def override_line(tender_id: str, line_id: str, body: LineOverride) -> dict:
     _load(tender_id)
-    if body.product_id and body.product_id not in reference.catalog:
-        raise HTTPException(400, "Unknown product")
-    if body.status and body.status not in STATUSES:
-        raise HTTPException(400, "Unknown status")
     key = f"tenders/{tender_id}/overrides.json"
     overrides = _get_json(key, {})
     old = overrides.get(line_id, {})
@@ -194,8 +187,9 @@ def reset_line(tender_id: str, line_id: str) -> dict:
 @app.patch("/api/tenders/{tender_id}/settings")
 def update_settings(tender_id: str, body: dict) -> dict:
     _load(tender_id)
-    allowed = {"factors", "allowances", "overhead_pct", "margin_pct", "risk_allowance_chf", "include_project_costs",
-               "include_small_material", "include_supplier_contingency", "include_cad_ductwork", "locations"}
+    allowed = {"factors", "allowances", "project_costs", "overhead_pct", "margin_pct", "risk_allowance_chf", "include_project_costs",
+               "include_small_material", "include_supplier_contingency", "include_cad_ductwork", "locations",
+               "discount_pct", "cash_discount_pct"}
     if set(body) - allowed:
         raise HTTPException(400, f"Unknown settings: {sorted(set(body) - allowed)}")
     key = f"tenders/{tender_id}/settings.json"
@@ -212,11 +206,38 @@ def get_audit(tender_id: str) -> list[dict]:
     return list(reversed(_get_json(f"tenders/{tender_id}/audit.json", [])))
 
 
-@app.get("/api/catalog/search")
-def search_catalog(q: str = "", install_code: str | None = None, limit: int = 12) -> list[dict]:
-    """Product picker: a few matching rows, never the full catalogue."""
-    words = q.lower().split()
-    hits = [i for i in reference.catalog.values()
-            if (not install_code or i.install_code == install_code)
-            and all(w in f"{i.product_id} {i.category} {i.subcategory} {i.description}".lower() for w in words)]
-    return [i.model_dump() for i in hits[: min(limit, 20)]]
+@app.get("/api/catalog/{product_id}")
+def catalog_context(product_id: str) -> dict:
+    """The matched catalogue row, its neighbours in the same family, and its productivity rule (for the catalogue step)."""
+    item = reference.catalog.get(product_id)
+    if not item:
+        raise HTTPException(404, "Unknown product")
+    family = [i.model_dump() for i in reference.catalog.values() if i.subcategory == item.subcategory and i.category == item.category]
+    rule = reference.rules.get(item.install_code)
+    return {"item": item.model_dump(), "family": family[:12], "rule": rule.model_dump() if rule else None,
+            "reference_version": reference.version}
+
+
+# ---- offer: the numbers for the tender's own form, and the filled PDF ---------------------------
+
+def _offer(tender_id: str) -> tuple[dict, dict, dict]:
+    parsed = _load(tender_id)
+    pricing = _pricing(tender_id)
+    settings_ = _get_json(f"tenders/{tender_id}/settings.json", {})
+    return parsed, pricing, build_offer(parsed, pricing, settings_)
+
+
+@app.get("/api/tenders/{tender_id}/offer")
+def get_offer(tender_id: str) -> dict:
+    parsed, _, offer = _offer(tender_id)
+    _, fields = fill_offer(storage.get(f"tenders/{tender_id}/tender.pdf"), parsed, offer)
+    return {**offer, "fields": fields}
+
+
+@app.get("/api/tenders/{tender_id}/offer.pdf")
+def get_offer_pdf(tender_id: str, download: bool = False) -> Response:
+    parsed, _, offer = _offer(tender_id)
+    data, _ = fill_offer(storage.get(f"tenders/{tender_id}/tender.pdf"), parsed, offer)
+    name = f"Offer_{(parsed['meta'].get('filename') or tender_id).removesuffix('.pdf')}.pdf"
+    disposition = "attachment" if download else "inline"
+    return Response(data, media_type="application/pdf", headers={"Content-Disposition": f'{disposition}; filename="{name}"'})

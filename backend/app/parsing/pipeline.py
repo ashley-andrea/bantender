@@ -15,7 +15,7 @@ from .normalize import parse_sizes, size_key
 from .pdf_layer import read_rows
 
 # Bump when parsing output changes: stored results with an older version are re-parsed on upload.
-PARSER_VERSION = "2026.10.10-9"
+PARSER_VERSION = "2026.10.10-10"
 
 
 def parse_tender(pdf_path: Path) -> tuple[ParsedTender, dict]:
@@ -57,6 +57,7 @@ def tender_to_dict(tender: ParsedTender, meta: dict) -> dict:
         "project": tender.project,
         "lots": tender.lots,
         "award": tender.award,
+        "conditions": tender.conditions,
         "systems": tender.systems,
         "pages": [asdict(p) for p in tender.pages],
         "lines": lines,

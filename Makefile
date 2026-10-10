@@ -1,16 +1,7 @@
-.PHONY: test bench bench-fast api deploy logs smoke crosscheck e2e
+.PHONY: test api deploy logs smoke e2e
 
 test:            ## run all backend tests (no OpenAI calls)
 	cd backend && uv run pytest -q
-
-bench-fast:      ## parser benchmark without Docling (seconds)
-	cd backend && uv run python -m benchmarks.parse_bench --skip-docling
-
-bench:           ## full parser benchmark incl. Docling configurations (minutes; cached after first run)
-	cd backend && uv run --extra docling python -m benchmarks.parse_bench
-
-crosscheck:      ## Docling cross-check of all stored tenders, in its own container
-	docker compose --profile docling run --rm docling crosscheck --all
 
 api:             ## run the API for development
 	cd backend && uv run uvicorn app.api.main:app --reload --port 8000
@@ -24,5 +15,5 @@ logs:
 smoke:           ## smoke-test a running stack (default https://localhost)
 	./deploy/smoke.sh $(BASE)
 
-e2e:             ## UI consistency check against a running stack (chips = rows, counts add up)
-	cd e2e && npm install --silent && npx playwright install chromium >/dev/null && node consistency.mjs $(BASE)
+e2e:             ## walk the guided flow against a running stack; numbers on screen must match the API
+	cd e2e && npm install --silent && npx playwright install chromium >/dev/null && node flow.mjs $(BASE)

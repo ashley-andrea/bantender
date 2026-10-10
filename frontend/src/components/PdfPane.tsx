@@ -8,7 +8,9 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.m
 
 export interface Highlight {
   bbox: BBox
-  kind: 'row' | 'header'
+  color: string
+  strong?: boolean
+  label?: string
 }
 
 interface Props {
@@ -17,11 +19,12 @@ interface Props {
   pageCount: number
   pageSize: [number, number] | undefined
   highlights: Highlight[]
-  caption: string
+  caption?: string
   onPage: (p: number) => void
+  extra?: React.ReactNode
 }
 
-export function PdfPane({ url, page, pageCount, pageSize, highlights, caption, onPage }: Props) {
+export function PdfPane({ url, page, pageCount, pageSize, highlights, caption, onPage, extra }: Props) {
   const box = useRef<HTMLDivElement>(null)
   const scroller = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(600)
@@ -34,25 +37,26 @@ export function PdfPane({ url, page, pageCount, pageSize, highlights, caption, o
   }, [])
 
   const scale = pageSize ? width / pageSize[0] : 1
-  const focus = highlights.find((h) => h.kind === 'row') ?? highlights[0]
+  const focus = highlights.find((h) => h.strong) ?? highlights[0]
 
-  // Bring the highlighted row into view.
+  // Bring the focused box into view.
   useEffect(() => {
     if (focus && scroller.current) {
-      scroller.current.scrollTo({ top: Math.max(0, focus.bbox[1] * scale - 160), behavior: 'smooth' })
+      scroller.current.scrollTo({ top: Math.max(0, focus.bbox[1] * scale - 180), behavior: 'smooth' })
     }
-  }, [focus?.bbox[1], page, scale])
+  }, [focus?.bbox[1], focus?.bbox[0], page, scale])
 
   return (
     <div className="h-full flex flex-col rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-card)] overflow-hidden">
-      <div className="flex items-center gap-2 px-4 h-12 border-b border-hair">
-        <span className="text-[13px] font-semibold">Tender p.{page}</span>
-        <span className="text-[13px] text-muted truncate">{caption}</span>
+      <div className="flex items-center gap-2 px-4 h-11 border-b border-hair shrink-0">
+        <span className="text-[13px] font-semibold">p.{page}</span>
+        <span className="text-[12.5px] text-muted truncate">{caption}</span>
         <div className="ml-auto flex items-center gap-1">
+          {extra}
           <button className="p-1.5 rounded-md hover:bg-canvas disabled:opacity-30" disabled={page <= 1} onClick={() => onPage(page - 1)}>
             <ChevronLeft className="size-4" />
           </button>
-          <span className="text-[13px] text-muted num w-16 text-center">
+          <span className="text-[12px] text-muted num w-14 text-center">
             {page} / {pageCount}
           </span>
           <button className="p-1.5 rounded-md hover:bg-canvas disabled:opacity-30" disabled={page >= pageCount} onClick={() => onPage(page + 1)}>
@@ -62,7 +66,7 @@ export function PdfPane({ url, page, pageCount, pageSize, highlights, caption, o
       </div>
       <div ref={scroller} className="flex-1 overflow-auto scroll-thin bg-[#ececef] p-3">
         <div ref={box} className="relative bg-white shadow-sm">
-          <Document file={url} loading={<div className="h-[60vh] grid place-items-center text-muted text-sm">Loading tender…</div>}>
+          <Document file={url} loading={<div className="h-[60vh] grid place-items-center text-muted text-sm">…</div>}>
             <Page pageNumber={page} width={width} renderTextLayer={false} renderAnnotationLayer={false} />
           </Document>
           {highlights.map((h, i) => {
@@ -70,16 +74,23 @@ export function PdfPane({ url, page, pageCount, pageSize, highlights, caption, o
             return (
               <div
                 key={i}
-                className={`absolute pointer-events-none rounded-[3px] transition-all duration-200 ${
-                  h.kind === 'row' ? 'bg-sel/15 border-[1.5px] border-sel' : 'border-[1.5px] border-dashed border-sel'
-                }`}
+                className="absolute pointer-events-none rounded-[3px] transition-all duration-200"
                 style={{
                   left: (x0 - 4) * scale,
                   top: (y0 - 2) * scale,
                   width: (x1 - x0 + 8) * scale,
                   height: (y1 - y0 + 4) * scale,
+                  border: `${h.strong ? 2 : 1.25}px solid ${h.color}`,
+                  background: `${h.color}${h.strong ? '30' : '14'}`,
+                  boxShadow: h.strong ? `0 0 0 3px ${h.color}22` : undefined,
                 }}
-              />
+              >
+                {h.label && h.strong && (
+                  <span className="absolute -top-5 right-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[10.5px] font-semibold text-white" style={{ background: h.color }}>
+                    {h.label}
+                  </span>
+                )}
+              </div>
             )
           })}
         </div>

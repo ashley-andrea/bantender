@@ -35,6 +35,7 @@ class LineInput:
     location: str = "default"
     unit_cost_override: float | None = None  # estimator input or supplier quote
     unit_cost_source: str | None = None
+    hours_override: float | None = None  # estimator's base hours per unit, replaces the rule's value
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,7 @@ class LineCost:
     labour_cost: float
     direct_cost: float
     trace: tuple[TraceStep, ...] = field(default_factory=tuple)
+    base_hours: float = 0.0  # hours per unit before factors (the rule's value or the estimator's)
 
 
 def _fmt(x: float) -> str:
@@ -102,15 +104,17 @@ def price_line(line: LineInput, ref: ReferenceData, params: ProjectParameters | 
 
     install_code = line.install_code or (item.install_code if item else None)
     rule = ref.rules.get(install_code) if install_code else None
-    if rule is not None and rule.base_hours_per_unit > 0:
+    base = line.hours_override if line.hours_override is not None else (rule.base_hours_per_unit if rule else 0.0)
+    if rule is not None and base > 0:
         factor, parts = factor_for(rule.factor_keys, params.productivity_factors, line.location)
-        hours = line.quantity * rule.base_hours_per_unit * factor
+        hours = line.quantity * base * factor
         rate, role = rule.default_hourly_rate_chf, rule.labour_role
+        base_src = "override:estimator_hours" if line.hours_override is not None else f"rule:{rule.install_code}"
         trace.append(TraceStep(
             "Installation hours",
-            f"{line.quantity:g} × {rule.base_hours_per_unit:g} h × " + " × ".join(parts),
+            f"{line.quantity:g} × {base:g} h × " + " × ".join(parts),
             hours,
-            (f"rule:{rule.install_code}",) + tuple(f"parameter:productivity_factors.{p.split('(')[1][:-1]}" for p in parts),
+            (base_src,) + tuple(f"parameter:productivity_factors.{p.split('(')[1][:-1]}" for p in parts),
         ))
     else:
         factor, hours, rate, role = 1.0, 0.0, 0.0, "none"
@@ -125,7 +129,7 @@ def price_line(line: LineInput, ref: ReferenceData, params: ProjectParameters | 
         line_id=line.line_id, quantity=line.quantity, unit=line.unit, product_id=line.product_id,
         install_code=install_code, net_unit_cost=net_unit, price_source=price_source,
         material_cost=material, factor=factor, adjusted_hours=hours, hourly_rate=rate,
-        labour_role=role, labour_cost=labour, direct_cost=direct, trace=tuple(trace),
+        labour_role=role, labour_cost=labour, direct_cost=direct, trace=tuple(trace), base_hours=base,
     )
 
 

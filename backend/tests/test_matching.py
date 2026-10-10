@@ -5,7 +5,7 @@ from collections import Counter
 import pytest
 
 from app.matching.matcher import decide_all
-from app.parsing.evaluate import evaluate
+from .evaluate import evaluate
 from app.parsing.pipeline import parse_tender, tender_to_dict
 from app.pricing.service import price_tender
 
@@ -49,15 +49,26 @@ def test_install_only_field_devices_are_labour_only(decisions):
 
 def test_air_handling_units_sized_by_airflow(decisions):
     ahus = {k: d.product_id for k, d in decisions.items() if d.rule_key == "ahu"}
-    assert ahus["244.01-A-001"] == "P-AHU-1000"  # 700 m³/h
-    assert ahus["244.02-A-001"] == "P-AHU-6200"  # 6`200 m³/h (backtick thousands separator)
+    assert ahus["244.01-A-p67.1"] == "P-AHU-1000"  # 700 m³/h
+    assert ahus["244.02-A-p89.1"] == "P-AHU-6200"  # 6`200 m³/h (backtick thousands separator)
     assert all(decisions[k].status == "supplier_quote_required" for k in ahus)
 
 
-def test_nearest_size_only_within_tolerance(decisions):
-    by_size = {d.line_id: d for d in decisions.values() if d.rule_key == "silencer_compact"}
-    assert by_size["244.04-C-014"].status == "assumption_applied"  # DN125 → DN100 allowed
-    assert by_size["244.04-C-016"].product_id is None  # DN200 is not priced as DN100
+def test_compact_silencers_matched_by_their_own_diameter(decisions):
+    by_dn = {d.product_id for d in decisions.values() if d.rule_key == "silencer_compact"}
+    assert {"P-SIL-002", "P-SIL-005", "P-SIL-006", "P-SIL-007"} <= by_dn  # DN100, 125, 160, 200
+
+
+def test_every_line_to_price_is_priced_except_a_missing_quantity(parsed, ref):
+    r = price_tender(parsed[1], ref)
+    unpriced = [x for x in r["lines"] if x["source"] == "lv" and x["status_key"] in ("needs_price", "insufficient_information")]
+    assert [x["status_key"] for x in unpriced] == ["insufficient_information"]
+
+
+def test_ground_duct_block_components(decisions):
+    block = {k: d for k, d in decisions.items() if k.startswith("244.02-B-p103")}
+    assert block["244.02-B-p103.1"].product_id == "P-DCT-G-250" and block["244.02-B-p103.1"].quantity == 48  # 16 × 3 m
+    assert [block[f"244.02-B-p103.{i}"].product_id for i in (4, 5, 6, 7)] == ["P-DCT-G-B45", "P-DCT-G-B90", "P-DCT-G-CON", "P-DCT-G-CLP"]
 
 
 def test_project_costs_not_double_counted(decisions):
@@ -76,11 +87,11 @@ def test_full_tender_pricing_is_consistent(parsed, ref):
 
 def test_overrides_and_settings_change_the_price(parsed, ref):
     base = price_tender(parsed[1], ref)
-    unpriced = next(r for r in base["lines"] if r["decision"]["status"] == "review_required" and not r["cost"])
-    ov = {unpriced["line_id"]: {"unit_price": 100.0, "note": "supplier list price"}}
+    quoted = next(r for r in base["lines"] if r["status_key"] == "supplier_quote_required")
+    ov = {quoted["line_id"]: {"unit_price": quoted["cost"]["net_unit_cost"] * 1.5, "unit_price_source": "quote", "note": "Quote 123"}}
     edited = price_tender(parsed[1], ref, overrides=ov)
-    row = next(r for r in edited["lines"] if r["line_id"] == unpriced["line_id"])
-    assert row["cost"]["price_source"] == "estimator_input" and row["decision"]["status"] == "calculated"
+    row = next(r for r in edited["lines"] if r["line_id"] == quoted["line_id"])
+    assert row["cost"]["price_source"] == "quote" and row["decision"]["status"] == "calculated"
     assert edited["project"]["lines_direct"] > base["project"]["lines_direct"]
     cheaper = price_tender(parsed[1], ref, settings={"margin_pct": 2.5})
     assert cheaper["project"]["selling_price"] < base["project"]["selling_price"]

@@ -4,7 +4,7 @@ from collections import Counter
 
 import pytest
 
-from app.parsing.evaluate import evaluate
+from .evaluate import evaluate
 from app.parsing.lv_segment import segment
 from app.parsing.pdf_layer import read_rows
 
@@ -66,19 +66,6 @@ def test_component_lists_hand_check(tender):
     assert (first_rect.quantity, first_rect.dims) == (3938, [150.0, 500.0])
 
 
-@pytest.mark.skipif(not (TENDER_PDF.parents[2] / "cache" / "docling").exists(), reason="Docling cache not built (run make bench)")
-def test_docling_cross_check_flags_disagreements(tender):
-    pytest.importorskip("docling")
-    from app.parsing.pipeline import docling_cross_check, tender_to_dict
-
-    parsed = tender_to_dict(tender, {"pages": 202, "figures": [], "parser_version": "x"})
-    result = docling_cross_check(TENDER_PDF, parsed, cache_dir=TENDER_PDF.parents[2] / "cache" / "docling")
-    assert result["meta"]["cross_check"].startswith("docling") and result["parser_version"] == "x"
-    assert len(result["anomalies"]) == 1 and result["anomalies"][0]["code"] == "reader_disagreement"
-    assert len(result["meta"]["figures"]) > 0
-    assert parsed["anomalies"] == [a for a in parsed["anomalies"] if a["code"] != "reader_disagreement"]  # parse untouched
-
-
 def test_every_unit_in_the_unit_column_becomes_a_line(tender):
     """Independent completeness check: word-level scan of each LV page's unit column vs extracted lines."""
     import pymupdf
@@ -96,7 +83,14 @@ def test_every_unit_in_the_unit_column_becomes_a_line(tender):
 
 
 def test_sub_items_get_their_own_titles(tender):
-    titles = {l.line_id: l.item_title for l in tender.lines}
-    assert titles["244.01-D-003"] == "Kanalrauchmelder"  # device layout: name on the quantity row
-    assert titles["244.01-C-004"] == "Sockelrohr V2A"  # attribute layout: first row of the paragraph
-    assert titles["244.01-C-020"] == "Montagerahmen für isolierte Kanäle"
+    titles = {(l.page, l.item_title) for l in tender.lines}
+    assert (82, "Kanalrauchmelder") in titles  # device layout: name on the quantity row
+    assert (78, "Sockelrohr V2A") in titles  # attribute layout: first row of the paragraph
+    assert (81, "Montagerahmen für isolierte Kanäle") in titles
+
+
+def test_line_ids_are_anchored_to_page_and_row(tender):
+    ids = [l.line_id for l in tender.lines]
+    assert len(set(ids)) == len(ids)
+    first = next(l for l in tender.lines if l.page == 78 and l.quantity == 5)
+    assert first.line_id == "244.01-C-p78.6"

@@ -1,70 +1,52 @@
-"""Tender parsing pipeline.
+"""Tender parsing pipeline: PyMuPDF text layer → page classification → LV segmentation → normalisation.
 
-PyMuPDF is the primary reader for LV lines and component lists: on the Oberglatt tender it finds
-22/22 verified examples and 457 component rows (an independent pdftotext count also gives 457), while
-Docling's table model finds 396 (see benchmarks/results). Docling is an optional, separate
-cross-check (`app.cli crosscheck`, own container): pages where the two readers disagree are flagged
-and Docling's figures are kept for the viewer. It is also the route for scanned or unfamiliar layouts.
+Deterministic and about one second per tender. Why PyMuPDF only: see docs/parser-benchmark.md
+(it found 22/22 verified examples and every component-list row; Docling's table model did not).
 """
 
 from __future__ import annotations
 
-from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
 
 from .lv_segment import segment
-from .models import ParsedTender
+from .models import ParsedTender, SrcText
 from .normalize import parse_sizes, size_key
 from .pdf_layer import read_rows
 
 # Bump when parsing output changes: stored results with an older version are re-parsed on upload.
-PARSER_VERSION = "2026.10.10-8"
+PARSER_VERSION = "2026.10.10-10"
 
 
 def parse_tender(pdf_path: Path) -> tuple[ParsedTender, dict]:
     """Deterministic parse (~1 s). Returns the parsed tender plus run metadata."""
     rows, sizes = read_rows(pdf_path)
     tender = segment(rows, use_bold=True)
-    meta = {"parser_version": PARSER_VERSION, "pages": len(rows), "lv_reader": "pymupdf", "component_reader": "pymupdf", "figures": [],
+    meta = {"parser_version": PARSER_VERSION, "pages": len(rows),
             "page_sizes": {p: s for p, s in sizes.items()}}
     return tender, meta
 
 
-def docling_cross_check(pdf_path: Path, parsed: dict, mode: str = "tables_accurate", cache_dir: Path | None = None) -> dict:
-    """Read the component lists again with Docling and compare row counts per page.
-
-    Returns a separate result ({meta, anomalies}) that is stored next to the parse and merged on read,
-    so a slow cross-check can never overwrite a newer parse. Requires the optional `docling` extra.
-    """
-    from . import docling_layer
-
-    pages = [p["page"] for p in parsed["pages"] if p["kind"] in ("component_list", "lv")]
-    doc = docling_layer.convert(pdf_path, mode, (min(pages), max(pages)), cache_dir)
-    page_system = {r["page"]: r["system"] for r in parsed["component_rows"]}
-    docling_rows = docling_layer.component_rows_from_doc(doc, page_system)
-    mine = Counter(r["page"] for r in parsed["component_rows"])
-    theirs = Counter(r.page for r in docling_rows)
-    differ = [p for p in sorted(set(mine) | set(theirs)) if mine[p] != theirs[p]]
-    anomalies = []
-    if differ:
-        detail = ", ".join(f"p.{p} {mine[p]} vs {theirs[p]}" for p in differ)
-        anomalies.append({"page": differ[0], "code": "reader_disagreement",
-                          "message": f"Component lists: PyMuPDF and Docling read different row counts on {len(differ)} page(s) "
-                                     f"({detail}). PyMuPDF is used; check these pages.",
-                          "message_de": f"Bauteillisten: PyMuPDF und Docling lesen auf {len(differ)} Seite(n) unterschiedlich viele Zeilen "
-                                        f"({detail}). Verwendet wird PyMuPDF; bitte diese Seiten prüfen."})
-    return {
-        "parser_version": parsed["meta"].get("parser_version"),
-        "meta": {"cross_check": f"docling:{mode}", "figures": docling_layer.figures(doc)},
-        "anomalies": anomalies,
-    }
+def source_rows(line) -> list[dict]:
+    """Every printed row that makes up a line, with its role, page and box (for highlighting in the viewer)."""
+    rows = []
+    if line.header and line.header_bbox:
+        rows.append({"role": "header", "text": line.header, "page": line.header_page, "bbox": line.header_bbox})
+    for role, texts in (("attribute", line.shared_text), ("own", line.local_text), ("detail", line.trailing_text)):
+        for t in texts:
+            if isinstance(t, SrcText):
+                rows.append({"role": role, "text": str(t), "page": t.page, "bbox": t.bbox})
+    rows.append({"role": "quantity", "text": f"{line.unit_raw} {'' if line.quantity is None else f'{line.quantity:g}'}".strip(),
+                 "page": line.page, "bbox": line.row_bbox})
+    return rows
 
 
 def tender_to_dict(tender: ParsedTender, meta: dict) -> dict:
     lines = []
     for line in tender.lines:
+        rows = source_rows(line)
         d = asdict(line)
+        d["rows"] = rows
         d["description"] = line.description
         sizes = parse_sizes(line.description)
         d["sizes"] = {k: v for k, v in asdict(sizes).items() if v not in (None, ())}
@@ -75,6 +57,7 @@ def tender_to_dict(tender: ParsedTender, meta: dict) -> dict:
         "project": tender.project,
         "lots": tender.lots,
         "award": tender.award,
+        "conditions": tender.conditions,
         "systems": tender.systems,
         "pages": [asdict(p) for p in tender.pages],
         "lines": lines,

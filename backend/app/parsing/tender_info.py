@@ -118,3 +118,22 @@ def location_for(*names: str | None) -> str:
         if any(w in text for w in words):
             return location
     return "default"
+
+
+def parse_conditions(rows_by_page: dict[int, list[Row]], pages: list[PageInfo]) -> dict | None:
+    """Conditions scheme of the offer form ("Konditionen"): fixed rates printed by the client, e.g.
+    'allg. Bauabzüge 1.30 %' and 'MWST 8.10 %'. Discount and cash discount are left blank for the bidder."""
+    for info in pages:
+        if info.kind != "conditions":
+            continue
+        rows = rows_by_page.get(info.page, [])
+        text = " ".join(r.text for r in rows)
+        if "Konditionen" not in text or "MWST" not in text:
+            continue
+        found = {"page": info.page}
+        for key, pattern in (("deductions_pct", r"Bauabz\w+\s+(\d+(?:[.,]\d+)?)\s*%"), ("vat_pct", r"MWST\s+(\d+(?:[.,]\d+)?)\s*%")):
+            m = re.search(pattern, text)
+            if m:
+                found[key] = float(m.group(1).replace(",", "."))
+        return found
+    return None

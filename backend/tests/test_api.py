@@ -24,7 +24,7 @@ def client(tmp_path_factory):
 def test_health_and_reference(client):
     assert client.get("/api/healthz").json()["status"] == "ok"
     ref = client.get("/api/reference").json()
-    assert ref["catalog_items"] == 56 and ref["productivity_rules"] == 22
+    assert ref["catalog_items"] == 126 and ref["productivity_rules"] == 40
 
 
 def test_upload_parse_and_fetch(client):
@@ -48,14 +48,32 @@ def test_pricing_override_settings_and_audit(client):
     tid = client.get("/api/tenders").json()[0]["tender_id"]
     base = client.get(f"/api/tenders/{tid}/pricing").json()
     assert base["project"]["selling_price"] > 0 and base["summary"]["tender"]["priced"] > 100
-    target = next(r for r in base["lines"] if r["decision"]["status"] == "review_required" and not r["cost"])
-    edited = client.patch(f"/api/tenders/{tid}/lines/{target['line_id']}", json={"unit_price": 250, "note": "list price"}).json()
-    assert edited["project"]["selling_price"] >= base["project"]["selling_price"]
-    assert client.patch(f"/api/tenders/{tid}/lines/x", json={"product_id": "NOPE"}).status_code == 400
+    target = next(r for r in base["lines"] if r["status_key"] == "supplier_quote_required")
+    edited = client.patch(f"/api/tenders/{tid}/lines/{target['line_id']}",
+                          json={"unit_price": target["cost"]["net_unit_cost"] * 2, "unit_price_source": "quote"}).json()
+    assert edited["project"]["selling_price"] > base["project"]["selling_price"]
     lower = client.patch(f"/api/tenders/{tid}/settings", json={"margin_pct": 2.5}).json()
     assert lower["settings"]["margin_pct"] == 2.5
     audit = client.get(f"/api/tenders/{tid}/audit").json()
     assert [a["action"] for a in audit[:2]] == ["settings", "override"]
+    # Installation hours per unit: replaces the rule's value, the project factors still apply.
+    hours = client.patch(f"/api/tenders/{tid}/lines/{target['line_id']}", json={"hours_per_unit": 50, "quantity": 2}).json()
+    row = next(r for r in hours["lines"] if r["line_id"] == target["line_id"])
+    assert row["cost"]["base_hours"] == 50 and row["decision"]["quantity"] == 2
+    assert abs(row["cost"]["adjusted_hours"] - 2 * 50 * row["cost"]["factor"]) < 1e-6
+    assert set(row["decision"]["overridden"]) == {"quantity", "unit_price", "hours_per_unit"}
+    # Reset one field, then the rest.
+    one = client.delete(f"/api/tenders/{tid}/lines/{target['line_id']}/override", params={"field": "unit_price"}).json()
+    row = next(r for r in one["lines"] if r["line_id"] == target["line_id"])
+    assert set(row["decision"]["overridden"]) == {"quantity", "hours_per_unit"} and row["status_key"] == "supplier_quote_required"
     reset = client.delete(f"/api/tenders/{tid}/lines/{target['line_id']}/override").json()
-    assert next(r for r in reset["lines"] if r["line_id"] == target["line_id"])["cost"] is None
-    assert client.get("/api/catalog/search", params={"q": "silencer"}).json()
+    row = next(r for r in reset["lines"] if r["line_id"] == target["line_id"])
+    assert row["status_key"] == "supplier_quote_required" and row["decision"]["overridden"] == []
+    assert row["cost"]["base_hours"] == next(r for r in base["lines"] if r["line_id"] == target["line_id"])["cost"]["base_hours"]
+    ctx = client.get("/api/catalog/P-AIR-001").json()
+    assert ctx["item"]["net_cost_chf"] == 74.8 and ctx["rule"]["install_code"] == "DIFFUSER" and len(ctx["family"]) >= 2
+    offer = client.get(f"/api/tenders/{tid}/offer").json()
+    current = client.get(f"/api/tenders/{tid}/pricing").json()
+    assert offer["fields"] and abs(offer["brutto"] - current["project"]["selling_price"]) < 5
+    pdf = client.get(f"/api/tenders/{tid}/offer.pdf", params={"download": True})
+    assert pdf.content.startswith(b"%PDF") and "attachment" in pdf.headers["content-disposition"]

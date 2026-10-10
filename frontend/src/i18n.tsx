@@ -3,109 +3,141 @@ import { createContext, useContext, useState, type ReactNode } from 'react'
 export type Lang = 'en' | 'de'
 
 const STRINGS = {
-  // app
-  tagline: { en: 'From tender to first price.', de: 'Von der Ausschreibung zum ersten Preis.' },
+  // upload
+  tagline: { en: 'From tender to filled-in offer.', de: 'Von der Ausschreibung zur ausgefüllten Offerte.' },
   subline: {
-    en: 'Drop a tender PDF. Every line, quantity and price stays linked to the page it came from.',
-    de: 'Ausschreibung als PDF ablegen. Jede Position, Menge und jeder Preis bleibt mit der Quellseite verknüpft.',
+    en: 'Drop the tender PDF. Every position is read, priced from your catalogue and written back into the original LV — each number traceable to its source.',
+    de: 'Ausschreibung als PDF ablegen. Jede Position wird gelesen, aus Ihrem Katalog bepreist und ins Original-LV zurückgeschrieben — jede Zahl mit Quelle.',
   },
   dropHere: { en: 'Drop the tender PDF here', de: 'Ausschreibungs-PDF hier ablegen' },
   orClick: { en: 'or click to choose a file', de: 'oder klicken, um eine Datei zu wählen' },
   choosePdf: { en: 'Choose PDF', de: 'PDF wählen' },
   recent: { en: 'Recent tenders', de: 'Letzte Ausschreibungen' },
   open: { en: 'Open', de: 'Öffnen' },
-  stageUpload: { en: 'Uploading tender', de: 'Ausschreibung hochladen' },
-  stageRead: { en: 'Reading every page', de: 'Alle Seiten lesen' },
-  stageLines: { en: 'Finding priceable lines', de: 'Kalkulierbare Positionen finden' },
-  stageFlags: { en: 'Checking for red flags', de: 'Auf Unstimmigkeiten prüfen' },
-  deterministic: { en: 'Deterministic parsing, no AI involved.', de: 'Regelbasierte Auswertung, ohne KI.' },
-  pages: { en: 'Pages', de: 'Seiten' },
-  systems: { en: 'Systems', de: 'Anlagen' },
-  linesFound: { en: 'Lines found', de: 'Positionen' },
-  redFlags: { en: 'Red flags', de: 'Unstimmigkeiten' },
-  // workspace
-  tabLines: { en: 'Lines', de: 'Positionen' },
-  tabPrice: { en: 'Price build-up', de: 'Preisaufbau' },
-  indicativePrice: { en: 'Indicative price', de: 'Richtpreis' },
-  priced: { en: 'Priced', de: 'Kalkuliert' },
-  needsPrice: { en: 'Need a price', de: 'Ohne Preis' },
-  allLots: { en: 'All lots', de: 'Alle Lose' },
-  lot: { en: 'Lot', de: 'Los' },
-  allSources: { en: 'All lines', de: 'Alle Zeilen' },
-  tenderLines: { en: 'Tender lines', de: 'LV-Positionen' },
-  cadLines: { en: 'From CAD lists', de: 'Aus Bauteilliste' },
-  pricedOf: { en: 'priced', de: 'kalkuliert' },
-  ofLines: { en: 'of', de: 'von' },
-  linesToPrice: { en: 'tender lines priced', de: 'LV-Positionen kalkuliert' },
-  calculatedWord: { en: 'calculated', de: 'berechnet' },
-  provisionalWord: { en: 'provisional', de: 'provisorisch' },
-  unpricedWord: { en: 'unpriced', de: 'ohne Preis' },
-  excludedWord: { en: 'excluded', de: 'ausgeschlossen' },
-  statusHelp: {
-    en: 'Calculated: priced with no open question. Provisional: priced, but a supplier quote, an assumption or a review is still open. Unpriced: no catalogue item or no quantity yet. Excluded lines (covered elsewhere or not priceable) are not counted.',
-    de: 'Berechnet: kalkuliert, keine offene Frage. Provisorisch: kalkuliert, aber Offerte, Annahme oder Prüfung offen. Ohne Preis: kein Katalogartikel oder keine Menge. Ausgeschlossene Positionen werden nicht gezählt.',
+  pages: { en: 'pages', de: 'Seiten' },
+  positions: { en: 'positions', de: 'Positionen' },
+  // steps
+  step1: { en: 'Extraction', de: 'Erfassung' },
+  step2: { en: 'Catalogue', de: 'Katalog' },
+  step3: { en: 'Price', de: 'Preis' },
+  step4: { en: 'Offer options', de: 'Angebotsvarianten' },
+  step5: { en: 'Fill & export', de: 'Ausfüllen & Export' },
+  step1Hint: { en: 'What the tender asks for, read straight from the PDF', de: 'Was die Ausschreibung verlangt, direkt aus dem PDF gelesen' },
+  step2Hint: { en: 'Each position connected to its net price in your catalogue', de: 'Jede Position mit ihrem Nettopreis aus Ihrem Katalog verbunden' },
+  step3Hint: { en: 'The formula applied, with every parameter adjustable', de: 'Die Formel angewendet, jeder Parameter einstellbar' },
+  step4Hint: { en: 'AI-generated offer variants (in development)', de: 'KI-generierte Angebotsvarianten (in Entwicklung)' },
+  step5Hint: { en: 'Prices written into the original LV, ready to send', de: 'Preise ins Original-LV geschrieben, bereit zum Versand' },
+  back: { en: 'Back', de: 'Zurück' },
+  // extraction animation
+  reading: { en: 'Reading page', de: 'Lese Seite' },
+  found: { en: 'positions found', de: 'Positionen gefunden' },
+  skip: { en: 'Skip', de: 'Überspringen' },
+  // lists and panels
+  search: { en: 'Search positions', de: 'Positionen suchen' },
+  certainty: { en: 'Certainty', de: 'Sicherheit' },
+  high: { en: 'read directly', de: 'direkt gelesen' },
+  medium: { en: 'derived', de: 'abgeleitet' },
+  low: { en: 'assumed', de: 'angenommen' },
+  clickNode: { en: 'Hover or click a node to see its source in the PDF.', de: 'Knoten anfahren oder anklicken, um die Quelle im PDF zu sehen.' },
+  fromCad: { en: 'from CAD component list', de: 'aus der Bauteilliste' },
+  family: { en: 'Same family in your catalogue', de: 'Gleiche Familie im Katalog' },
+  matchedBecause: { en: 'Matched because', de: 'Zugeordnet, weil' },
+  netPrice: { en: 'Net price', de: 'Nettopreis' },
+  listPrice: { en: 'List', de: 'Liste' },
+  discount: { en: 'Discount', de: 'Rabatt' },
+  noProduct: { en: 'No catalogue product (included elsewhere or no quantity).', de: 'Kein Katalogprodukt (anderweitig enthalten oder keine Menge).' },
+  supplierQuote: { en: 'Supplier quote', de: 'Lieferantenofferte' },
+  supplierNote: {
+    en: 'Placeholder price from the catalogue. Enter the supplier’s net price when the quote arrives.',
+    de: 'Richtpreis aus dem Katalog. Nettopreis der Lieferantenofferte eintragen, sobald sie vorliegt.',
   },
-  atMargin: { en: 'at', de: 'bei' },
-  marginWord: { en: 'margin', de: 'Marge' },
-  lineCost: { en: 'line cost', de: 'Positionskosten' },
-  bySystemNote: { en: 'Direct line costs (material + labour), before allowances, overhead and margin.', de: 'Direkte Positionskosten (Material + Montage), vor Zuschlägen, Gemeinkosten und Marge.' },
-  chooseProduct: { en: 'Choose a catalogue product', de: 'Katalogprodukt wählen' },
-  searchCatalog: { en: 'Search catalogue, e.g. valve DN160', de: 'Katalog durchsuchen, z.B. Ventil DN160' },
-  invalidNumber: { en: 'Enter a number, e.g. 12.5', de: 'Zahl eingeben, z.B. 12.5' },
-  loading: { en: 'Loading tender…', de: 'Ausschreibung wird geladen…' },
-  mountingHeight: { en: 'Mounting height per system', de: 'Montagehöhe pro Anlage' },
-  noLines: { en: 'No lines match these filters.', de: 'Keine Positionen für diese Filter.' },
-  awardMissing: { en: 'The tender states no price-scoring rule.', de: 'Die Ausschreibung nennt keine Preisbewertung.' },
-  search: { en: 'Search, e.g. valve, DN160, 78', de: 'Suchen, z.B. Tellerventil, DN160, 78' },
-  linesShown: { en: 'lines shown · ↑↓ to move', de: 'Positionen · ↑↓ zum Wechseln' },
-  colLine: { en: 'Line', de: 'Pos.' },
-  colItem: { en: 'Item', de: 'Gegenstand' },
-  colQty: { en: 'Qty', de: 'Menge' },
-  colUnit: { en: 'Unit', de: 'Einh.' },
-  colProduct: { en: 'Product', de: 'Produkt' },
-  colChf: { en: 'CHF', de: 'CHF' },
-  colStatus: { en: 'Status', de: 'Status' },
-  fromCad: { en: 'from CAD list', de: 'aus Bauteilliste' },
-  whyPrice: { en: 'Why this price', de: 'Warum dieser Preis' },
-  checks: { en: 'Checks', de: 'Prüfungen' },
-  calculation: { en: 'Calculation', de: 'Berechnung' },
-  assumptions: { en: 'Assumptions', de: 'Annahmen' },
-  tenderText: { en: 'Tender text (German original)', de: 'Ausschreibungstext' },
-  alternatives: { en: 'Alternatives', de: 'Alternativen' },
-  use: { en: 'Use', de: 'Übernehmen' },
-  confirm: { en: 'Confirm', de: 'Bestätigen' },
-  setPrice: { en: 'Set unit price', de: 'Einheitspreis setzen' },
-  labourOnly: { en: 'Labour only', de: 'Nur Montage' },
-  exclude: { en: 'Exclude', de: 'Ausschliessen' },
-  reset: { en: 'Reset', de: 'Zurücksetzen' },
-  editQty: { en: 'Quantity', de: 'Menge' },
+  enterQuote: { en: 'Quoted net price', de: 'Offerierter Nettopreis' },
   save: { en: 'Save', de: 'Speichern' },
-  edited: { en: 'edited', de: 'geändert' },
+  reset: { en: 'Reset', de: 'Zurücksetzen' },
+  // pricing
   material: { en: 'Material', de: 'Material' },
-  labour: { en: 'Labour', de: 'Montage' },
-  direct: { en: 'Direct cost', de: 'Direkte Kosten' },
-  notPriced: { en: 'Not priced', de: 'Nicht kalkuliert' },
-  confidence: { en: 'Confidence', de: 'Sicherheit' },
-  pageWord: { en: 'p.', de: 'S.' },
-  // price build-up
-  buildUp: { en: 'From lines to selling price', de: 'Von den Positionen zum Verkaufspreis' },
-  parameters: { en: 'Parameters', de: 'Parameter' },
-  margin: { en: 'Target margin', de: 'Zielmarge' },
-  risk: { en: 'Risk allowance (CHF)', de: 'Risikozuschlag (CHF)' },
-  siteEfficiency: { en: 'Site efficiency', de: 'Baustelleneffizienz' },
-  includeCad: { en: 'Include ductwork from CAD lists', de: 'Kanäle aus Bauteilliste einrechnen' },
-  includeProject: { en: 'Include project costs', de: 'Projektkosten einrechnen' },
-  scenarios: { en: 'Recommended bid range', de: 'Empfohlene Angebotsspanne' },
-  winProb: { en: 'Win probability', de: 'Zuschlagschance' },
-  contribution: { en: 'Expected contribution', de: 'Erwarteter Deckungsbeitrag' },
-  awardTitle: { en: 'Award points for price', de: 'Preispunkte gemäss Ausschreibung' },
-  placeholderModel: { en: 'Win model supplied by Equans (placeholder).', de: 'Zuschlagsmodell von Equans (Platzhalter).' },
-  bySystem: { en: 'By system', de: 'Nach Anlage' },
-  close: { en: 'Close', de: 'Schliessen' },
-  flagsIntro: {
-    en: 'Inconsistencies found in the tender itself. Each one links to its page.',
-    de: 'In der Ausschreibung gefundene Unstimmigkeiten, jeweils mit Seitenverweis.',
+  labour: { en: 'Installation', de: 'Montage' },
+  lineCost: { en: 'Direct cost', de: 'Direkte Kosten' },
+  onTheForm: { en: 'On the offer form', de: 'Im Angebotsformular' },
+  unitPrice: { en: 'Unit price', de: 'Einheitspreis' },
+  amount: { en: 'Amount', de: 'Betrag' },
+  markup: { en: 'Surcharge factor', de: 'Zuschlagsfaktor' },
+  markupWhy: {
+    en: 'Project costs, overhead, risk and margin are included in the unit prices (SIA 118 Art. 39), with one factor for all positions.',
+    de: 'Projektkosten, Gemeinkosten, Risiko und Marge sind in den Einheitspreisen enthalten (SIA 118 Art. 39), mit einem Faktor für alle Positionen.',
   },
+  labourInE: { en: 'Installation is entered in section E "Montage und Transport" of this system.', de: 'Die Montage steht in Abschnitt E «Montage und Transport» dieser Anlage.' },
+  parameters: { en: 'Parameters', de: 'Parameter' },
+  offerPrice: { en: 'Offer price', de: 'Angebotspreis' },
+  buildUp: { en: 'From positions to offer price', de: 'Von den Positionen zum Angebotspreis' },
+  // offers (AI)
+  aiTitle: { en: 'Offer options', de: 'Angebotsvarianten' },
+  aiBody: {
+    en: 'Here the AI loop will propose more aggressive and more conservative offers, predict the acceptance probability of each from historical bids, and explain the trade-offs. Your choice feeds future predictions.',
+    de: 'Hier schlägt die KI-Schleife aggressivere und vorsichtigere Angebote vor, schätzt die Zuschlagswahrscheinlichkeit aus historischen Offerten und erklärt die Abwägungen. Ihre Wahl fliesst in künftige Prognosen ein.',
+  },
+  aiButton: { en: 'Generate other offers', de: 'Weitere Angebote erzeugen' },
+  aiSoon: { en: 'In development', de: 'In Entwicklung' },
+  currentOffer: { en: 'Current offer', de: 'Aktuelles Angebot' },
+  // export
+  whatIsFilled: { en: 'What is written into the tender', de: 'Was ins LV geschrieben wird' },
+  conditions: { en: 'Conditions (form p.', de: 'Konditionen (Formular S.' },
+  download: { en: 'Download filled-in offer (PDF)', de: 'Ausgefüllte Offerte herunterladen (PDF)' },
+  onlyNumbers: {
+    en: 'Only numbers are added; the original LV text stays untouched, as the tender requires.',
+    de: 'Es werden nur Zahlen ergänzt; der Originaltext des LV bleibt unverändert, wie verlangt.',
+  },
+  jumpTo: { en: 'Jump to', de: 'Springe zu' },
+  costSummary: { en: 'Cost summary', de: 'Kostenzusammenstellung' },
+  firstPosition: { en: 'First position', de: 'Erste Position' },
+  // flow
+  systems: { en: 'systems', de: 'Anlagen' },
+  cadRows: { en: 'CAD rows', de: 'Bauteilzeilen' },
+  withPrice: { en: 'with a price', de: 'mit Preis' },
+  awaitQuote: { en: 'await a supplier quote', de: 'warten auf Lieferantenofferte' },
+  uploading: { en: 'Reading the PDF…', de: 'PDF wird gelesen…' },
+  includedHere: { en: 'Included in another position, written as "inkl." on the form.', de: 'In einer anderen Position enthalten, im Formular als «inkl.» eingetragen.' },
+  cadOnForm: { en: 'From the CAD list: part of the "Materialauszug" row of this system; installation in section E.', de: 'Aus der Bauteilliste: Teil der Zeile «Materialauszug» dieser Anlage; Montage in Abschnitt E.' },
+  tLineMaterial: { en: 'Material of all positions', de: 'Material aller Positionen' },
+  tLineLabour: { en: 'Installation of all positions', de: 'Montage aller Positionen' },
+  tTransport: { en: 'Transport / equipment', de: 'Transport / Inventar' },
+  tSmall: { en: 'Small material', de: 'Kleinmaterial' },
+  tContingency: { en: 'Supplier contingency', de: 'Reserve Lieferanten' },
+  tEngineering: { en: 'Engineering', de: 'Engineering' },
+  tCommissioning: { en: 'Commissioning', de: 'Inbetriebnahme' },
+  tHygiene: { en: 'Hygiene inspection', de: 'Hygieneprüfung' },
+  tDocumentation: { en: 'Documentation', de: 'Dokumentation' },
+  tRisk: { en: 'Risk / opportunities', de: 'Risiken / Chancen' },
+  tOverhead: { en: 'Overhead', de: 'Gemeinkosten' },
+  tBaseline: { en: 'Cost baseline', de: 'Kostenbasis' },
+  gFactors: { en: 'Productivity factors', de: 'Leistungsfaktoren' },
+  gAllowances: { en: 'Allowances', de: 'Zuschläge' },
+  gProject: { en: 'Project costs', de: 'Projektkosten' },
+  gCommercial: { en: 'Commercial', de: 'Kommerziell' },
+  gLocations: { en: 'Location per system (mounting height)', de: 'Ort je Anlage (Montagehöhe)' },
+  paramsChanged: { en: 'changed from the company parameters', de: 'geändert gegenüber den Firmenparametern' },
+  resetAll: { en: 'Reset all', de: 'Alle zurücksetzen' },
+  edit: { en: 'Correct this value', de: 'Wert korrigieren' },
+  hoursPerUnit: { en: 'Hours per unit', de: 'Stunden je Einheit' },
+  quantity: { en: 'Quantity', de: 'Menge' },
+  margin: { en: 'Margin', de: 'Marge' },
+  aiAggressive: { en: 'Aggressive', de: 'Aggressiv' },
+  aiConservative: { en: 'Conservative', de: 'Vorsichtig' },
+  fPositions: { en: 'Unit prices and amounts of the positions', de: 'Einheitspreise und Beträge der Positionen' },
+  fIncluded: { en: '"inkl." for positions included elsewhere', de: '«inkl.» für anderweitig enthaltene Positionen' },
+  fSections: { en: 'Section totals, installation, services, CAD material, days', de: 'Abschnittstotale, Montage, Dienstleistungen, Materialauszug, Tage' },
+  fSummary: { en: 'Cost summary per system and lot', de: 'Kostenzusammenstellung je Anlage und Los' },
+  fConditions: { en: 'Offer total and conditions', de: 'Angebotssumme und Konditionen' },
+  positionsPriced: { en: 'positions priced', de: 'Positionen bepreist' },
+  fieldsTotal: { en: 'fields filled', de: 'Felder ausgefüllt' },
+  roundingNote: { en: 'Sum of the rounded unit prices; offer price', de: 'Summe der gerundeten Einheitspreise; Angebotspreis' },
+  cGross: { en: 'Gross total', de: 'Total brutto' },
+  cSubtotal: { en: 'Subtotal', de: 'Zwischentotal' },
+  cashDiscount: { en: 'Cash discount', de: 'Skonto' },
+  cDeductions: { en: 'Deductions', de: 'Abzüge' },
+  cVat: { en: 'VAT', de: 'MWST' },
+  cNet: { en: 'Net total incl. VAT', de: 'Total netto inkl. MWST' },
+  deductionsWhy: { en: 'Deduction and VAT rates are read from the tender form.', de: 'Abzüge und MWST-Satz stammen aus dem Formular der Ausschreibung.' },
 } as const
 
 export type Key = keyof typeof STRINGS
@@ -139,34 +171,34 @@ export function useI18n() {
   return { lang, setLang, t }
 }
 
-/** Text from the API: either a plain string or {en, de}. */
+/** Text from the API: a plain string or {en, de}. */
 export function tx(v: string | { en: string; de: string } | null | undefined, lang: Lang): string {
   if (v == null) return ''
   return typeof v === 'string' ? v : v[lang] || v.en
-}
-
-export function awardNote(a: { weight: number; total_points: number; zero_at_ratio: number; points_per_pct: number; page: number }, lang: Lang) {
-  const zero = Math.round(a.zero_at_ratio * 100)
-  const per = a.points_per_pct.toLocaleString(lang === 'de' ? 'de-CH' : 'en-GB', { maximumFractionDigits: 2 })
-  return lang === 'de'
-    ? `Der Preis zählt ${a.weight} von ${a.total_points} Punkten: volle Punktzahl beim tiefsten Angebot, 0 bei ${zero} % davon. Jedes 1 % über dem tiefsten Angebot kostet ${per} Punkte (Ausschreibung S. ${a.page}).`
-    : `Price is worth ${a.weight} of ${a.total_points} points: full points at the lowest offer, 0 at ${zero} % of it. Each 1 % above the lowest offer costs ${per} points (tender p.${a.page}).`
 }
 
 export function humanize(key: string) {
   return key.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
 }
 
-export const FLAG_LABELS: Record<string, { en: string; de: string }> = {
-  header_system_mismatch: { en: 'Page header mislabelled', de: 'Seitenkopf falsch beschriftet' },
-  implausible_size: { en: 'Implausible size', de: 'Unplausible Grösse' },
-  reader_disagreement: { en: 'Readers disagree', de: 'Leser uneinig' },
-  quantity_missing: { en: 'Quantity missing', de: 'Menge fehlt' },
-}
 
-export const SECTION_EN: Record<string, string> = {
-  Apparate: 'Equipment', 'Kanäle': 'Ductwork', 'Armaturen und Instrumente': 'Fittings and instruments', Regulierung: 'Controls',
-  'Montage, Dienstleistungen': 'Installation and services', 'Dämmungen': 'Insulation',
+export const PARAM_LABELS: Record<string, { en: string; de: string }> = {
+  site_efficiency: { en: 'Site efficiency', de: 'Baustelleneffizienz' },
+  school_logistics: { en: 'School logistics', de: 'Logistik Schulhaus' },
+  mounting_height_school: { en: 'Mounting height (school)', de: 'Montagehöhe (Schulhaus)' },
+  mounting_height_sports_hall: { en: 'Mounting height (sports hall)', de: 'Montagehöhe (Turnhalle)' },
+  timber_interface: { en: 'Timber construction interface', de: 'Schnittstelle Holzbau' },
+  material_waste_pct: { en: 'Material waste', de: 'Verschnitt' },
+  small_material_pct: { en: 'Small material', de: 'Kleinmaterial' },
+  transport_equipment_pct: { en: 'Transport / equipment', de: 'Transport / Inventar' },
+  supplier_package_contingency_pct: { en: 'Supplier contingency', de: 'Reserve Lieferanten' },
+  engineering_hours: { en: 'Engineering hours', de: 'Engineering-Stunden' },
+  commissioning_hours: { en: 'Commissioning hours', de: 'Inbetriebnahme-Stunden' },
+  hygiene_inspection_chf: { en: 'Hygiene inspection', de: 'Hygieneprüfung' },
+  documentation_chf: { en: 'Documentation', de: 'Dokumentation' },
+  overhead_pct: { en: 'Overhead', de: 'Gemeinkosten' },
+  margin_pct: { en: 'Margin', de: 'Marge' },
+  risk_allowance_chf: { en: 'Risk allowance', de: 'Risikozuschlag' },
 }
 
 export function LangToggle() {
@@ -184,15 +216,4 @@ export function LangToggle() {
       ))}
     </div>
   )
-}
-
-export const STATUS_META: Record<string, { en: string; de: string; tone: string }> = {
-  calculated: { en: 'Calculated', de: 'Berechnet', tone: 'bg-good/12 text-[#078a57]' },
-  supplier_quote_required: { en: 'Supplier quote', de: 'Offerte nötig', tone: 'bg-warn/15 text-[#b36b00]' },
-  assumption_applied: { en: 'Assumption', de: 'Annahme', tone: 'bg-sel/10 text-sel' },
-  review_required: { en: 'Review', de: 'Prüfen', tone: 'bg-brand/20 text-[#8a6500]' },
-  needs_price: { en: 'Needs price', de: 'Preis fehlt', tone: 'bg-bad/10 text-bad' },
-  insufficient_information: { en: 'Missing info', de: 'Angaben fehlen', tone: 'bg-bad/10 text-bad' },
-  out_of_scope: { en: 'Excluded', de: 'Nicht im Umfang', tone: 'bg-[#e8e8ed] text-muted' },
-  non_priceable: { en: 'Not priced', de: 'Nicht kalkuliert', tone: 'bg-[#e8e8ed] text-muted' },
 }

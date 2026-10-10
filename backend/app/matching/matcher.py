@@ -170,6 +170,14 @@ def decide(line: dict, ref: ReferenceData, ahu_context: bool = False, extra_text
         if m:  # inline table: Länge (cm) | Ø innen (cm) | …
             sizes.length_mm, sizes.dn_mm = float(m.group(1)) * 10, float(m.group(2)) * 10
     product, size_check, assumption = _choose_product(rule, sizes, line, ref, d)
+    if product is None and line["local_text"]:
+        # The block header's rule found nothing: the line's own text may name a more specific item
+        # ("… für Erdverlegung …" under "Rohreinlagen unter Bodenplatte").
+        own = classify(" ".join(line["local_text"]), line["description"], line["section"])
+        if own is not None and own.key != rule.key and own.size_mode == "fixed":
+            rule = own
+            d.rule_key, d.title_en, d.install_code = own.key, own.en, own.install_code
+            product, size_check, assumption = _choose_product(own, sizes, line, ref, d)
     if product is None:
         d.status = "review_required"
         d.reasons.append(T(f"No catalogue item fits this {rule.en.lower()}.", f"Kein passender Katalogartikel für «{rule.de}»."))
@@ -197,15 +205,13 @@ def decide(line: dict, ref: ReferenceData, ahu_context: bool = False, extra_text
     d.band = "high" if d.confidence >= HIGH else "medium" if d.confidence >= MEDIUM else "low"
     d.priced = True
 
+    # Flags are kept for what genuinely needs the estimator: supplier quotes. Confidence is shown, not flagged.
     if item.supplier_quote_required:
         d.status = "supplier_quote_required"
         d.reasons.append(T("Supplier package: the catalogue price is a placeholder until a quote is received.",
                             "Lieferantenpaket: Der Katalogpreis ist ein Richtwert, bis eine Offerte vorliegt."))
     elif d.assumptions:
         d.status = "assumption_applied"
-    elif d.band != "high":
-        d.status = "review_required"
-        d.reasons.append(T("Match confidence is below 'high'. Please confirm.", "Die Zuordnung ist nicht eindeutig. Bitte bestätigen."))
     else:
         d.status = "calculated"
     return d
@@ -259,6 +265,22 @@ def _choose_product(rule: Rule, sizes, line: dict, ref: ReferenceData, d: Decisi
         return (fit.product_id, Check("size", T("Unit sized by airflow", "Gerät nach Luftmenge gewählt"), "pass", 1.0, f"{need:g} m³/h → {item_size(fit).airflow:g} m³/h"),
                 T(f"Unit chosen as the smallest catalogue unit for {need:g} m³/h.", f"Kleinstes Katalog-Gerät für {need:g} m³/h gewählt."))
 
+    if mode == "keyword":
+        # One rule covers a family of components; the line's own text names which one (bend 45°, sleeve, pipe …).
+        own = fold(" ".join(line["local_text"]) or line["description"])
+        for pattern, pid in rule.extra["keywords"]:
+            if re.search(pattern, own):
+                item = ref.catalog[pid]
+                check = Check("size", T("Component named in the tender text", "Bauteil im Ausschreibungstext genannt"), "pass", 1.0, item.description)
+                m = re.search(r"lange\s*(\d+(?:[.,]\d+)?)\s*m\b", own)
+                if item.unit == "m" and m:
+                    length = float(m.group(1).replace(",", "."))
+                    d.quantity, d.unit = (line["quantity"] or 0) * length, "m"
+                    return pid, check, T(f"{line['quantity']:g} pieces × {length:g} m = {d.quantity:g} m of pipe.",
+                                         f"{line['quantity']:g} Stück × {length:g} m = {d.quantity:g} m Rohr.")
+                return pid, check, None
+        return None, Check("size", T("Component named in the tender text", "Bauteil im Ausschreibungstext genannt"), "fail", 0.0, ""), None
+
     if mode == "duct_length":
         m = re.search(r"l[äa]nge\s*(\d+(?:[.,]\d+)?)\s*m\b", fold(line["description"]))
         dn = sizes.dn_mm
@@ -271,12 +293,27 @@ def _choose_product(rule: Rule, sizes, line: dict, ref: ReferenceData, d: Decisi
         return (item.product_id, Check("size", T("Diameter matches", "Durchmesser passt"), "pass", 1.0, f"DN{dn:g}"),
                 T(f"{line['quantity']:g} pieces × {length:g} m = {qty:g} m of duct.", f"{line['quantity']:g} Stück × {length:g} m = {qty:g} m Rohr."))
 
+    if mode == "model_key":
+        # The catalogue model carries the distinguishing size, e.g. "SWL-2x179", "EVS-W-3600x1300".
+        text = re.sub(r"\s+", "", fold(line["description"]))
+        for item in candidates(ref, rule):
+            keys = re.findall(r"\d+x\d+", item.model.lower())
+            if keys and all(k in text for k in keys):
+                return item.product_id, Check("size", T("Model size found in the tender text", "Modellgrösse im Ausschreibungstext gefunden"),
+                                              "pass", 1.0, item.model), None
+        return None, Check("size", T("Model size found in the tender text", "Modellgrösse im Ausschreibungstext gefunden"), "fail", 0.0, ""), None
+
+    if mode == "fire_insulation":
+        title = fold(title_of(line))
+        pid = ("P-INS-007" if "verkleidung" in title else "P-INS-006" if "ei60" in title and "100" in title
+               else "P-INS-005" if "ei60" in title else "P-INS-004")
+        item = ref.catalog[pid]
+        return pid, Check("size", T("Fire class and thickness match", "Brandschutzklasse und Stärke passen"), "pass", 1.0, item.subcategory), None
+
+    items = candidates(ref, rule)
     if mode == "dn_or_rect":
         mode = "rect" if sizes.width_mm and sizes.height_mm else "dn"
-        sub = "VAV rectangular" if mode == "rect" else "VAV circular"
-    else:
-        sub = None
-    items = candidates(ref, rule, sub)
+        items = [i for i in items if (item_size(i).w if mode == "rect" else item_size(i).dn)]
     if not items:
         return None, None, None
 

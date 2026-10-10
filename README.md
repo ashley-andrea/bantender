@@ -1,125 +1,112 @@
-# Tender Pricing Assistant
+# bantender — from tender to filled-in offer
 
-Turns a public HVAC tender (PDF) into a transparent, reviewable first price for an estimator.
+Turns a public HVAC tender (PDF) into a priced offer, written back into the tender's own LV form.
+Every number can be traced to a tender page, a catalogue row or a parameter.
 Built for the Equans case at the sprintd hackathon (October 2026).
 
-**Principles:** deterministic where possible, AI only where it clearly helps (budget-capped), every number traceable to a tender page or a reference-data row, company data stays on the server, Azure-ready.
+Estimators told us where the time goes: reading and extracting positions, retyping them into Excel, and writing prices back into the PDF. The calculation itself is simple. So the tool automates the reading and the write-back, and shows the calculation in steps an estimator recognises, so they can check it instead of redoing it.
 
-## Current state — layer 1 (foundation)
+## The flow
 
-| Area | Status | Proof |
+The estimator uploads one PDF. Five steps follow, with the tender page next to the work in every step:
+
+| Step | What the estimator sees | Can change |
 | --- | --- | --- |
-| Company reference data (catalogue, productivity rules, parameters) loaded server-side, versioned folder | done | `tests/test_pricing_golden.py::test_reference_counts` |
-| Pricing engine (line costs, project build-up, bid scenarios, award points) with a formula trace on every number | done | 22/22 golden positions, subset totals and all 3 scenarios reproduced exactly |
-| PDF reading (PyMuPDF rows, fonts, boxes) + page classification | done | 202 pages: 121 LV, 12 component lists; 6 systems with correct page ranges and lots |
-| LV segmentation (quantity rows + item header + attributes) | done | 251 lines; 22/22 verified examples found, 20/20 sizes correct, 22/22 systems correct |
-| Size / unit / number normalisers (Ø cm → DN, B×H labels, inline DN tables, type codes, m² superscripts) | done | `tests/test_normalize.py` |
-| Component lists (CAD duct/fitting tables) | done | hand-checked LA01 round-duct lengths 4/4 |
-| Red flags (header mislabels pp.181–195, Ø 1155 cm typo p.78, blank quantity p.169) | done | `tests/test_parsing_tender.py` |
-| Docling cross-check (tables, figures; cached, models baked into the image) + parser benchmark | done | `benchmarks/results/parse_bench.md` |
-| API: upload PDF → parsed lines; PDF download; tender list; reference summary | done | `tests/test_api.py` |
-| Web client v0: upload with live stages, workspace (systems tree, lines table, line detail, PDF viewer with source highlight, red-flags panel) | done | screenshots checked with Playwright |
-| Server stack (Docker, Compose, Caddy HTTPS) | built and tested in Docker: HTTPS → API, upload parses 202 pages in 0.6 s; Docling runs offline in the container | `make smoke` |
-| Matching (German HVAC lexicon → catalogue by size), confidence checklist, 7 statuses | done | 22/22 golden products + statuses; every line classified |
-| Install-only field devices (labour only), air-handling units sized by airflow, project costs not double-counted | done | `tests/test_matching.py` |
-| Ductwork derived from the CAD component lists (m, m², bends; other fittings labour only) | done | 77 derived lines, each citing its list pages |
-| Pricing service: overrides, settings, audit log; full build-up and bid scenarios | done | `tests/test_api.py` |
-| Web client v1: prices, status filters, why-this-price, estimator actions, price build-up, scenarios, award points, EN/DE | done | Playwright edit flow: price updates and resets |
-| Database (PostgreSQL), RFQ packs, exports, tender facts (LLM) | next layers | — |
+| 1 Extraction | Positions appearing as the pages are read. Then, for each position, a graph of what the tender says (type, quantity, size, airflow, reference product, system), coloured by certainty. Hovering a node highlights its source in the PDF. | Quantity |
+| 2 Catalogue | The same position connected to its catalogue product and net price, plus the installation rule. The matched row is highlighted in its catalogue family. The PDF highlight stays. | Supplier quote (only for supplier-package items) |
+| 3 Price | The formula for the position: material + installation = direct cost; × factor m = unit price and amount on the form. Next to it, the project build-up and sliders for every coefficient in `project_parameters.json`. The offer price in the top bar follows each change. | Hours per unit, every parameter, location per system |
+| 4 Offer options | Reserved for the AI bid-optimisation loop (aggressive / conservative variants with acceptance probability). Placeholder only. | — |
+| 5 Fill & export | The original PDF with all prices written in (each filled field outlined), conditions from p.2, download. | Discount, cash discount |
 
-No OpenAI calls are made anywhere yet (`AI_PROVIDER=off`).
+Flags are limited to the cases that need a person: 28 supplier-package items waiting for a quote, and one position whose quantity the tender leaves blank.
 
-Current result on the Oberglatt tender, before any estimator edits: indicative price CHF 1'756'000 at the 5.5 % target margin. 254 tender lines; 22 excluded; of 232 to price, 110 are priced (67 calculated, 43 provisional) and 122 unpriced; 77 further lines are derived from the CAD component lists.
+## Writing back into the tender
 
-Why lines are unpriced (checked line by line, not a parsing gap): 53 main item types the 56-item catalogue does not contain (grilles, swirl diffusers, rain caps, louvres, kitchen ceiling, fire-rated insulation, thermometers, smoke detectors, labels …), 39 accessories/options of main items (colour coatings, mounting frames, installation kits …), 23 sizes outside the catalogue range (e.g. silencers 1080×800, CAV DN80–160 where the catalogue has DN250 only), 6 duct leakage tests (a service), 1 line without quantity. Extraction completeness is checked independently: every unit in the LV's unit column has a matching extracted line.
+The tender requires the original LV to be returned filled in, with the text unchanged (p.97: "zwingend das zugestellte Originalleistungsverzeichnis ausgefüllt einzureichen"). The filler only adds numbers. It finds each field from the page itself (the column under "Einheitspreis" / "Betrag", the row of the position, the dotted placeholders) and writes into the blank space, so nothing is hardcoded to this tender.
 
-## How the numbers are defined
+What is filled (Oberglatt, 610 fields):
+- unit price and amount of every priced position, "inkl." where a position is included elsewhere;
+- per section: "Total" rows; in section E: "Montage und Transport", "Dienstleistungen", the hygiene inspection, the CAD material ("Materialauszug") and the installation days;
+- p.3 cost summary per system and lot, "Eingabesumme Los n", "Total Eingabesumme";
+- p.2 BKP table (gross / net) and the conditions: discount, cash discount, deductions 1.30 %, VAT 8.1 % (both rates read from the form).
 
-Counts use **tender lines** only (lines read from the LV). Lines derived from the CAD component lists are priced and shown, but counted separately.
+**How prices reach the form.** SIA 118 Art. 39: surcharges are included in the unit prices. So one factor, m = offer price ÷ direct cost, is applied to every cost component. That spreads project costs, overhead, risk and margin evenly, and the filled form adds up to the offer price within centimes of rounding. Items in sections A–D carry supply prices; their installation goes to "Montage und Transport" in section E, as the form asks. Insulation (F, "inkl. Montage") and install-only items keep their labour.
 
-| Term | Definition |
-| --- | --- |
-| Excluded | Status `out_of_scope` (covered by project costs, by others, or excluded by the estimator) or `non_priceable` (part of a package, text only) |
-| To price | Tender lines − excluded |
-| Priced | To-price lines with a computed cost: `calculated`, `supplier_quote_required`, `assumption_applied`, or `review_required` with a price |
-| Calculated | Priced with no open question (status `calculated`) |
-| Provisional | Priced − calculated: a supplier quote, an assumption or a review is still open |
-| Unpriced | To price − priced = "Needs price" (no catalogue item) + "Missing info" (no quantity) |
-| Coverage | Priced ÷ to price |
+## The calculation
 
-Money, per line: material = quantity × net unit cost × (1 + waste %); hours = quantity × base hours × the rule's project factors (site efficiency as 1/x; the mounting-height factor follows the system's location); labour = hours × hourly rate; line cost = material + labour.
-Project: direct cost = Σ line costs + transport % × Σ line costs + small material % × catalogue material + contingency % × supplier-package material + engineering + commissioning + hygiene + documentation; baseline = (direct + risk) × (1 + overhead %); indicative price = baseline ÷ (1 − margin %), rounded up to the rounding step. All percentages and steps come from `project_parameters.json` or the estimator's settings.
-Scenarios use the win-probability model in the parameters; award points use the scoring rule read from the tender's conditions (hidden if the tender states none).
+Per position:
+- material = quantity × catalogue net price × (1 + waste %);
+- hours = quantity × hours per unit × productivity factors (site efficiency as 1/x; mounting height by system location);
+- labour = hours × hourly rate;
+- direct cost = material + labour.
 
-Invariants are tested (`tests/test_matching.py::test_summary_counts_and_formulas_add_up`) and the UI is checked against the API (`make e2e`).
+Project:
+- direct cost = Σ positions + transport % + small material % + supplier contingency % + engineering + commissioning + hygiene + documentation;
+- baseline = (direct + risk) × (1 + overhead %);
+- offer price = baseline ÷ (1 − margin %), rounded up to CHF 1'000.
 
-## Known follow-ups
+All rates come from the company's reference data (`data/reference/v2`) or the estimator's edits, which are logged (`GET /api/tenders/{id}/audit`).
 
-- Docling is optional: the API image (≈420 MB) has none of it; the cross-check runs in its own image on demand (`make crosscheck`).
+## Results on the Oberglatt tender
 
-## Parser benchmark
+With the company parameters unedited:
+- **Offer price CHF 2'461'000** (margin 5.5 %); factor m = 1.1484;
+- form gross total CHF 2'461'001.42; net incl. VAT CHF 2'625'758.08;
+- 254 positions read: 22 included elsewhere or out of scope, 232 to price, 231 priced (192 calculated, 39 provisional: 28 supplier quotes, 11 assumptions), 1 without quantity;
+- 77 further lines derived from the CAD component lists (ducts per DN and m², bends).
 
-Six configurations on the full tender, no OpenAI calls ([details](backend/benchmarks/results/parse_bench.md), regenerate with `make bench`):
+Extraction is checked independently: every unit in the LV's unit column has an extracted position, and the 22 verified example positions are all found with the right product (`tests/`).
 
-| Config | LV lines | Examples found | Sizes correct | Component rows (independent count: 457) |
-| --- | --- | --- | --- | --- |
-| A PyMuPDF rows + bold headers | 251 | 22/22 | 20/20 | 457 |
-| B PyMuPDF without fonts | 251 | 22/22 | 19/20 | 457 |
-| C Docling layout, text only | 210 | 17/22 | 13/20 | 457 |
-| D Docling + TableFormer accurate | 46 | 1/22 | 0/20 | 396 |
-| E Docling + TableFormer fast | 111 | 4/22 | 2/20 | 282 |
-| F A for lines + D for tables | 251 | 22/22 | 20/20 | 396 |
+**Reference data v2.** The provided catalogue (56 items) covers less than half the positions. We were told the catalogue is not the focus, so `data/reference/v2` keeps every v1 row unchanged and adds 70 synthetic catalogue items and 18 productivity rules (grilles, louvres, kitchen, ground ducts, services …). Replacing them with real company data means replacing two CSV files.
 
-**Decision:** PyMuPDF is the primary reader (about 1 s per tender). With table structure on, Docling reads each LV page as one big table cell and drops about 15% of the component-list rows. Docling is kept out of the main image; it runs as an optional cross-check in its own container (`make crosscheck`), flagging pages where the two readers disagree. It also detects figures and is the route for scanned or unfamiliar layouts.
+## Run it
+
+Needs Docker.
+
+```bash
+cp .env.example .env          # set DOMAIN=localhost for a local run
+docker compose up -d --build  # caddy (HTTPS) + web + api
+open https://localhost        # accept the local certificate once
+```
+
+Drop `data/samples/oberglatt/BKP_244_LV_Lueftung_260804.pdf` on the upload screen. ↑/↓ moves through positions. EN/DE in the top bar.
+
+```bash
+make test   # backend tests, ~10 s, no network
+make smoke  # smoke-test a running stack (BASE=https://your-domain)
+make e2e    # walk the five steps in a browser; numbers on screen must match the API
+make api    # dev API on :8000
+cd frontend && npm install && npm run dev   # UI with hot reload on :5173, proxies /api to https://localhost
+```
+
+On the server: `.env` with the real `DOMAIN`, then `make deploy`. Caddy obtains the certificate.
 
 ## Layout
 
 ```
-backend/
-  app/reference/   company reference data models + loader
-  app/pricing/     deterministic pricing engine + scenarios
-  app/parsing/     PyMuPDF layer, Docling layer, LV segmentation, normalisers, evaluation
-  app/api/         FastAPI app
-  tests/           golden, parsing, normaliser and API tests
-  benchmarks/      parser configuration benchmark
-data/
-  reference/v1/    seed of the company reference data (internal)
-  samples/         the Oberglatt tender + verified examples (test fixtures)
-frontend/          React + Vite + Tailwind web client (served by Caddy in its own container)
-deploy/Caddyfile   HTTPS reverse proxy for our server
-docker-compose.yml server stack (mirrors the Azure target)
+backend/app/
+  parsing/     PyMuPDF rows → page kinds → LV positions with source boxes; tender facts (lots, conditions)
+  matching/    lexicon (German HVAC terms → catalogue), product choice by size, CAD duct lines, attributes with certainty
+  pricing/     engine (line + project formulas with trace), service (overrides, settings), scenarios (hook for the AI loop)
+  offer/       build.py: prices on the form; pdf_fill.py: write them into the original PDF
+  api/         FastAPI
+backend/tests/ golden positions, parsing completeness, matching, offer reconciliation, API
+data/reference/v1, v2   company reference data (server-side; v2 = v1 + synthetic rows)
+data/samples/  the Oberglatt tender and the verified examples
+frontend/      React + Vite + Tailwind; components/steps/ holds the five steps
+e2e/flow.mjs   browser walk-through of the flow
+deploy/        Caddyfile, smoke test
+docs/          flow and infrastructure diagrams, parser decision
 ```
 
-## See it locally
+Parser choice: PyMuPDF alone, about one second per tender. Docling was benchmarked and removed ([docs/parser-benchmark.md](docs/parser-benchmark.md)).
 
-Needs Docker running.
+## Path to production (Azure)
 
-```bash
-cp .env.example .env          # then set DOMAIN=localhost in .env
-docker compose up -d --build  # caddy (HTTPS) + web + api
-open https://localhost        # accept the local certificate once (Caddy issues it for localhost)
-```
+Each server component maps to an Azure service:
+- Caddy → Front Door;
+- containers → Container Apps;
+- storage volume → Blob Storage;
+- OpenAI → Azure OpenAI, for the bid-optimisation loop.
 
-Drop `data/samples/oberglatt/BKP_244_LV_Lueftung_260804.pdf` on the upload screen. Click any line to see the tender page with the source row highlighted. ↑/↓ moves through lines.
-
-UI development with hot reload (the Docker stack keeps serving the API):
-
-```bash
-cd frontend && npm install && npm run dev   # http://localhost:5173, proxies /api to https://localhost
-```
-
-## Run
-
-```bash
-make test        # all tests, ~5 s, no network
-make bench-fast  # parser benchmark without Docling
-make bench       # full benchmark incl. Docling (first run converts and caches)
-make api         # dev API on :8000
-make smoke       # smoke-test a running stack (BASE=https://your-domain)
-```
-
-On the server: copy `.env.example` to `.env`, set `DOMAIN`, then `make deploy` (git pull → docker compose up -d --build). Caddy obtains the HTTPS certificate automatically.
-
-## Azure path
-
-Every server component maps 1:1 to an Azure service (Caddy → Front Door, containers → Container Apps, volume → Blob Storage, PostgreSQL → Flexible Server, OpenAI → Azure OpenAI). Configuration is environment-only; storage and AI sit behind interfaces with a `local` / `openai` implementation now and an Azure one next.
+Configuration comes from environment variables only. Storage sits behind an interface with a local implementation now; an Azure one plugs in without code changes elsewhere. Reference data is a versioned folder the company maintains. No OpenAI calls are made today (`AI_PROVIDER=off`).

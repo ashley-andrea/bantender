@@ -3,7 +3,7 @@ export function SketchDefs() {
   return (
     <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden>
       <defs>
-        <filter id="pencil" x="-5%" y="-5%" width="110%" height="110%">
+        <filter id="pencil" filterUnits="userSpaceOnUse" x="-5%" y="-5%" width="110%" height="110%">
           <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="7" result="n" />
           <feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G" />
         </filter>

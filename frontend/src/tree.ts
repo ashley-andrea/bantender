@@ -75,6 +75,8 @@ export function entryQuantity(e: Entry, lang: Lang): string {
 }
 
 // ---- graph model ----------------------------------------------------------------------------------
+// One graph per parent. Closed: the parent's values. Open (a value clicked, or a child picked in the list): every
+// value the children have differently gets their own values hanging under it, one small node per child.
 
 export interface ValueNode {
   key: string // unique within the graph
@@ -85,108 +87,108 @@ export interface ValueNode {
   why?: string
   page?: number
 }
-export interface GraphNode extends ValueNode {
+/** One child's own value under a parent value. */
+export interface SubValue extends ValueNode {
+  childId: string
+  index: number // 1-based, in list order
+  selected: boolean
+}
+export interface AttrNode extends ValueNode {
   attrKey: string
-  from: 'top' | 'mid'
-  /** Set on a node that stands for several values (variants that differ, or the parts of an item). */
-  values?: ValueNode[]
+  subs?: SubValue[] // set when the children differ here
 }
 export interface GraphSpec {
   top: ValueNode // the type
-  mid?: { label: string; sub: string; level: Level } // the selected variant or part
-  nodes: GraphNode[]
+  typeSubs?: SubValue[] // parts: their own type next to the parent's
+  nodes: AttrNode[]
+  product?: AttrNode // catalogue step
+  hours?: AttrNode
+  open: boolean // a child is selected: show every child-specific value
 }
 
 const worst = (ls: Level[]): Level => ls.reduce<Level>((w, l) => (LEVEL_RANK[l] > LEVEL_RANK[w] ? l : w), 'read')
 const SHORT: Record<string, { en: string; de: string }> = {
   quantity: { en: 'Qty', de: 'Menge' }, size: { en: 'Size', de: 'Grösse' }, airflow: { en: 'Airflow', de: 'Luft' },
   thickness: { en: 'Insul.', de: 'Dämm.' }, reference: { en: 'Make', de: 'Fabr.' }, system: { en: 'System', de: 'Anlage' },
-  section: { en: 'Section', de: 'Abschn.' }, parts: { en: 'Parts', de: 'Teile' },
+  section: { en: 'Section', de: 'Abschn.' }, product: { en: 'Product', de: 'Produkt' }, hours: { en: 'Install', de: 'Montage' },
 }
 const short = (key: string, a: Attribute | undefined, lang: Lang) => SHORT[key]?.[lang] ?? (a ? tx(a.label, lang) : key)
-
-function typeNode(lines: PricedLine[], lang: Lang): ValueNode {
-  const attrs = lines.map((l) => l.attributes.find((a) => a.key === 'type')).filter(Boolean) as Attribute[]
-  return {
-    key: 'type', label: lang === 'en' ? 'Type' : 'Typ', value: lang === 'en' ? lines[0].title_en : lines[0].title_de,
-    level: worst(attrs.map((a) => a.level)), sources: attrs.flatMap((a) => a.sources), why: attrs[0] ? tx(attrs[0].why, lang) : undefined,
-  }
-}
-
-function valueOf(a: Attribute | undefined, lang: Lang) {
-  return a ? tx(a.value, lang) || '—' : '—'
-}
-
-const pluralKey: Record<string, { en: string; de: string }> = {
+const valueOf = (a: Attribute | undefined, lang: Lang) => (a ? tx(a.value, lang) || '—' : '—')
+const plural: Record<string, { en: string; de: string }> = {
   size: { en: 'sizes', de: 'Grössen' }, airflow: { en: 'airflows', de: 'Luftmengen' }, reference: { en: 'makes', de: 'Fabrikate' },
 }
+const title = (l: PricedLine, lang: Lang) => (lang === 'en' ? l.title_en : l.title_de)
 
-/** Attributes of several lines: one node where they agree, a grouped node where the variants differ. */
-function mergedNodes(lines: PricedLine[], lang: Lang): { nodes: GraphNode[]; differing: Set<string> } {
-  const keys: string[] = []
-  for (const l of lines) for (const a of l.attributes) if (a.key !== 'type' && !keys.includes(a.key)) keys.push(a.key)
-  const differing = new Set<string>()
-  const nodes = keys.map((key): GraphNode => {
-    const per = lines.map((l) => ({ line: l, a: l.attributes.find((x) => x.key === key) }))
-    const vals = per.map((p) => valueOf(p.a, lang))
-    const first = per.find((p) => p.a)?.a
-    if (lines.length === 1 || vals.every((v) => v === vals[0])) {
-      return {
-        key, attrKey: key, from: 'top', label: short(key, first, lang), value: vals[0], level: worst(per.map((p) => p.a?.level ?? 'read')),
-        sources: per.flatMap((p) => p.a?.sources ?? []), why: first ? tx(first.why, lang) : undefined,
-      }
-    }
-    differing.add(key)
-    const values = per.map((p, i): ValueNode => ({
-      key: `${key}:${p.line.line_id}`, label: short(key, p.a, lang), value: vals[i], level: p.a?.level ?? 'missing',
-      sources: p.a?.sources ?? [], why: p.a ? tx(p.a.why, lang) : undefined, page: p.line.page,
-    }))
-    let summary = `${new Set(vals).size} ${pluralKey[key]?.[lang] ?? (lang === 'en' ? 'values' : 'Werte')}`
-    if (key === 'quantity') {
-      const units = new Set(lines.map((l) => l.decision.unit))
-      if (units.size === 1 && lines.every((l) => l.decision.quantity != null)) {
-        summary = `${fmtNum(lines.reduce((s, l) => s + (l.decision.quantity ?? 0), 0))} ${fmtUnit(lines[0].decision.unit, lang)}`
-      }
-    }
-    return { key, attrKey: key, from: 'top', label: short(key, first, lang), value: summary, level: worst(values.map((v) => v.level)),
-      sources: values.flatMap((v) => v.sources), values }
-  })
-  return { nodes, differing }
+/** The parent's value for a key: the line's own, or what its variants share (a sum or a count where they differ). */
+function parentValue(lines: PricedLine[], key: string, lang: Lang): { value: string; level: Level; sources: SourceRow[]; why?: string; attr?: Attribute } {
+  const per = lines.map((l) => l.attributes.find((x) => x.key === key))
+  const vals = per.map((a) => valueOf(a, lang))
+  const first = per.find(Boolean)
+  const level = worst(per.map((a) => a?.level ?? 'read'))
+  const sources = per.flatMap((a) => a?.sources ?? [])
+  if (vals.every((v) => v === vals[0])) return { value: vals[0], level, sources, why: first ? tx(first.why, lang) : undefined, attr: first }
+  if (key === 'quantity' && new Set(lines.map((l) => l.decision.unit)).size === 1 && lines.every((l) => l.decision.quantity != null)) {
+    return { value: `${fmtNum(lines.reduce((s, l) => s + (l.decision.quantity ?? 0), 0))} ${fmtUnit(lines[0].decision.unit, lang)}`, level, sources, attr: first }
+  }
+  return { value: `${new Set(vals).size} ${plural[key]?.[lang] ?? (lang === 'en' ? 'values' : 'Werte')}`, level, sources, attr: first }
 }
 
-function partsNode(entry: Entry, lang: Lang): GraphNode | null {
-  const parts = entry.children.filter((c) => c.role === 'part')
-  if (!parts.length) return null
-  const values = parts.map((c): ValueNode => {
-    const t = c.line.attributes.find((a) => a.key === 'type')
-    return { key: `parts:${c.id}`, label: short('parts', undefined, lang), value: lang === 'en' ? c.line.title_en : c.line.title_de,
-      level: t?.level ?? 'read', sources: t?.sources ?? [], page: c.line.page }
-  })
-  return { key: 'parts', attrKey: 'parts', from: 'top', label: short('parts', undefined, lang), value: `${parts.length}`,
-    level: worst(values.map((v) => v.level)), sources: values.flatMap((v) => v.sources), values }
+function subsFor(sel: Selection, key: string, parent: string, get: (l: PricedLine) => { value: string; level: Level; sources: SourceRow[]; why?: string } | null, label: string): SubValue[] | undefined {
+  const kids = sel.entry.children.map((c, i) => ({ c, i, v: get(c.line) })).filter((k) => k.v)
+  if (!kids.length || kids.every((k) => k.v!.value === parent)) return undefined
+  return kids.map((k) => ({ key: `${key}:${k.c.id}`, childId: k.c.id, index: k.i + 1, label, ...k.v!, page: k.c.line.page, selected: sel.child?.id === k.c.id }))
 }
 
-/** Graph of a selection: the parent's type on top; for a child, the child in the middle with its own values. */
 export function graphOf(sel: Selection, lang: Lang): GraphSpec {
-  const { entry, child } = sel
-  const top = typeNode(entry.members, lang)
-  if (!child) {
-    const { nodes } = mergedNodes(entry.members, lang)
-    const parts = partsNode(entry, lang)
-    return { top, nodes: parts ? [...nodes, parts] : nodes }
+  const parents = sel.entry.members
+  const typeAttrs = parents.map((l) => l.attributes.find((a) => a.key === 'type')).filter(Boolean) as Attribute[]
+  const top: ValueNode = {
+    key: 'type', label: lang === 'en' ? 'Type' : 'Typ', value: title(parents[0], lang), level: worst(typeAttrs.map((a) => a.level)),
+    sources: typeAttrs.flatMap((a) => a.sources), why: typeAttrs[0] ? tx(typeAttrs[0].why, lang) : undefined,
   }
-  const line = child.line
-  if (child.role === 'part') {
-    const own = mergedNodes([line], lang).nodes.map((n) => ({ ...n, from: 'mid' as const }))
-    return { top, mid: { label: lang === 'en' ? 'Part' : 'Teil', sub: lang === 'en' ? line.title_en : line.title_de, level: 'read' }, nodes: own }
+  const typeSubs = subsFor(sel, 'type', top.value, (l) => {
+    const a = l.attributes.find((x) => x.key === 'type')
+    return { value: title(l, lang), level: a?.level ?? 'read', sources: a?.sources ?? [], why: a ? tx(a.why, lang) : undefined }
+  }, top.label)
+
+  const keys: string[] = []
+  for (const l of [...parents, ...sel.entry.children.map((c) => c.line)]) for (const a of l.attributes) if (a.key !== 'type' && !keys.includes(a.key)) keys.push(a.key)
+  const nodes = keys.map((key): AttrNode => {
+    const p = parentValue(parents, key, lang)
+    const label = short(key, p.attr, lang)
+    const subs = subsFor(sel, key, p.value, (l) => {
+      const a = l.attributes.find((x) => x.key === key)
+      return a ? { value: valueOf(a, lang), level: a.level, sources: a.sources, why: tx(a.why, lang) } : null
+    }, label)
+    return { key, attrKey: key, label, value: p.value, level: p.level, sources: p.sources, why: p.why, subs }
+  })
+
+  // Catalogue: the product and the installation time, with the children's own where they differ.
+  const prod = (l: PricedLine) => (l.decision.product_id && l.cost ? { value: `${l.decision.product_id} · ${fmtNum(l.cost.net_unit_cost)}`, level: 'read' as Level, sources: [] } : null)
+  const hrs = (l: PricedLine) => (l.cost && l.decision.install_code ? { value: `${fmtNum(l.cost.base_hours)} h`, level: 'read' as Level, sources: [] } : null)
+  type Got = { value: string; level: Level; sources: SourceRow[] }
+  const merged = (get: (l: PricedLine) => Got | null, key: string): AttrNode | undefined => {
+    const vals = parents.map(get).filter(Boolean) as Got[]
+    if (!vals.length) return undefined
+    const same = vals.every((v) => v.value === vals[0].value)
+    const n = new Set(vals.map((v) => v.value)).size
+    const value = same ? vals[0].value : `${n} ${key === 'product' ? (lang === 'en' ? 'products' : 'Produkte') : lang === 'en' ? 'values' : 'Werte'}`
+    const label = SHORT[key][lang]
+    return { key, attrKey: key, label, value, level: 'read', sources: [], subs: subsFor(sel, key, value, get, label) }
   }
-  // A variant: what the variants share hangs off the parent, what makes this one different off the variant.
-  const { differing } = mergedNodes(entry.members, lang)
-  const own = mergedNodes([line], lang).nodes.map((n) => ({ ...n, from: differing.has(n.attrKey) ? ('mid' as const) : ('top' as const) }))
-  const sub = own.filter((n) => n.from === 'mid').map((n) => n.value).join(' · ')
-  const idx = (line.group as { index: number; count: number })
-  return {
-    top, nodes: own,
-    mid: { label: `${idx.index + 1} / ${idx.count}`, sub: `${lang === 'en' ? 'Variant' : 'Variante'} · ${sub}`, level: worst(own.filter((n) => n.from === 'mid').map((n) => n.level)) },
+  return { top, typeSubs, nodes, product: merged(prod, 'product'), hours: merged(hrs, 'hours'), open: !!sel.child }
+}
+
+/** Any node by key: the type, a value, a child's own value, the product or the hours. */
+export function findNode(spec: GraphSpec, key: string | null): ValueNode | null {
+  if (!key) return null
+  const all: AttrNode[] = [...spec.nodes, ...(spec.product ? [spec.product] : []), ...(spec.hours ? [spec.hours] : [])]
+  if (key === 'type') return spec.top
+  for (const s of spec.typeSubs ?? []) if (s.key === key) return s
+  for (const n of all) {
+    if (n.key === key) return n
+    const v = n.subs?.find((x) => x.key === key)
+    if (v) return v
   }
+  return null
 }

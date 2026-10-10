@@ -1,7 +1,7 @@
 import type { EditField } from '../../api'
 import { LEVEL_COLOR, fmtUnit } from '../../format'
 import { lineTitle, sectionName, systemName, useI18n, type Key } from '../../i18n'
-import { entryQuantity, entryTitle, graphOf, selectedLine, type GraphSpec, type Selection, type ValueNode } from '../../tree'
+import { entryQuantity, entryTitle, findNode, graphOf, selectedLine, type Selection } from '../../tree'
 import type { Level, Parsed } from '../../types'
 import { InlineNumber } from '../InlineNumber'
 import { ItemGraph } from '../ItemGraph'
@@ -15,18 +15,6 @@ interface PanelProps {
   busy: boolean
 }
 
-/** Any node of a graph by key: the type, a value, a grouped value, or one value inside a group. */
-export function findNode(spec: GraphSpec, key: string | null): ValueNode | null {
-  if (!key) return null
-  if (key === 'type') return spec.top
-  for (const n of spec.nodes) {
-    if (n.key === key) return n
-    const v = n.values?.find((x) => x.key === key)
-    if (v) return v
-  }
-  return null
-}
-
 export function ExtractionPanel({ sel, systems, active, onActive, onEdit, busy }: PanelProps) {
   const { t, lang } = useI18n()
   const spec = graphOf(sel, lang)
@@ -36,7 +24,7 @@ export function ExtractionPanel({ sel, systems, active, onActive, onEdit, busy }
     <div className="h-full min-h-0 overflow-auto scroll-thin panel p-5">
       <SelectionHeader sel={sel} systems={systems} />
       <Legend className="mt-5" />
-      <div className="mt-6" key={sel.child?.id ?? sel.entry.id}>
+      <div className="mt-6" key={sel.entry.id}>
         <ItemGraph spec={spec} active={active} onActive={onActive} />
       </div>
       <div className="mt-3 min-h-[64px] border-t border-dashed border-hair pt-3 text-[13px]">
@@ -46,7 +34,7 @@ export function ExtractionPanel({ sel, systems, active, onActive, onEdit, busy }
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline gap-2">
                 <span className="text-muted">{node.label}</span>
-                {active === 'quantity' && line && line.source === 'lv' ? (
+                {line && line.source === 'lv' && (active === `quantity:${line.line_id}` || (active === 'quantity' && !sel.child && sel.entry.kind === 'line')) ? (
                   <InlineNumber value={line.decision.quantity} suffix={fmtUnit(line.decision.unit, lang)} edited={line.decision.overridden.includes('quantity')}
                     busy={busy} onSave={(v) => onEdit('quantity', v)} onReset={() => onEdit('quantity', null)} />
                 ) : (

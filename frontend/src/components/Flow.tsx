@@ -4,7 +4,7 @@ import { api, prefetched, type EditField } from '../api'
 import { LEVEL_COLOR, LEVEL_MARKER, fmtChf } from '../format'
 import { LangToggle, useI18n, type Key } from '../i18n'
 import { STEPS, type Step } from '../route'
-import { buildTree, graphOf, resolve, selectedLine, type ValueNode } from '../tree'
+import { buildTree, findNode, graphOf, resolve, selectedLine, type ValueNode } from '../tree'
 import type { Offer, Parsed, PricedLine, Pricing, ReferenceParameters } from '../types'
 import { Col, Handle, useWidths } from './Columns'
 import { PdfPane, type Highlight } from './PdfPane'
@@ -12,7 +12,7 @@ import { PositionsList, visibleIds } from './PositionsList'
 import { BantenderLogo } from './Sketch'
 import { Landing } from './Landing'
 import { CataloguePanel } from './steps/Catalogue'
-import { ExtractionPanel, findNode } from './steps/Extraction'
+import { ExtractionPanel } from './steps/Extraction'
 import { ExportPanel } from './steps/Offer'
 import { OfferOptions } from './steps/OfferOptions'
 import { OfferBar, ParameterPanel, PriceDetail } from './steps/Pricing'
@@ -162,7 +162,10 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
     const activeNode = findNode(spec, active)
     const activeBoxes = new Set((activeNode?.sources ?? []).filter((s) => s.bbox).map((s) => s.bbox!.join(',')))
     const boxes = new Map<string, Highlight>()
-    const all: ValueNode[] = [spec.top, ...spec.nodes.flatMap((n) => (n.values ? n.values : [n]))]
+    // A child: its own rows. A parent: the parent's values (for variants, every variant's rows).
+    const all: ValueNode[] = sel?.child
+      ? sel.child.line.attributes.map((a) => ({ key: a.key, label: '', value: '', level: a.level, sources: a.sources }))
+      : [spec.top, ...spec.nodes]
     for (const n of all) {
       for (const s of n.sources) {
         if (!s.bbox || s.page !== page) continue
@@ -174,7 +177,7 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
       }
     }
     return [...boxes.values()]
-  }, [spec, page, active])
+  }, [spec, sel, page, active])
 
   const ready = Boolean(tenderId && parsed && pricing)
   const top = (
@@ -282,20 +285,23 @@ function TopBar({ title, step, enabled, onStep, price, busy, onHome }: {
   const current = STEPS.indexOf(step)
 
   return (
-    <header className="h-14 shrink-0 px-5 flex items-center gap-5 relative bg-surface/70">
-      <button onClick={onHome} className="shrink-0 text-ink" title={t('recent')}>
-        <BantenderLogo size={24} />
-      </button>
-      <div className="text-[12.5px] text-muted truncate max-w-56">{title}</div>
-      <nav className="flex-1 flex justify-center">
-        <ol className="flex items-center gap-3">
+    <header className="h-14 shrink-0 px-5 grid grid-cols-[1fr_auto_1fr] items-center gap-5 relative bg-surface/70">
+      {/* Three columns: the tabs sit in the middle one, so they never move whatever is on the left or right. */}
+      <div className="min-w-0 flex items-center gap-5">
+        <button onClick={onHome} className="shrink-0 text-ink" title={t('recent')}>
+          <BantenderLogo size={24} />
+        </button>
+        <div className="text-[12.5px] text-muted truncate">{title}</div>
+      </div>
+      <nav>
+        <ol className="flex items-center">
           {STEPS.map((s, i) => (
             <li key={s}>
               <button onClick={() => onStep(s)} disabled={!enabled && s !== 'extract'}
-                className={`relative px-4 h-14 text-[14px] disabled:cursor-default disabled:text-faint/60 ${s === step ? 'text-ink font-semibold' : i < current ? 'text-ink/80 hover:text-ink' : 'text-muted hover:text-ink'}`}>
+                className={`relative w-[150px] h-14 text-center text-[14px] disabled:cursor-default disabled:text-faint/60 ${s === step ? 'text-ink font-semibold' : i < current ? 'text-ink/80 hover:text-ink' : 'text-muted hover:text-ink'}`}>
                 <span className="num mr-1.5 text-faint text-[13px]">{i + 1}</span>{t(STEP_LABEL[s])}
                 {s === step && (
-                  <svg className="absolute left-2 right-2 bottom-2.5 w-[calc(100%-16px)] h-2.5" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden>
+                  <svg className="absolute left-6 right-6 bottom-2.5 w-[calc(100%-48px)] h-2.5" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden>
                     <path d="M2 6 C 20 3, 45 8, 62 5 S 90 4, 98 6" stroke="#70bd95" strokeWidth="5" strokeLinecap="round" fill="none" opacity="0.85" />
                   </svg>
                 )}
@@ -304,6 +310,7 @@ function TopBar({ title, step, enabled, onStep, price, busy, onHome }: {
           ))}
         </ol>
       </nav>
+      <div className="flex items-center justify-end gap-5">
       {price != null && (
         <div className="flex items-baseline gap-2">
           {busy && <Loader2 className="size-3.5 animate-spin text-muted self-center" />}
@@ -313,6 +320,7 @@ function TopBar({ title, step, enabled, onStep, price, busy, onHome }: {
         </div>
       )}
       <LangToggle />
+      </div>
       <svg className="absolute left-0 right-0 bottom-0 w-full h-1.5" viewBox="0 0 1000 6" preserveAspectRatio="none" aria-hidden>
         <path d="M0 3 C 150 1.5, 300 4.5, 500 3 S 850 1.8, 1000 3.2" stroke="#1c2933" strokeOpacity="0.55" strokeWidth="1.4" fill="none" />
       </svg>

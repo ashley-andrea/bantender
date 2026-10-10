@@ -6,7 +6,7 @@ import { humanize, tx, useI18n } from '../../i18n'
 import { graphOf, selectedLine, type Selection } from '../../tree'
 import type { CatalogContext, Parsed, PricedLine, ProductivityRule } from '../../types'
 import { InlineNumber } from '../InlineNumber'
-import { ItemGraph, type ProductNode } from '../ItemGraph'
+import { ItemGraph } from '../ItemGraph'
 import { Legend, SelectionHeader } from './Extraction'
 
 interface Props {
@@ -22,20 +22,13 @@ interface Props {
 export const selectionLines = (sel: Selection): PricedLine[] => (sel.child ? [sel.child.line] : sel.entry.members)
 
 /** Distinct products of the lines, with the net price each is priced at. */
-export function productsOf(lines: PricedLine[]): ProductNode[] {
-  const seen = new Map<string, ProductNode>()
+export function productsOf(lines: PricedLine[]): { key: string; id: string; net: number; unit: string | null }[] {
+  const seen = new Map<string, { key: string; id: string; net: number; unit: string | null }>()
   for (const l of lines) {
     const pid = l.decision.product_id
     if (pid && !seen.has(pid)) seen.set(pid, { key: `product:${pid}`, id: pid, net: l.cost?.net_unit_cost ?? 0, unit: l.decision.unit })
   }
   return [...seen.values()]
-}
-
-/** Hours per unit when every line uses the same installation rule and value. */
-function hoursOf(lines: PricedLine[]) {
-  const hs = new Set(lines.map((l) => (l.cost && l.decision.install_code ? `${l.decision.install_code}|${l.cost.base_hours}` : '')))
-  if (hs.size !== 1 || !lines[0].cost || !lines[0].decision.install_code || !lines[0].cost.base_hours) return null
-  return { value: lines[0].cost.base_hours, unit: lines[0].decision.unit ?? '' }
 }
 
 export function CataloguePanel({ sel, systems, active, onActive, onQuote, busy }: Props) {
@@ -49,8 +42,8 @@ export function CataloguePanel({ sel, systems, active, onActive, onQuote, busy }
     <div className="h-full min-h-0 overflow-auto scroll-thin panel p-5">
       <SelectionHeader sel={sel} systems={systems} />
       <Legend className="mt-5" />
-      <div className="mt-6" key={sel.child?.id ?? sel.entry.id}>
-        <ItemGraph spec={graphOf(sel, lang)} products={products} hours={hoursOf(lines)} active={active} onActive={onActive} />
+      <div className="mt-6" key={sel.entry.id}>
+        <ItemGraph spec={graphOf(sel, lang)} catalog active={active} onActive={onActive} />
       </div>
 
       {!products.length && <p className="mt-2 text-[13px] text-muted">{t('noProduct')}</p>}

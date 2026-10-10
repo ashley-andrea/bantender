@@ -95,6 +95,7 @@ def price_tender(parsed: dict, ref: ReferenceData, overrides: dict | None = None
         rows.append({
             "line_id": line["line_id"], "source": source, "page": line["page"], "system": line["system"], "lot": line["lot"],
             "section": line["section"], "section_name": line.get("section_name") or "",
+            "section_name_en": line.get("section_name_en") or line.get("section_name") or "",
             "title_en": d["title_en"], "title_de": d["title_de"],
             "tender_quantity": line["quantity"], "tender_unit": line["unit"], "decision": d, "cost": cost,
             "status_key": status_key(d["status"], cost),
@@ -134,9 +135,9 @@ def price_tender(parsed: dict, ref: ReferenceData, overrides: dict | None = None
 def cad_attributes(line: dict, d: dict) -> list[dict]:
     src = [{"page": e["page"], "bbox": e["bbox"], "text": ""} for e in (line.get("evidence") or [])]
     return [
-        {"key": "type", "label": T("Item", "Artikel"), "value": {"en": d["title_en"], "de": d["title_de"]}, "sources": src[:1], "certainty": 1.0,
+        {"key": "type", "label": T("Item", "Artikel"), "value": {"en": d["title_en"], "de": d["title_de"]}, "sources": src[:1], "level": "read",
          "why": T("Listed in the CAD component list", "In der Bauteilliste aufgeführt")},
-        {"key": "quantity", "label": T("Quantity", "Menge"), "value": f"{d['quantity']:g} {d['unit']}", "sources": src, "certainty": 0.8,
+        {"key": "quantity", "label": T("Quantity", "Menge"), "value": f"{d['quantity']:g} {d['unit']}", "sources": src, "level": "derived",
          "why": T(f"Summed over {len(src)} list row(s)", f"Über {len(src)} Listenzeile(n) summiert")},
     ]
 

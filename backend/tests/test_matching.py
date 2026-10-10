@@ -142,3 +142,29 @@ def test_locations_drive_the_height_factor(parsed, ref):
                 and x["decision"]["install_code"] == "DIFFUSER")
     assert b[line]["cost"]["adjusted_hours"] == pytest.approx(a[line]["cost"]["adjusted_hours"] * 1.25 / 1.10)
     assert base["settings"]["locations"]["244.05"] == "sports_hall"
+
+
+def _overlap(a, b):
+    w, h = min(a[2], b[2]) - max(a[0], b[0]), min(a[3], b[3]) - max(a[1], b[1])
+    return max(0, w) * max(0, h) > 0.2 * min((a[2] - a[0]) * (a[3] - a[1]), (b[2] - b[0]) * (b[3] - b[1]))
+
+
+def test_attributes_have_sources_levels_and_no_overlapping_boxes(parsed, ref):
+    result = price_tender(parsed[1], ref)
+    levels = Counter()
+    for row in (r for r in result["lines"] if r["source"] == "lv"):
+        keys = {a["key"] for a in row["attributes"]}
+        assert {"type", "quantity", "system", "section"} <= keys, row["line_id"]
+        boxes = []
+        for a in row["attributes"]:
+            assert a["level"] in ("read", "derived", "assumed", "missing", "n/a")
+            levels[(a["key"], a["level"])] += 1
+            boxes += [(s["page"], tuple(s["bbox"])) for s in a["sources"] if s.get("bbox")]
+            if a["key"] in ("system", "section", "type") or a["value"]:
+                assert any(s.get("bbox") for s in a["sources"]), (row["line_id"], a["key"])
+        distinct = sorted(set(boxes))
+        for i, (p1, b1) in enumerate(distinct):
+            assert not any(p1 == p2 and _overlap(b1, b2) for p2, b2 in distinct[i + 1:]), row["line_id"]
+    # A blank quantity reads the same everywhere: assumed when priced, n/a when included elsewhere, missing otherwise.
+    assert levels[("quantity", "assumed")] + levels[("quantity", "n/a")] + levels[("quantity", "missing")] == 5
+    assert levels[("quantity", "missing")] == 1

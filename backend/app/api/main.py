@@ -91,6 +91,7 @@ def summary(tender_id: str) -> dict:
         "systems": parsed["systems"],
         "lines": len(parsed["lines"]),
         "anomalies": len(parsed["anomalies"]),
+        "parse_seconds": parsed["meta"].get("parse_seconds"),
     }
 
 

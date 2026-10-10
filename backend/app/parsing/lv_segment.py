@@ -75,6 +75,16 @@ def _split_row(row: Row, info: PageInfo) -> tuple[list, list]:
     return left, right
 
 
+def _cells_bbox(right, info: PageInfo):
+    """Box around the unit and quantity cells (left of the unit-price column)."""
+    price_x = (info.price_x or DEFAULT_COLUMNS[2]) - 2
+    cells = [s.bbox for s in right if s.x0 < price_x]
+    if not cells:
+        return None
+    x0, y0, x1, y1 = zip(*cells)
+    return (min(x0), min(y0), max(x1), max(y1))
+
+
 def _quantity(right, info: PageInfo):
     """Return (unit_raw, quantity, ok) for the right-hand columns of a row, or None."""
     price_x = (info.price_x or DEFAULT_COLUMNS[2]) - 2
@@ -119,6 +129,8 @@ def segment(rows_by_page: dict[int, list[Row]], use_bold: bool = True) -> Parsed
     component_table = None
 
     subtable: list[str] = []
+    page_header: dict | None = None  # the page-header cell naming the system, on the current page
+    section_src: dict | None = None
 
     def start_item(text, page, bbox):
         nonlocal local_starts, header, header_page, header_bbox, shared, local, item_has_qty, subtable
@@ -144,13 +156,15 @@ def segment(rows_by_page: dict[int, list[Row]], use_bold: bool = True) -> Parsed
                     lot_name = lot_info["lots"].get(lot, {}).get("name")
                     systems[system] = {"name": system_name, "lot": lot, "location": location_for(system_name, lot_name),
                                        "first_page": info.page}
-                    section, section_name = "", ""
+                    section, section_name, section_src = "", "", None
                     start_item("", None, None)
             elif code < system:
                 anomalies.append(Anomaly(info.page, "header_system_mismatch",
                                          f"Page header says {code}, but document order places this page in {system}.",
                                          f"Seitenkopf nennt {code}, gemäss Reihenfolge gehört die Seite zu {system}."))
             systems[system]["last_page"] = info.page
+            page_header = next(({"page": info.page, "bbox": seg.bbox, "text": seg.text}
+                                for r in rows if r.y < CONTENT_TOP for seg in r.segments if code in seg.text), None)
         elif info.kind == "component_list":
             if system:
                 systems[system]["last_page"] = info.page
@@ -190,6 +204,7 @@ def segment(rows_by_page: dict[int, list[Row]], use_bold: bool = True) -> Parsed
             m = SECTION_RE.match(text)
             if m and row.segments[0].x0 < 80:
                 section, section_name = m.group(1), m.group(2).title().replace(" Und ", " und ")
+                section_src = {"page": info.page, "bbox": row.bbox, "text": text}
                 start_item("", None, None)
                 continue
             if text.startswith("Total") or SYSTEM_TITLE_RE.match(text):
@@ -269,7 +284,7 @@ def segment(rows_by_page: dict[int, list[Row]], use_bold: bool = True) -> Parsed
                 header=header, shared_text=shared_now, local_text=list(local),
                 quantity=quantity, unit_raw=unit_raw, unit=normalize_unit(unit_raw),
                 row_bbox=row.bbox, header_page=header_page, header_bbox=header_bbox, flags=flags,
-                item_title=item_title,
+                item_title=item_title, qty_bbox=_cells_bbox(right, info), system_src=page_header, section_src=section_src,
             ))
             local = []
             local_starts.clear()

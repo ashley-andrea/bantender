@@ -27,10 +27,10 @@ try {
   await page.goto(`${base}/#/t/${id}/extract/live`, { waitUntil: 'networkidle' })
   await page.waitForTimeout(1500)
   await shot('1-live')
-  await page.click('text=Skip')
-  await page.waitForSelector('text=Certainty')
+  await page.click('text=Continue')
+  await page.waitForSelector('text=Derived')
   check((await text('header')).includes(chf(before.project.selling_price)), 'ticker shows the offer price')
-  await page.locator('g.cursor-pointer').nth(1).hover()
+  await page.locator('svg g.cursor-pointer').nth(1).hover()
   await shot('2-extract')
   // Correct the first position's quantity, then reset it.
   const first = before.lines[0]
@@ -44,26 +44,26 @@ try {
   await page.waitForTimeout(800)
 
   await page.click('nav button:has-text("Catalogue")')
-  await page.waitForSelector('text=Matched because')
+  await page.waitForSelector('text=Net')
   await shot('3-catalogue')
-  // Supplier quote: the first one, then reset.
-  const quoteLines = before.lines.filter((l) => l.status_key === 'supplier_quote_required')
-  await page.click('button:has-text("await a supplier quote")')
-  const quoteLine = quoteLines[1]
-  await page.waitForSelector(`text=${quoteLine.line_id}`)
-  await page.fill('input[inputmode=decimal]', String(Math.round(quoteLine.cost.net_unit_cost * 0.9)))
-  await page.click('button:has-text("Save")')
-  await page.waitForSelector('button:has-text("Reset")')
+  // Supplier quote on the next supplier-package item: 10 % below the placeholder, then reset.
+  await page.click('button:has-text("need a supplier quote")')
+  await page.waitForTimeout(500)
+  await page.click('button[title="Correct this value"]')
+  const placeholder = Number(await page.inputValue('input[inputmode=decimal]'))
+  await page.fill('input[inputmode=decimal]', String(Math.round(placeholder * 0.9)))
+  await page.keyboard.press('Enter')
+  await page.waitForSelector('button[title="Reset"]')
   const quoted = await api(`/api/tenders/${id}/pricing`)
   check(quoted.project.selling_price < before.project.selling_price, 'a lower supplier quote lowers the price')
-  await page.click('form button:has-text("Reset")')
+  await page.click('button[title="Reset"]')
   await page.waitForTimeout(800)
 
   await page.click('nav button:has-text("Price")')
-  await page.waitForSelector('text=On the offer form')
+  await page.waitForSelector('text=Hours per unit')
   await shot('4-price')
-  // Installation hours per unit for the selected position.
-  await page.click('button[title="Correct this value"]')
+  // Installation hours per unit for the selected position (the second editable value after quantity).
+  await page.locator('button[title="Correct this value"]').nth(1).click()
   await page.keyboard.type('40')
   await page.keyboard.press('Enter')
   await page.waitForSelector('button[title="Reset"]')
@@ -81,10 +81,10 @@ try {
   check((await text('header')).includes(chf(after.project.selling_price)), 'ticker follows the new price')
 
   await page.click('nav button:has-text("Offer options")')
-  check(await page.locator('button:has-text("Generate other offers")').isDisabled(), 'AI button is a placeholder')
+  check(await page.locator('button:has-text("Generate options")').isDisabled(), 'AI button is a placeholder')
 
-  await page.click('nav button:has-text("Fill & export")')
-  await page.waitForSelector('text=What is written into the tender')
+  await page.click('nav button:has-text("Export")')
+  await page.waitForSelector('text=Filled pages')
   await page.waitForTimeout(1500)
   await shot('5-export')
   const offer = await api(`/api/tenders/${id}/offer`)

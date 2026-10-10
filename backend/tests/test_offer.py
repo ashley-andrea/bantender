@@ -1,5 +1,6 @@
 """Offer build and write-back into the original tender PDF."""
 
+import re
 import pymupdf
 import pytest
 
@@ -57,3 +58,21 @@ def test_original_text_is_not_changed(offer_and_pdf):
         before = [w for w in original[pno].get_text("words") if not set(w[4]) <= {"."}]
         after = {(round(w[0]), round(w[1]), w[4]) for w in doc[pno].get_text("words")}
         assert all((round(w[0]), round(w[1]), w[4]) in after for w in before)
+
+
+def test_every_dotted_price_cell_of_the_lv_is_filled(offer_and_pdf):
+    """Each system's own cost summary, group totals ("Total aller …"): no dotted price cell is left on LV pages."""
+    parsed, _, offer, doc, fields = offer_and_pdf
+    assert {f["ref"] for f in fields if f["kind"] == "system_total"} == set(parsed["systems"])
+    totals = {f["ref"]: f["text"] for f in fields if f["kind"] == "system_total"}
+    assert all(totals[c] == fmt(s["total"]) for c, s in offer["systems"].items())
+    assert len([f for f in fields if f["kind"] == "group_total"]) == 2
+    by_page: dict[int, list] = {}
+    for f in fields:
+        by_page.setdefault(f["page"], []).append(pymupdf.Rect(f["bbox"]))
+    original = pymupdf.open(TENDER_PDF)
+    for info in (p for p in parsed["pages"] if p["kind"] == "lv"):
+        page = original[info["page"] - 1]
+        for w in page.get_text("words"):
+            if re.fullmatch(r"\.{8,}", w[4]) and w[0] > 440:  # unit-price and amount columns
+                assert any(pymupdf.Rect(w[:4]).intersects(r) for r in by_page.get(info["page"], [])), (info["page"], w[:2])

@@ -7,12 +7,14 @@ export interface SourceRow {
   text: string
 }
 
+export type Level = 'read' | 'derived' | 'assumed' | 'missing' | 'n/a'
+
 export interface Attribute {
   key: string
   label: Text
   value: Text | null
   sources: SourceRow[]
-  certainty: number
+  level: Level
   why: Text
 }
 
@@ -36,6 +38,7 @@ export interface ParsedLine {
 
 export interface SystemInfo {
   name: string
+  name_en?: string
   lot: string
   location?: string
   first_page: number
@@ -57,9 +60,9 @@ export interface TenderProject {
 }
 
 export interface Parsed {
-  meta: { pages: number; filename?: string; page_sizes: Record<string, [number, number]> }
+  meta: { pages: number; filename?: string; page_sizes: Record<string, [number, number]>; parse_seconds?: number }
   project: TenderProject
-  lots: Record<string, { name: string | null; systems: string[] }>
+  lots: Record<string, { name: string | null; name_en?: string | null; systems: string[] }>
   systems: Record<string, SystemInfo>
   pages: { page: number; kind: string }[]
   lines: ParsedLine[]
@@ -74,6 +77,7 @@ export interface TenderSummary {
   systems: Record<string, SystemInfo>
   lines: number
   anomalies: number
+  parse_seconds?: number
 }
 
 export interface Check {
@@ -131,6 +135,7 @@ export interface PricedLine {
   lot: string
   section: string
   section_name: string
+  section_name_en: string
   title_en: string
   title_de: string
   decision: Decision

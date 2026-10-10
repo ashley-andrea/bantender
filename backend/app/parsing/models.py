@@ -85,6 +85,10 @@ class LVLine:
     trailing_text: list[str] = field(default_factory=list)
     # Set when this quantity row names its own (sub-)item within the header's block, e.g. an accessory.
     item_title: str | None = None
+    qty_bbox: BBox | None = None  # just the unit and quantity cells of the quantity row
+    # Where the line's system and section are printed: {"page", "bbox", "text"}
+    system_src: dict | None = None
+    section_src: dict | None = None
 
     @property
     def description(self) -> str:

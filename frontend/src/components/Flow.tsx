@@ -1,8 +1,8 @@
-import { ArrowLeft, ArrowRight, Check, Loader2 } from 'lucide-react'
+import { ArrowRight, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type EditField } from '../api'
-import { certaintyColor, fmtChf, fmtNum } from '../format'
-import { LangToggle, useI18n, type Key } from '../i18n'
+import { LEVEL_COLOR, fmtChf } from '../format'
+import { LangToggle, tx, useI18n, type Key } from '../i18n'
 import { STEPS, type Step } from '../route'
 import type { Offer, Parsed, PricedLine, Pricing, ReferenceParameters } from '../types'
 import { PdfPane, type Highlight } from './PdfPane'
@@ -10,10 +10,9 @@ import { PositionsList } from './PositionsList'
 import { CataloguePanel } from './steps/Catalogue'
 import { ExtractionIntro, ExtractionPanel } from './steps/Extraction'
 import { ExportPanel, OfferOptions } from './steps/Offer'
-import { BuildUp, FormulaCard, ParameterPanel } from './steps/Pricing'
+import { LineStrip, ParameterPanel } from './steps/Pricing'
 
 const STEP_LABEL: Record<Step, Key> = { extract: 'step1', catalog: 'step2', price: 'step3', offers: 'step4', export: 'step5' }
-const STEP_HINT: Record<Step, Key> = { extract: 'step1Hint', catalog: 'step2Hint', price: 'step3Hint', offers: 'step4Hint', export: 'step5Hint' }
 
 interface Props {
   tenderId: string
@@ -21,6 +20,16 @@ interface Props {
   live: boolean
   onStep: (s: Step) => void
   onHome: () => void
+}
+
+/** Upload time and round trip, kept per tab so the timer survives a reload. */
+function sessionNumber(key: string): number | null {
+  try {
+    const v = sessionStorage.getItem(key)
+    return v ? Number(v) : null
+  } catch {
+    return null
+  }
 }
 
 export function Flow({ tenderId, step, live, onStep, onHome }: Props) {
@@ -35,6 +44,7 @@ export function Flow({ tenderId, step, live, onStep, onHome }: Props) {
   const [chosenId, setChosenId] = useState<string | null>(null)
   const [active, setActive] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const [exportPage, setExportPage] = useState<number | null>(null)
   const [query, setQuery] = useState('')
   const [defaults, setDefaults] = useState<ReferenceParameters | null>(null)
 
@@ -74,20 +84,12 @@ export function Flow({ tenderId, step, live, onStep, onHome }: Props) {
     if (!pricing) return []
     const q = query.trim().toLowerCase()
     if (!q) return pricing.lines
-    return pricing.lines.filter((l) =>
-      [l.line_id, l.title_en, l.title_de, l.decision.product_id ?? '', l.section_name].some((s) => s.toLowerCase().includes(q)),
-    )
+    return pricing.lines.filter((l) => [l.line_id, l.title_en, l.title_de, l.decision.product_id ?? ''].some((s) => s.toLowerCase().includes(q)))
   }, [pricing, query])
 
   // Until the estimator picks one, the first position is selected.
   const selectedId = chosenId ?? pricing?.lines[0]?.line_id ?? null
   const line = pricing?.lines.find((l) => l.line_id === selectedId) ?? null
-
-  const edit = (field: EditField, v: number | null) => {
-    if (!line) return
-    if (v == null) apply(api.resetLine(tenderId, line.line_id, field))
-    else apply(api.override(tenderId, line.line_id, field === 'unit_price' ? { unit_price: v, unit_price_source: 'quote' } : { [field]: v }))
-  }
 
   const select = useCallback((l: PricedLine) => {
     setChosenId(l.line_id)
@@ -95,10 +97,23 @@ export function Flow({ tenderId, step, live, onStep, onHome }: Props) {
     setPage(l.page)
   }, [])
 
+  const edit = (field: EditField, v: number | null) => {
+    if (!line) return
+    if (v == null) apply(api.resetLine(tenderId, line.line_id, field))
+    else apply(api.override(tenderId, line.line_id, field === 'unit_price' ? { unit_price: v, unit_price_source: 'quote' } : { [field]: v }))
+  }
+
+  // The hovered value may live on another page (e.g. a section heading): follow it.
+  const activate = (key: string) => {
+    setActive(key)
+    const src = line?.attributes.find((x) => x.key === key)?.sources.find((s) => s.bbox)
+    if (src && src.page !== page) setPage(src.page)
+  }
+
   // ↑/↓ walk the list.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!['ArrowDown', 'ArrowUp'].includes(e.key) || (e.target as HTMLElement).tagName === 'INPUT' || step === 'offers' || step === 'export') return
+      if (!['ArrowDown', 'ArrowUp'].includes(e.key) || ['INPUT', 'SELECT'].includes((e.target as HTMLElement).tagName) || step === 'offers' || step === 'export') return
       const i = lines.findIndex((l) => l.line_id === selectedId)
       const next = lines[Math.max(0, Math.min(lines.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))]
       if (next) {
@@ -110,191 +125,121 @@ export function Flow({ tenderId, step, live, onStep, onHome }: Props) {
     return () => window.removeEventListener('keydown', onKey)
   }, [lines, selectedId, select, step])
 
-  // The hovered attribute may live on another page (e.g. "wie vorbeschrieben"): follow it.
-  const activate = (key: string | null) => {
-    setActive(key)
-    const src = line?.attributes.find((x) => x.key === key)?.sources.find((s) => s.bbox)
-    if (src && src.page !== page) setPage(src.page)
-  }
-
+  // One box per printed row, coloured by how its value was obtained; the active value is labelled.
   const highlights: Highlight[] = useMemo(() => {
     if (!line) return []
-    const out: Highlight[] = []
-    const seen = new Set<string>()
+    const boxes = new Map<string, Highlight>()
     for (const a of line.attributes) {
       for (const s of a.sources) {
         if (!s.bbox || s.page !== page) continue
         const k = s.bbox.join(',')
         const strong = a.key === active
-        if (seen.has(k) && !strong) continue
-        seen.add(k)
-        const color = step === 'catalog' && !strong ? '#0a84ff' : certaintyColor(a.certainty)
-        out.push({ bbox: s.bbox, color, strong, label: strong ? `${typeof a.label === 'string' ? a.label : a.label[lang]}` : undefined })
+        const prev = boxes.get(k)
+        if (prev && !strong) continue
+        boxes.set(k, { bbox: s.bbox, color: LEVEL_COLOR[a.level], strong, label: strong ? tx(a.label, lang) : undefined })
       }
     }
-    if (!out.length && line.evidence) {
-      for (const e of line.evidence) if (e.page === page) out.push({ bbox: e.bbox, color: '#0a84ff' })
-    }
-    return out
-  }, [line, page, active, step, lang])
+    return [...boxes.values()]
+  }, [line, page, active, lang])
 
-  if (error) return <Centered><p className="text-bad">{error}</p><button className="mt-4 text-sel" onClick={onHome}>← {t('back')}</button></Centered>
+  if (error) return <Centered><p className="text-bad">{error}</p><button className="mt-4 text-green" onClick={onHome}>← {t('back')}</button></Centered>
   if (!parsed || !pricing) return <Centered><Loader2 className="size-6 animate-spin text-muted" /></Centered>
 
-  const pageSize = (p: number) => parsed.meta.page_sizes[String(p)]
   const stepIndex = STEPS.indexOf(step)
   const supplierLines = pricing.lines.filter((l) => l.status_key === 'supplier_quote_required')
+  const roundTrip = sessionNumber(`roundTrip:${tenderId}`)
+  const seconds = roundTrip != null ? roundTrip / 1000 : parsed.meta.parse_seconds ?? null
 
   const pdf = (
-    <PdfPane url={api.pdfUrl(tenderId)} page={page} pageCount={parsed.meta.pages} pageSize={pageSize(page)} highlights={highlights}
-      caption={line && line.page === page ? line.line_id : ''} onPage={setPage} />
+    <PdfPane url={api.pdfUrl(tenderId)} page={page} pageCount={parsed.meta.pages} pageSize={parsed.meta.page_sizes[String(page)]}
+      highlights={highlights} caption={parsed.meta.filename ?? ''} onPage={setPage} />
   )
-  const list = (stage: 'extract' | 'catalog' | 'price') => (
-    <PositionsList lines={lines} systems={parsed.systems} stage={stage} offer={offer} selected={selectedId} onSelect={select} query={query} onQuery={setQuery} />
+  const list = (stage: 'extract' | 'catalog' | 'price', extra?: React.ReactNode) => (
+    <PositionsList lines={lines} systems={parsed.systems} stage={stage} offer={offer} selected={selectedId} onSelect={select}
+      query={query} onQuery={setQuery} extra={extra} />
   )
+  const nextQuote = supplierLines.length > 0 && (
+    <button className="mt-2 w-full flex items-center gap-2 px-1 text-left text-[12px] text-muted hover:text-ink"
+      onClick={() => {
+        const i = supplierLines.findIndex((l) => l.line_id === selectedId)
+        select(supplierLines[(i + 1) % supplierLines.length])
+      }}>
+      <span className="size-1.5 rounded-full bg-warn" /> {supplierLines.length} {t('awaitQuote')} →
+    </button>
+  )
+  const grid = 'h-full grid grid-cols-[minmax(0,1fr)_290px_minmax(0,1.05fr)] gap-3'
 
   return (
     <div className="h-full flex flex-col">
       <TopBar
         title={parsed.project.name ?? parsed.meta.filename ?? tenderId}
-        subtitle={parsed.project.bkp ? `BKP ${parsed.project.bkp} · ${lang === 'de' ? parsed.project.trade_de : parsed.project.trade_en}` : ''}
         step={step}
         onStep={(s) => { setIntro(false); onStep(s) }}
         price={pricing.project.selling_price}
         busy={busy}
         onHome={onHome}
+        startedAt={sessionNumber(`uploadAt:${tenderId}`)}
+        onNext={stepIndex < STEPS.length - 1 ? () => { setIntro(false); onStep(STEPS[stepIndex + 1]) } : undefined}
       />
 
-      <div className="px-5 pt-3 pb-2 flex items-center gap-4 shrink-0">
-        <div>
-          <div className="text-[19px] font-semibold tracking-tight">{t(STEP_LABEL[step])}</div>
-          <div className="text-[13px] text-muted">{t(STEP_HINT[step])}</div>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <StepStats step={step} pricing={pricing} offer={offer} supplierCount={supplierLines.length}
-            onNextQuote={() => {
-              const i = supplierLines.findIndex((l) => l.line_id === selectedId)
-              const n = supplierLines[(i + 1) % supplierLines.length]
-              if (n) select(n)
-            }} />
-          {stepIndex > 0 && (
-            <button onClick={() => onStep(STEPS[stepIndex - 1])} className="inline-flex items-center gap-1 rounded-full px-3.5 py-2 text-[13px] font-semibold text-muted hover:bg-surface">
-              <ArrowLeft className="size-4" /> {t('back')}
-            </button>
-          )}
-          {stepIndex < STEPS.length - 1 && (
-            <button onClick={() => { setIntro(false); onStep(STEPS[stepIndex + 1]) }}
-              className="inline-flex items-center gap-1.5 rounded-full bg-ink text-white px-4 py-2 text-[13px] font-semibold hover:bg-black">
-              {t(STEP_LABEL[STEPS[stepIndex + 1]])} <ArrowRight className="size-4" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      <main className="flex-1 min-h-0 px-5 pb-5">
+      <main className="flex-1 min-h-0 p-3">
         {step === 'extract' && intro && (
-          <div className="h-full grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4">
-            <ExtractionIntro parsed={parsed} lines={pricing.lines} onPage={setPage} onDone={() => setIntro(false)} />
+          <div className="h-full grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
             {pdf}
+            <ExtractionIntro parsed={parsed} lines={pricing.lines} seconds={seconds} onPage={setPage} onDone={() => setIntro(false)} />
           </div>
         )}
         {step === 'extract' && !intro && line && (
-          <div className="h-full grid grid-cols-[320px_minmax(0,1fr)_minmax(0,0.9fr)] gap-4">
-            {list('extract')}
-            <ExtractionPanel line={line} active={active} onActive={activate} onEdit={edit} busy={busy} />
+          <div className={grid}>
             {pdf}
+            {list('extract')}
+            <ExtractionPanel line={line} systems={parsed.systems} active={active} onActive={activate} onEdit={edit} busy={busy} />
           </div>
         )}
         {step === 'catalog' && line && (
-          <div className="h-full grid grid-cols-[320px_minmax(0,1fr)_minmax(0,0.9fr)] gap-4">
-            {list('catalog')}
-            <CataloguePanel line={line} active={active} onActive={activate} busy={busy}
-              onQuote={(v) => edit('unit_price', v)} />
+          <div className={grid}>
             {pdf}
+            {list('catalog', nextQuote)}
+            <CataloguePanel line={line} systems={parsed.systems} active={active} onActive={activate} busy={busy} onQuote={(v) => edit('unit_price', v)} />
           </div>
         )}
         {step === 'price' && line && (
-          <div className="h-full grid grid-cols-[320px_minmax(0,1fr)_340px] gap-4">
+          <div className="h-full grid grid-cols-[minmax(0,1fr)_290px_minmax(0,1.05fr)] gap-3">
+            {pdf}
             {list('price')}
-            <div className="min-h-0 overflow-auto scroll-thin space-y-4">
-              <FormulaCard line={line} offer={offer} onEdit={edit} busy={busy} />
-              <BuildUp pricing={pricing} />
-            </div>
-            <div className="min-h-0 overflow-auto scroll-thin">
-              <ParameterPanel settings={pricing.settings} defaults={defaults} busy={busy} onChange={(patch) => apply(api.settings(tenderId, patch))} />
+            <div className="min-h-0 flex flex-col gap-3">
+              <LineStrip line={line} systems={parsed.systems} offer={offer} onEdit={edit} busy={busy} />
+              <div className="flex-1 min-h-0">
+                <ParameterPanel pricing={pricing} systems={parsed.systems} defaults={defaults} busy={busy} onChange={(patch) => apply(api.settings(tenderId, patch))} />
+              </div>
             </div>
           </div>
         )}
         {step === 'offers' && <OfferOptions pricing={pricing} />}
         {step === 'export' && offer && (
-          <ExportView tenderId={tenderId} parsed={parsed} pricing={pricing} offer={offer} version={version} busy={busy}
-            onConditions={(patch) => apply(api.settings(tenderId, patch))} />
+          <div className="h-full grid grid-cols-[minmax(0,1fr)_380px] gap-3">
+            <PdfPane url={api.offerPdfUrl(tenderId, false, version)} page={exportPage ?? offer.conditions.page ?? 2} pageCount={parsed.meta.pages}
+              pageSize={parsed.meta.page_sizes[String(exportPage ?? offer.conditions.page ?? 2)]}
+              highlights={offer.fields.filter((f) => f.page === (exportPage ?? offer.conditions.page ?? 2)).map((f) => ({ bbox: f.bbox, color: '#008163' }))}
+              caption={parsed.meta.filename ?? ''} onPage={setExportPage} />
+            <ExportPanel offer={offer} parsed={parsed} page={exportPage ?? offer.conditions.page ?? 2} url={api.offerPdfUrl(tenderId, true, version)}
+              onJump={setExportPage} onConditions={(patch) => apply(api.settings(tenderId, patch))} busy={busy} />
+          </div>
         )}
       </main>
+
     </div>
   )
 }
 
-function ExportView({ tenderId, parsed, pricing, offer, version, busy, onConditions }: {
-  tenderId: string; parsed: Parsed; pricing: Pricing; offer: Offer; version: number; busy: boolean
-  onConditions: (patch: Record<string, number>) => void
-}) {
-  const [page, setPage] = useState(offer.conditions.page || 2)
-  const highlights = offer.fields.filter((f) => f.page === page).map((f) => ({ bbox: f.bbox, color: '#0ecb81' }))
-  return (
-    <div className="h-full grid grid-cols-[400px_minmax(0,1fr)] gap-4">
-      <ExportPanel offer={offer} pricing={pricing} url={api.offerPdfUrl(tenderId, true, version)} onJump={setPage} onConditions={onConditions} busy={busy} />
-      <PdfPane url={api.offerPdfUrl(tenderId, false, version)} page={page} pageCount={parsed.meta.pages} pageSize={parsed.meta.page_sizes[String(page)]}
-        highlights={highlights} caption={`${highlights.length} ✓`} onPage={setPage} />
-    </div>
-  )
-}
-
-function StepStats({ step, pricing, offer, supplierCount, onNextQuote }: { step: Step; pricing: Pricing; offer: Offer | null; supplierCount: number; onNextQuote: () => void }) {
-  const { t } = useI18n()
-  const s = pricing.summary.tender
-  const pill = 'rounded-full bg-surface shadow-[var(--shadow-card)] px-3 py-1.5 text-[12.5px] num'
-  if (step === 'extract')
-    return (
-      <div className="flex gap-2 mr-2">
-        <span className={pill}><b>{fmtNum(s.lines)}</b> {t('positions')}</span>
-        <span className={pill}><b>{fmtNum(pricing.summary.cad.lines)}</b> {t('cadRows')}</span>
-        <span className={pill}><b>{Object.keys(pricing.tender.systems).length}</b> {t('systems')}</span>
-      </div>
-    )
-  if (step === 'catalog')
-    return (
-      <div className="flex gap-2 mr-2">
-        <span className={pill}><b>{fmtNum(s.priced)}</b> / {fmtNum(s.to_price)} {t('withPrice')}</span>
-        {supplierCount > 0 && (
-          <button onClick={onNextQuote} className={`${pill} inline-flex items-center gap-1.5 hover:bg-canvas`}>
-            <span className="size-2 rounded-full bg-warn" /> <b>{supplierCount}</b> {t('awaitQuote')} →
-          </button>
-        )}
-      </div>
-    )
-  if (step === 'price' && offer)
-    return (
-      <div className="flex gap-2 mr-2">
-        <span className={pill}>{t('lineCost')} <b>{fmtChf(pricing.project.direct)}</b></span>
-        <span className={pill}>m <b>{offer.factor.toFixed(4)}</b></span>
-      </div>
-    )
-  if (step === 'export' && offer)
-    return (
-      <div className="flex gap-2 mr-2">
-        <span className={pill}><Check className="inline size-3.5 text-good" /> <b>{fmtNum(offer.fields.length)}</b> {t('fieldsTotal')}</span>
-      </div>
-    )
-  return null
-}
-
-function TopBar({ title, subtitle, step, onStep, price, busy, onHome }: {
-  title: string; subtitle: string; step: Step; onStep: (s: Step) => void; price: number; busy: boolean; onHome: () => void
+function TopBar({ title, step, onStep, price, busy, onHome, startedAt, onNext }: {
+  title: string; step: Step; onStep: (s: Step) => void; price: number; busy: boolean; onHome: () => void; startedAt: number | null
+  onNext?: () => void
 }) {
   const { t } = useI18n()
   const prev = useRef(price)
   const [delta, setDelta] = useState(0)
+  const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (price !== prev.current) {
       setDelta(price - prev.current)
@@ -303,51 +248,50 @@ function TopBar({ title, subtitle, step, onStep, price, busy, onHome }: {
       return () => clearTimeout(id)
     }
   }, [price])
+  useEffect(() => {
+    if (!startedAt) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [startedAt])
+  const elapsed = startedAt ? Math.max(0, Math.floor((now - startedAt) / 1000)) : null
   const current = STEPS.indexOf(step)
+
   return (
-    <header className="h-14 shrink-0 bg-surface/90 backdrop-blur border-b border-hair px-5 flex items-center gap-4">
-      <button onClick={onHome} className="flex items-center gap-2 shrink-0" title={t('recent')}>
-        <div className="size-7 rounded-[8px] bg-brand grid place-items-center font-bold text-brand-ink text-[14px]">b</div>
+    <header className="h-14 shrink-0 bg-navy text-white px-4 flex items-center gap-5">
+      <button onClick={onHome} className="shrink-0" title={t('recent')}>
+        <img src="/equans-logo-white.png" alt="Equans" className="h-6" />
       </button>
-      <div className="min-w-0 w-56 shrink">
-        <div className="text-[13.5px] font-semibold truncate">{title}</div>
-        <div className="text-[11.5px] text-muted truncate">{subtitle}</div>
-      </div>
+      <div className="text-[13px] text-white/75 truncate max-w-56">{title}</div>
       <nav className="flex-1 flex justify-center">
-        <ol className="flex items-center gap-1">
-          {STEPS.map((s, i) => {
-            const on = s === step
-            const done = i < current
-            return (
-              <li key={s} className="flex items-center gap-1">
-                {i > 0 && <span className={`w-6 h-px ${done || on ? 'bg-ink/40' : 'bg-hair'}`} />}
-                <button onClick={() => onStep(s)}
-                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors ${on ? 'bg-ink text-white' : done ? 'text-ink hover:bg-canvas' : 'text-muted hover:bg-canvas'}`}>
-                  <span className={`size-5 rounded-full grid place-items-center text-[11px] num ${on ? 'bg-brand text-brand-ink' : done ? 'bg-good text-white' : 'bg-canvas text-muted'}`}>
-                    {done ? <Check className="size-3" /> : i + 1}
-                  </span>
-                  {t(STEP_LABEL[s])}
-                </button>
-              </li>
-            )
-          })}
+        <ol className="flex items-center">
+          {STEPS.map((s, i) => (
+            <li key={s}>
+              <button onClick={() => onStep(s)}
+                className={`relative px-3 h-14 text-[13px] font-medium ${s === step ? 'text-white' : i < current ? 'text-white/80 hover:text-white' : 'text-white/50 hover:text-white/80'}`}>
+                <span className="num mr-1.5 text-white/50">{i + 1}</span>{t(STEP_LABEL[s])}
+                {s === step && <span className="absolute left-3 right-3 bottom-0 h-[3px] bg-mint" />}
+              </button>
+            </li>
+          ))}
         </ol>
+        {onNext && (
+          <button onClick={onNext} className="ml-3 self-center inline-flex items-center gap-1 rounded-md bg-green px-3 py-1.5 text-[12.5px] font-semibold hover:brightness-110">
+            {t('next')} <ArrowRight className="size-3.5" />
+          </button>
+        )}
       </nav>
-      <div className="flex items-center gap-3 shrink-0">
-        <div className="text-right">
-          <div className="text-[10.5px] uppercase tracking-wide text-muted">{t('offerPrice')}</div>
-          <div className="flex items-center gap-1.5 justify-end">
-            {busy && <Loader2 className="size-3.5 animate-spin text-muted" />}
-            {delta !== 0 && (
-              <span className={`rise text-[11.5px] font-semibold num ${delta > 0 ? 'text-good' : 'text-bad'}`}>
-                {delta > 0 ? '+' : '−'}{fmtChf(Math.abs(delta))}
-              </span>
-            )}
-            <span className="text-[17px] font-bold num tracking-tight">CHF {fmtChf(price)}</span>
-          </div>
+      {elapsed != null && (
+        <div className="text-[12px] text-white/60 num" title={t('sinceUpload')}>
+          {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')} {t('sinceUpload')}
         </div>
-        <LangToggle />
+      )}
+      <div className="flex items-baseline gap-2">
+        {busy && <Loader2 className="size-3.5 animate-spin text-white/60 self-center" />}
+        {delta !== 0 && <span className={`rise text-[12px] font-semibold num ${delta > 0 ? 'text-mint' : 'text-[#ff8a80]'}`}>{delta > 0 ? '+' : '−'}{fmtChf(Math.abs(delta))}</span>}
+        <span className="text-[11px] text-white/60">CHF</span>
+        <span className="text-[17px] font-semibold num">{fmtChf(price)}</span>
       </div>
+      <LangToggle dark />
     </header>
   )
 }

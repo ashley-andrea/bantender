@@ -1,136 +1,120 @@
-import { useEffect, useMemo, useState } from 'react'
-import { certaintyColor, fmtNum, fmtUnit } from '../../format'
-import { tx, useI18n } from '../../i18n'
+import { useEffect, useState } from 'react'
 import type { EditField } from '../../api'
-import type { Attribute, Parsed, PricedLine } from '../../types'
+import { LEVEL_COLOR, fmtNum, fmtUnit } from '../../format'
+import { lineTitle, sectionName, systemName, tx, useI18n, type Key } from '../../i18n'
+import type { Level, Parsed, PricedLine } from '../../types'
 import { InlineNumber } from '../InlineNumber'
 import { ItemGraph } from '../ItemGraph'
 
-/** Live reading: pages flip, positions appear in the order they are found. */
-export function ExtractionIntro({ parsed, lines, onPage, onDone }: { parsed: Parsed; lines: PricedLine[]; onPage: (p: number) => void; onDone: () => void }) {
+/** Right after upload: how long reading took, then the positions as they were found (a quick replay). */
+export function ExtractionIntro({ parsed, lines, seconds, onPage, onDone }: {
+  parsed: Parsed; lines: PricedLine[]; seconds: number | null; onPage: (p: number) => void; onDone: () => void
+}) {
   const { t, lang } = useI18n()
-  const lvPages = useMemo(() => parsed.pages.filter((p) => p.kind === 'lv' || p.kind === 'component_list').map((p) => p.page), [parsed])
-  const [i, setI] = useState(0)
-  const page = lvPages[Math.min(i, lvPages.length - 1)] ?? 1
+  const [n, setN] = useState(0)
+  const lv = lines.filter((l) => l.source === 'lv')
 
   useEffect(() => {
-    if (i >= lvPages.length) {
-      const id = setTimeout(onDone, 700)
-      return () => clearTimeout(id)
-    }
-    const id = setTimeout(() => setI(i + 1), 45)
+    if (n >= lv.length) return
+    const id = setTimeout(() => setN((x) => Math.min(lv.length, x + 4)), 16)
     return () => clearTimeout(id)
-  }, [i, lvPages.length, onDone])
+  }, [n, lv.length])
 
-  // The PDF pane follows every few pages (rendering each page would stutter).
+  const last = lv[Math.max(0, n - 1)]
   useEffect(() => {
-    if (i % 6 === 0 || i >= lvPages.length) onPage(page)
-  }, [i])
+    if (last && n % 24 === 0) onPage(last.page)
+  }, [n, last, onPage])
 
-  const found = lines.filter((l) => l.page <= page)
-  const pct = Math.min(100, Math.round((i / Math.max(1, lvPages.length)) * 100))
   return (
-    <div className="h-full flex flex-col rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-card)] p-6">
+    <div className="h-full panel flex flex-col p-6">
       <div className="flex items-baseline gap-3">
-        <div className="text-[34px] font-bold num tracking-tight">{found.length}</div>
-        <div className="text-muted">{t('found')}</div>
-        <button onClick={onDone} className="ml-auto text-[13px] text-sel font-semibold">{t('skip')} →</button>
+        <span className="text-[40px] font-semibold num leading-none">{n}</span>
+        <span className="text-muted">{t('found')}</span>
       </div>
-      <div className="mt-1 text-[13px] text-muted num">
-        {t('reading')} {page} / {parsed.meta.pages}
+      <div className="mt-2 text-[13px] text-muted num">
+        {parsed.meta.pages} {t('pages')} {t('readIn')} <b className="text-ink">{seconds != null ? `${seconds.toFixed(1)} s` : '—'}</b>
       </div>
-      <div className="mt-3 h-1.5 rounded-full bg-hair overflow-hidden">
-        <div className="h-full bg-brand transition-all duration-100" style={{ width: `${pct}%` }} />
-      </div>
-      <div className="mt-5 flex-1 min-h-0 overflow-hidden flex flex-col gap-1.5">
-        {found.slice(-16).reverse().map((l) => (
-          <div key={l.line_id} className="rise flex items-center gap-3 rounded-xl bg-canvas px-3 py-2 text-[13px]">
-            <span className="font-mono text-[11px] text-muted w-28 truncate">{l.line_id}</span>
-            <span className="flex-1 truncate font-medium">{lang === 'en' ? l.title_en : l.title_de}</span>
-            <span className="num text-muted">{l.decision.quantity != null ? `${fmtNum(l.decision.quantity)} ${fmtUnit(l.decision.unit)}` : '—'}</span>
+      <div className="mt-5 flex-1 min-h-0 overflow-hidden">
+        {lv.slice(Math.max(0, n - 18), n).reverse().map((l) => (
+          <div key={l.line_id} className="rise flex items-baseline gap-3 py-1.5 border-b border-hair text-[13px]">
+            <span className="text-faint num w-12">p.{l.page}</span>
+            <span className="flex-1 truncate">{lineTitle(l, lang)}</span>
+            <span className="num text-muted">{l.decision.quantity != null ? `${fmtNum(l.decision.quantity)} ${fmtUnit(l.decision.unit, lang)}` : '—'}</span>
           </div>
         ))}
       </div>
+      <button onClick={onDone} className="mt-4 self-end rounded-md bg-green text-white px-4 py-2 text-[13px] font-semibold hover:brightness-110">
+        {t('skip')} →
+      </button>
     </div>
   )
 }
 
 interface PanelProps {
   line: PricedLine
+  systems: Parsed['systems']
   active: string | null
-  onActive: (k: string | null) => void
+  onActive: (k: string) => void
   onEdit: (field: EditField, v: number | null) => void
   busy: boolean
 }
 
-export function ExtractionPanel({ line, active, onActive, onEdit, busy }: PanelProps) {
+export function ExtractionPanel({ line, systems, active, onActive, onEdit, busy }: PanelProps) {
   const { t, lang } = useI18n()
-  const attr: Attribute | undefined = line.attributes.find((a) => a.key === active)
-  const qty = line.attributes.find((a) => a.key === 'quantity')
+  const attr = line.attributes.find((a) => a.key === active)
   return (
-    <div className="h-full min-h-0 overflow-auto scroll-thin rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-card)] p-5">
-      <LineHeader line={line} />
-      {line.source === 'lv' && (
-        <div className="mt-2 flex items-center gap-2 text-[13px]">
-          <span className="text-muted">{t('quantity')}</span>
-          <InlineNumber value={line.decision.quantity} suffix={fmtUnit(line.decision.unit)} edited={line.decision.overridden.includes('quantity')} busy={busy}
-            onSave={(v) => onEdit('quantity', v)} onReset={() => onEdit('quantity', null)} />
-          {qty && !line.decision.overridden.includes('quantity') && (
-            <span className="inline-flex items-center gap-1.5 text-[12px] text-muted">
-              <span className="size-1.5 rounded-full" style={{ background: certaintyColor(qty.certainty) }} /> {tx(qty.why, lang)}
-            </span>
-          )}
-        </div>
-      )}
-      <div className="mt-4">
+    <div className="h-full min-h-0 overflow-auto scroll-thin panel p-5">
+      <LineHeader line={line} systems={systems} />
+      <div className="mt-3">
         <ItemGraph line={line} stage="extract" active={active} onActive={onActive} />
       </div>
-      <Legend />
-      <div className="mt-4 min-h-[92px] rounded-xl bg-canvas p-4 text-[13px]">
+      <div className="mt-2 min-h-[64px] border-t border-hair pt-3 text-[13px]">
         {attr ? (
-          <div className="rise" key={attr.key}>
-            <div className="flex items-center gap-2">
-              <span className="size-2.5 rounded-full" style={{ background: certaintyColor(attr.certainty) }} />
-              <span className="font-semibold">{tx(attr.label, lang)}</span>
-              <span className="ml-auto num text-muted">{t('certainty')} {Math.round(attr.certainty * 100)} %</span>
-            </div>
-            <div className="mt-1 text-[15px] font-semibold">{tx(attr.value, lang) || '—'}</div>
-            <div className="mt-1 text-muted">{tx(attr.why, lang)}</div>
-            {attr.sources.filter((s) => s.text).map((s, i) => (
-              <div key={i} className="mt-2 font-mono text-[12px] rounded-md bg-surface px-2 py-1 border border-hair">
-                p.{s.page} · «{s.text}»
+          <div className="flex items-start gap-3" key={attr.key}>
+            <span className="mt-1 size-2.5 rounded-full shrink-0" style={{ background: LEVEL_COLOR[attr.level] }} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline gap-2">
+                <span className="text-muted">{tx(attr.label, lang)}</span>
+                {attr.key === 'quantity' && line.source === 'lv' ? (
+                  <InlineNumber value={line.decision.quantity} suffix={fmtUnit(line.decision.unit, lang)} edited={line.decision.overridden.includes('quantity')}
+                    busy={busy} onSave={(v) => onEdit('quantity', v)} onReset={() => onEdit('quantity', null)} />
+                ) : (
+                  <span className="font-semibold">{tx(attr.value, lang) || '—'}</span>
+                )}
               </div>
-            ))}
+              <div className="text-muted text-[12.5px]">
+                {t(attr.level as Key)} · {tx(attr.why, lang)}{attr.sources[0]?.page ? ` · p.${attr.sources[0].page}` : ''}
+              </div>
+            </div>
           </div>
-        ) : (
-          <div className="text-muted">{t('clickNode')}</div>
-        )}
+        ) : null}
       </div>
+      <Legend />
     </div>
   )
 }
 
-export function LineHeader({ line }: { line: PricedLine }) {
+export function LineHeader({ line, systems }: { line: PricedLine; systems: Parsed['systems'] }) {
   const { lang } = useI18n()
   return (
     <div>
-      <div className="text-[11px] uppercase tracking-wide text-muted num">
-        {line.system} · {line.section} {line.section_name} · p.{line.page}
+      <div className="text-[18px] font-semibold leading-snug">{lineTitle(line, lang)}</div>
+      <div className="text-[12.5px] text-muted">
+        {line.system} {systemName(systems[line.system], lang)} · {line.section} {sectionName(line, lang)} · p.{line.page}
       </div>
-      <div className="mt-0.5 text-[19px] font-semibold leading-snug">{lang === 'en' ? line.title_en : line.title_de}</div>
-      {lang === 'en' && line.title_de !== line.title_en && <div className="text-[13px] text-muted italic">{line.title_de}</div>}
     </div>
   )
 }
 
 export function Legend() {
   const { t } = useI18n()
+  const items: [Level, string][] = [['read', ''], ['derived', '6 4'], ['assumed', '2 4']]
   return (
     <div className="mt-3 flex items-center gap-4 text-[11.5px] text-muted">
-      <span className="font-semibold">{t('certainty')}</span>
-      {([[1, t('high')], [0.8, t('medium')], [0.5, t('low')]] as [number, string][]).map(([c, label]) => (
-        <span key={label} className="inline-flex items-center gap-1.5">
-          <span className="size-2 rounded-full" style={{ background: certaintyColor(c) }} /> {label}
+      {items.map(([l, dash]) => (
+        <span key={l} className="inline-flex items-center gap-1.5">
+          <svg width="22" height="6"><line x1="1" y1="3" x2="21" y2="3" stroke={LEVEL_COLOR[l]} strokeWidth="2" strokeDasharray={dash || undefined} strokeLinecap="round" /></svg>
+          {t(l)}
         </span>
       ))}
     </div>

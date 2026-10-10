@@ -75,6 +75,21 @@ def _dots_in(row: dict, x0: float, x1: float) -> list[pymupdf.Rect]:
     return [pymupdf.Rect(w[:4]) for w in row["words"] if DOTS.match(w[4]) and w[0] >= x0 - 2 and w[2] <= x1 + 2]
 
 
+def _group_total(label: str, system: str, at: tuple[int, float], lines: list[dict], offer_lines: dict, done: set[str]) -> float:
+    """Sum of the amounts of the positions a "Total aller <items>" row closes: same system, printed before the row,
+    not yet in an earlier group total, and named with the same noun (e.g. "Volumenstromregler")."""
+    noun = label.split()[2].split("-")[-1].lower() if len(label.split()) > 2 else ""
+    total = 0.0
+    for line in lines:
+        ln = offer_lines.get(line["line_id"])
+        if (line["system"] != system or line["line_id"] in done or not ln or ln["kind"] != "priced"
+                or (line["page"], line["row_bbox"][1]) >= at or noun not in (line["header"] or "").lower()):
+            continue
+        total += ln["amount"]
+        done.add(line["line_id"])
+    return round(total, 2)
+
+
 def fill_offer(pdf_bytes: bytes, parsed: dict, offer: dict) -> tuple[bytes, list[dict]]:
     doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     out = Writer(doc)
@@ -86,6 +101,8 @@ def fill_offer(pdf_bytes: bytes, parsed: dict, offer: dict) -> tuple[bytes, list
     for code, info in parsed["systems"].items():
         for p in range(info["first_page"], info["last_page"] + 1):
             page_system[p] = code
+
+    group_done: set[str] = set()
 
     # 1. LV pages: unit prices, amounts, "inkl.", and the form's own total rows
     for page_info in parsed["pages"]:
@@ -118,9 +135,32 @@ def fill_offer(pdf_bytes: bytes, parsed: dict, offer: dict) -> tuple[bytes, list
 
         if not system:
             continue
+        code = page_system.get(pno, "")
+        summary_page = any(r["text"] == "KOSTENZUSAMMENSTELLUNG" for r in rows)
         for i, row in enumerate(rows):
             text, base = row["text"], row["y1"] - 1.5
             cover = _dots_in(row, amount_col.x0, amount_col.x1)
+            below = rows[i + 1] if i + 1 < len(rows) else None
+            if not cover and below and DOTS.match(below["text"]):  # the dotted cell sometimes sits one row lower
+                cover, base = _dots_in(below, amount_col.x0, amount_col.x1), below["y1"] - 1.5
+            if summary_page:
+                # The system's own cost summary: one row per section, then "Total <system>".
+                m = re.match(r"^([A-F]) \S", text)
+                t = re.match(r"^Total (\d{3})\.(\d{1,2})\b", text)
+                if m and row["words"][0][0] < 80 and cover:  # dotted cell; "entfällt" rows are left as printed
+                    value = system["sections"].get(m.group(1), 0.0)
+                    out.put(pno, amount_col.x1 - 3, base, fmt(value), "system_summary", f"{code}/{m.group(1)}", cover=cover)
+                elif t:  # the system of the page (document order); the printed code can be wrong (p.195 says 244.01)
+                    out.put(pno, amount_col.x1 - 3, base, fmt(system["total"]), "system_total", code, cover=cover)
+                continue
+            if text.startswith("Total aller "):
+                # Group total ("Total aller Einkanal-Volumenstromregler …"): the label may run onto the next row.
+                target = next((r for r in rows[i:i + 3] if _dots_in(r, amount_col.x0, amount_col.x1)), row)
+                value = _group_total(text, code, (pno, row["y0"]), parsed["lines"], offer["lines"], group_done)
+                if value:
+                    out.put(pno, amount_col.x1 - 3, target["y1"] - 1.5, fmt(value), "group_total", text[12:60],
+                            cover=_dots_in(target, amount_col.x0, amount_col.x1))
+                continue
             m = re.match(r"^Total .*\"([A-F])\"", text)
             if m:
                 value = system["sections"].get(m.group(1))

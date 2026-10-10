@@ -1,8 +1,8 @@
 import { Search } from 'lucide-react'
 import { useEffect, useMemo, useRef } from 'react'
-import { certaintyColor, fmtChf, fmtNum, fmtUnit } from '../format'
-import { useI18n } from '../i18n'
-import type { Offer, PricedLine, SystemInfo } from '../types'
+import { LEVEL_COLOR, LEVEL_RANK, fmtChf, fmtNum, fmtUnit } from '../format'
+import { lineTitle, systemName, useI18n } from '../i18n'
+import type { Level, Offer, PricedLine, SystemInfo } from '../types'
 
 export type Stage = 'extract' | 'catalog' | 'price'
 
@@ -15,11 +15,15 @@ interface Props {
   onSelect: (l: PricedLine) => void
   query: string
   onQuery: (q: string) => void
+  extra?: React.ReactNode
 }
 
-export const minCertainty = (l: PricedLine) => Math.min(1, ...l.attributes.map((a) => a.certainty))
+/** The least certain way any of the line's values was obtained ("read" when everything was read). */
+function worstLevel(l: PricedLine): Level {
+  return l.attributes.reduce<Level>((w, a) => (LEVEL_RANK[a.level] > LEVEL_RANK[w] ? a.level : w), 'read')
+}
 
-export function PositionsList({ lines, systems, stage, offer, selected, onSelect, query, onQuery }: Props) {
+export function PositionsList({ lines, systems, stage, offer, selected, onSelect, query, onQuery, extra }: Props) {
   const { t, lang } = useI18n()
   const refs = useRef<Record<string, HTMLButtonElement | null>>({})
   useEffect(() => {
@@ -36,53 +40,47 @@ export function PositionsList({ lines, systems, stage, offer, selected, onSelect
   }, [lines])
 
   return (
-    <div className="h-full min-h-0 flex flex-col rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-card)] overflow-hidden">
-      <div className="p-2.5 border-b border-hair shrink-0">
+    <div className="h-full min-h-0 flex flex-col panel overflow-hidden">
+      <div className="px-2 py-2 border-b border-hair shrink-0">
         <div className="relative">
-          <Search className="size-4 text-faint absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="size-3.5 text-faint absolute left-2 top-1/2 -translate-y-1/2" />
           <input value={query} onChange={(e) => onQuery(e.target.value)} placeholder={t('search')}
-            className="w-full rounded-[10px] bg-canvas pl-9 pr-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-sel/30" />
+            className="w-full rounded-md bg-canvas pl-7 pr-2 py-1.5 text-[13px] outline-none focus:ring-1 focus:ring-green" />
         </div>
+        {extra}
       </div>
       <div className="flex-1 min-h-0 overflow-auto scroll-thin">
         {groups.map((g) => (
           <div key={g.code}>
-            <div className="sticky top-0 z-10 bg-surface/95 backdrop-blur px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted border-b border-hair">
-              {g.code} {systems[g.code]?.name}
+            <div className="sticky top-0 z-10 bg-canvas px-3 py-1 text-[11.5px] font-semibold text-muted border-b border-hair">
+              {g.code} {systemName(systems[g.code], lang)}
             </div>
             {g.lines.map((l) => {
               const active = l.line_id === selected
               const o = offer?.lines[l.line_id]
+              const level = worstLevel(l)
               return (
                 <button key={l.line_id} ref={(el) => { refs.current[l.line_id] = el }} onClick={() => onSelect(l)}
-                  className={`w-full text-left flex items-center gap-2 px-3 py-2 border-b border-hair/60 ${active ? 'bg-sel/8 shadow-[inset_3px_0_0_var(--color-sel)]' : 'hover:bg-canvas/70'}`}>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[13px] font-medium truncate">{lang === 'en' ? l.title_en : l.title_de}</div>
-                    <div className="text-[11px] text-muted truncate num">
-                      {l.section} · p.{l.page}
-                      {l.source === 'cad' ? ` · ${t('fromCad')}` : ''}
-                      {lang === 'en' && l.title_de !== l.title_en ? ` · ${l.title_de}` : ''}
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0 num">
-                    <div className="text-[12.5px] font-semibold">
-                      {l.decision.quantity != null ? `${fmtNum(l.decision.quantity)} ${fmtUnit(l.decision.unit)}` : <span className="text-bad">—</span>}
-                    </div>
+                  className={`w-full text-left flex items-baseline gap-2 px-3 py-1.5 border-b border-hair/70 ${active ? 'bg-green/8 shadow-[inset_2px_0_0_var(--color-green)]' : 'hover:bg-canvas'}`}>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13px] truncate">{lineTitle(l, lang)}</span>
+                    <span className="block text-[11px] text-faint num">p.{l.page}{l.source === 'cad' ? ` · ${t('fromCad')}` : ''}</span>
+                  </span>
+                  <span className="shrink-0 text-right text-[12.5px] num">
                     {stage === 'extract' && (
-                      <div className="flex justify-end mt-1"><span className="size-2 rounded-full" style={{ background: certaintyColor(minCertainty(l)) }} /></div>
+                      <span className="inline-flex items-center gap-1.5">
+                        {l.decision.quantity != null ? `${fmtNum(l.decision.quantity)} ${fmtUnit(l.decision.unit, lang)}` : '—'}
+                        <span className="size-1.5 rounded-full" style={{ background: level === 'read' ? 'transparent' : LEVEL_COLOR[level] }} />
+                      </span>
                     )}
                     {stage === 'catalog' && (
-                      <div className="text-[11px] text-muted">
-                        {l.cost ? `${fmtChf(l.cost.net_unit_cost, 2)}` : l.decision.product_id ? '' : '—'}
-                        {l.status_key === 'supplier_quote_required' && <span className="ml-1 text-warn font-semibold">●</span>}
-                      </div>
+                      <span className="inline-flex items-center gap-1.5">
+                        {l.cost ? fmtChf(l.cost.net_unit_cost, 2) : '—'}
+                        <span className="size-1.5 rounded-full" style={{ background: l.status_key === 'supplier_quote_required' ? 'var(--color-warn)' : 'transparent' }} />
+                      </span>
                     )}
-                    {stage === 'price' && (
-                      <div className="text-[11px] text-muted">
-                        {o?.kind === 'priced' ? fmtChf(o.amount, 0) : o?.kind === 'included' ? 'inkl.' : l.source === 'cad' && l.cost ? fmtChf(l.cost.direct_cost * (offer?.factor ?? 1), 0) : '—'}
-                      </div>
-                    )}
-                  </div>
+                    {stage === 'price' && (o?.kind === 'priced' ? fmtChf(o.amount, 2) : o?.kind === 'included' ? t('included') : '—')}
+                  </span>
                 </button>
               )
             })}

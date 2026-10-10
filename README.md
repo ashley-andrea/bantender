@@ -8,29 +8,43 @@ Estimators told us where the time goes: reading and extracting positions, retypi
 
 ## The flow
 
-The estimator uploads one PDF. Five steps follow, with the tender page next to the work in every step:
+The estimator uploads one PDF. The tender page stays on the left in every step:
 
 | Step | What the estimator sees | Can change |
 | --- | --- | --- |
-| 1 Extraction | Positions appearing as the pages are read. Then, for each position, a graph of what the tender says (type, quantity, size, airflow, reference product, system), coloured by certainty. Hovering a node highlights its source in the PDF. | Quantity |
-| 2 Catalogue | The same position connected to its catalogue product and net price, plus the installation rule. The matched row is highlighted in its catalogue family. The PDF highlight stays. | Supplier quote (only for supplier-package items) |
-| 3 Price | The formula for the position: material + installation = direct cost; × factor m = unit price and amount on the form. Next to it, the project build-up and sliders for every coefficient in `project_parameters.json`. The offer price in the top bar follows each change. | Hours per unit, every parameter, location per system |
-| 4 Offer options | Reserved for the AI bid-optimisation loop (aggressive / conservative variants with acceptance probability). Placeholder only. | — |
-| 5 Fill & export | The original PDF with all prices written in (each filled field outlined), conditions from p.2, download. | Discount, cash discount |
+| 1 Extraction | How long reading took, then the positions. For each position, a graph: the position on top, what the tender says about it below (type, quantity, size, airflow, make, system, section). Edge style shows how each value was obtained; hovering a value outlines its row in the PDF. | Quantity |
+| 2 Catalogue | The same graph with the catalogue product, its net price and the installation time. The matched row is highlighted in its catalogue family. | Supplier quote (only for supplier-package items) |
+| 3 Price | Each position's unit price and amount as written on the form; the offer price build-up; sliders for every coefficient in `project_parameters.json`. | Hours per unit, every parameter, mounting height per system |
+| 4 Offer options | Reserved for the AI bid-optimisation loop. Placeholder only. | — |
+| 5 Export | The filled PDF, the filled pages in document order grouped by system, conditions, download. | Discount, cash discount |
 
-Flags are limited to the cases that need a person: 28 supplier-package items waiting for a quote, and one position whose quantity the tender leaves blank.
+The top bar shows the offer price and the time since upload. Flags are limited to what needs a person: 28 supplier-package items waiting for a quote, and one position whose quantity the tender leaves blank. The English view uses English throughout; German names from the tender (systems, sections, lots) are translated with a small glossary.
+
+**How a value was obtained** (one level per value, not a probability):
+
+| Level | Meaning | Example |
+| --- | --- | --- |
+| Read | Printed on the position's own rows | quantity column, size row, page header |
+| Derived | Worked out from something printed elsewhere | "wie vorbeschrieben", unit conversion, parent item, system by document order where the page header is wrong |
+| Assumed | Not in the tender; the tool filled it in | blank quantity on a priced item, taken as 1 |
+| Missing | Not in the tender and needed for a price | blank quantity on p.169 |
+| Not needed | Not in the tender, and the position is included elsewhere | blank quantity on an accessory block |
 
 ## Writing back into the tender
 
 The tender requires the original LV to be returned filled in, with the text unchanged (p.97: "zwingend das zugestellte Originalleistungsverzeichnis ausgefüllt einzureichen"). The filler only adds numbers. It finds each field from the page itself (the column under "Einheitspreis" / "Betrag", the row of the position, the dotted placeholders) and writes into the blank space, so nothing is hardcoded to this tender.
 
-What is filled (Oberglatt, 610 fields):
+What is filled (Oberglatt: 648 fields on 97 pages):
 - unit price and amount of every priced position, "inkl." where a position is included elsewhere;
-- per section: "Total" rows; in section E: "Montage und Transport", "Dienstleistungen", the hygiene inspection, the CAD material ("Materialauszug") and the installation days;
-- p.3 cost summary per system and lot, "Eingabesumme Los n", "Total Eingabesumme";
-- p.2 BKP table (gross / net) and the conditions: discount, cash discount, deductions 1.30 %, VAT 8.1 % (both rates read from the form).
+- group totals ("Total aller Einkanal-Volumenstromregler …");
+- per section: "Total" rows; in section E: installation and transport, services, the hygiene inspection, the CAD material list row and the installation days;
+- each system's own cost summary (sections A–F and the system total; p.195 prints the wrong system code, the page's system is used);
+- p.3 cost summary per system and lot, totals per lot and overall;
+- p.2 gross / net and the conditions: discount, cash discount, deductions 1.30 %, VAT 8.1 % (both rates read from the form).
 
-**How prices reach the form.** SIA 118 Art. 39: surcharges are included in the unit prices. So one factor, m = offer price ÷ direct cost, is applied to every cost component. That spreads project costs, overhead, risk and margin evenly, and the filled form adds up to the offer price within centimes of rounding. Items in sections A–D carry supply prices; their installation goes to "Montage und Transport" in section E, as the form asks. Insulation (F, "inkl. Montage") and install-only items keep their labour.
+A test checks that no dotted price cell is left on any LV page. Left for the bidder: company details and signatures, the change-order rate sheets on pp.4–6, the hourly-work conditions, and the make/model declarations ("Fabrikat ……").
+
+**How prices reach the form.** SIA 118 Art. 39: surcharges are included in the unit prices. So one factor, m = offer price ÷ direct cost, is applied to every cost component. That spreads project costs, overhead, risk and margin evenly, and the filled form adds up to the offer price within centimes of rounding. Items in sections A–D carry supply prices; their installation goes to section E, as the form asks. Insulation (F, "inkl. Montage") and install-only items keep their labour.
 
 ## The calculation
 
@@ -74,7 +88,7 @@ Drop `data/samples/oberglatt/BKP_244_LV_Lueftung_260804.pdf` on the upload scree
 ```bash
 make test   # backend tests, ~10 s, no network
 make smoke  # smoke-test a running stack (BASE=https://your-domain)
-make e2e    # walk the five steps in a browser; numbers on screen must match the API
+make e2e    # walk the five steps in a browser; numbers on screen must match the API, edits are restored
 make api    # dev API on :8000
 cd frontend && npm install && npm run dev   # UI with hot reload on :5173, proxies /api to https://localhost
 ```

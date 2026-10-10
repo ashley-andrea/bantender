@@ -141,14 +141,15 @@ export function Landing({ onOpen }: { onOpen: (id: string) => void }) {
               </button>
               <div className="text-[12px] text-faint">{t('orDrop')}</div>
               {/* recent tenders, as a dropdown under the upload */}
-              <div className="relative mt-5">
+              <div className="mt-5">
                 <button disabled={!recent.length || !!file} onClick={() => setMenu((m) => !m)}
                   className="btn btn-paper px-4 py-1.5 text-[14px]">
                   {t('recent')} {recent.length > 0 && <span className="num text-[13px] text-muted">({recent.length})</span>}
                   <ChevronDown className={`size-4 transition-transform ${menu ? 'rotate-180' : ''}`} />
                 </button>
-                {menu && (
-                  <div className="absolute left-1/2 -translate-x-1/2 mt-3 w-[460px] panel p-2 z-30 rise">
+              </div>
+              {menu && (
+                <div className="w-full mt-2 border-t border-dashed border-hair pt-2 rise">
                     {recent.map((r) => (
                       <button key={r.tender_id} onClick={() => onOpen(r.tender_id)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded hover:bg-canvas">
                         <FileText className="size-4 text-muted shrink-0" />
@@ -156,9 +157,8 @@ export function Landing({ onOpen }: { onOpen: (id: string) => void }) {
                         <span className="text-[12px] text-muted num whitespace-nowrap">{r.pages} {t('pages')} · {fmtNum(r.lines)} {t('positions')}</span>
                       </button>
                     ))}
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
               <input ref={input} type="file" accept="application/pdf" className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) run(f) }} />
             </div>

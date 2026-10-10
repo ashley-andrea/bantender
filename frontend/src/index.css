@@ -31,8 +31,8 @@
 :root {
   /* Pencil rectangle: two strokes, the second lighter, like a box drawn twice. Used as a border image so it does not
      scroll with the content of a scrolling panel. */
-  --sketch: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><g fill='none' stroke='%231c2933' stroke-linecap='round' stroke-linejoin='round'><path stroke-width='2.1' stroke-opacity='0.78' d='M6.5 5.6 C32 4.4 74 6.6 113.6 4.9 C115.5 34 114.1 78 115.3 114.4 C82 115.7 38 113.7 5.6 115.1 C4.3 80 6.1 38 6.5 5.6 Z'/><path stroke-width='1.1' stroke-opacity='0.32' d='M4.6 7.3 C42 5.4 82 8.2 115.2 6.1 C116.6 42 113.4 86 114.1 116.2 C70 114.1 30 116.9 6.9 113.9 C5.4 72 3.7 30 4.6 7.3'/></g></svg>");
-  --sketch-green: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><g fill='none' stroke='%23008163' stroke-linecap='round' stroke-linejoin='round'><path stroke-width='2.4' stroke-opacity='0.9' d='M6.5 5.6 C32 4.4 74 6.6 113.6 4.9 C115.5 34 114.1 78 115.3 114.4 C82 115.7 38 113.7 5.6 115.1 C4.3 80 6.1 38 6.5 5.6 Z'/></g></svg>");
+  --sketch: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120' preserveAspectRatio='none'><g fill='none' stroke='%231c2933' stroke-linecap='round' stroke-linejoin='round'><path stroke-width='2.2' stroke-opacity='0.8' d='M7 7.5 C38 4.6 80 9.4 113 6.2 C116.6 38 111.8 82 114.6 113.4 C80 116.4 40 111.6 6.4 114.2 C3.6 80 9.2 40 7 7.5 Z'/><path stroke-width='1.2' stroke-opacity='0.35' d='M4.8 10 C42 7.2 84 11 115.6 8.4 C117.2 44 114.2 86 115.8 115.6 C72 113.2 32 117.2 8.6 112 C6 74 2.8 32 4.8 10'/></g></svg>");
+  --sketch-green: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120' preserveAspectRatio='none'><g fill='none' stroke='%23008163' stroke-linecap='round' stroke-linejoin='round'><path stroke-width='2.5' stroke-opacity='0.9' d='M7 7.5 C38 4.6 80 9.4 113 6.2 C116.6 38 111.8 82 114.6 113.4 C80 116.4 40 111.6 6.4 114.2 C3.6 80 9.2 40 7 7.5 Z'/><path stroke-width='1.3' stroke-opacity='0.4' d='M4.8 10 C42 7.2 84 11 115.6 8.4 C117.2 44 114.2 86 115.8 115.6 C72 113.2 32 117.2 8.6 112 C6 74 2.8 32 4.8 10'/></g></svg>");
 }
 
 html,
@@ -56,13 +56,13 @@ body {
 .panel {
   background-color: var(--color-surface);
   background-clip: padding-box;
-  border: 7px solid transparent;
-  border-image: var(--sketch) 15 / 7px stretch;
+  border: 9px solid transparent;
+  border-image: var(--sketch) 18 / 9px stretch;
   border-radius: 12px;
 }
 
 .panel-green {
-  border-image: var(--sketch-green) 15 / 7px stretch;
+  border-image: var(--sketch-green) 18 / 9px stretch;
 }
 
 /* Section title in the hand font with a light marker swash under it. */

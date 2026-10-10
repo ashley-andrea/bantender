@@ -1,6 +1,7 @@
 // End-to-end check of the guided flow against a running stack (default https://localhost).
-// Walks every step, checks the numbers on screen against the API, edits one parameter and one
-// supplier quote, and restores the settings afterwards. Usage: npm test [-- BASE_URL] [-- --shots DIR]
+// Uploads the sample tender through the UI, walks every step, checks the numbers on screen against the API,
+// edits a quantity, a supplier quote, hours and a parameter, and restores the settings afterwards.
+// Usage: npm test [-- BASE_URL] [-- --shots DIR]
 import { chromium } from 'playwright'
 
 const args = process.argv.slice(2)
@@ -9,10 +10,9 @@ const shots = args.includes('--shots') ? args[args.indexOf('--shots') + 1] : nul
 const browser = await chromium.launch()
 const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1600, height: 960 } })
 const api = async (path, method = 'GET', data) => (await ctx.request.fetch(`${base}${path}`, { method, data })).json()
-const [tender] = await api('/api/tenders')
-const id = tender.tender_id
-const before = await api(`/api/tenders/${id}/pricing`)
 const page = await ctx.newPage()
+let id = null
+let before = null
 const errors = []
 const failures = []
 const check = (ok, msg) => ok || failures.push(msg)
@@ -24,11 +24,13 @@ const shot = async (name) => shots && page.screenshot({ path: `${shots}/${name}.
 page.on('pageerror', (e) => errors.push(e.message))
 
 try {
-  await page.goto(`${base}/#/t/${id}/extract/live`, { waitUntil: 'networkidle' })
-  await page.waitForTimeout(1500)
-  await shot('1-live')
-  await page.click('text=Continue')
-  await page.waitForSelector('text=Derived')
+  await page.goto(`${base}/`, { waitUntil: 'networkidle' })
+  await page.setInputFiles('input[type=file]', new URL('../data/samples/oberglatt/BKP_244_LV_Lueftung_260804.pdf', import.meta.url).pathname)
+  await page.waitForTimeout(300)
+  await shot('1-reading')
+  await page.waitForSelector('text=Derived', { timeout: 60000 })
+  id = page.url().match(/#\/t\/([a-f0-9]+)/)[1]
+  before = await api(`/api/tenders/${id}/pricing`)
   check((await text('header')).includes(chf(before.project.selling_price)), 'ticker shows the offer price')
   await page.locator('svg g.cursor-pointer').nth(1).hover()
   await shot('2-extract')
@@ -72,13 +74,17 @@ try {
   await page.click('button[title="Reset"]')
   await page.waitForTimeout(800)
   // Margin slider one step up via keyboard.
-  const margin = page.locator('label:has-text("Margin") input[type=range]')
+  const margin = page.locator('input[aria-label="Margin"]')
   await margin.focus()
   await page.keyboard.press('ArrowRight')
   await page.waitForTimeout(1500)
   const after = await api(`/api/tenders/${id}/pricing`)
   check(after.settings.margin_pct > before.settings.margin_pct, 'margin slider commits')
-  check((await text('header')).includes(chf(after.project.selling_price)), 'ticker follows the new price')
+  check((await text('main')).includes(chf(after.project.selling_price)), 'offer bar follows the new price')
+  // Undo just that value: back to the company margin.
+  await page.click('button[title="Back to the company value"]')
+  await page.waitForTimeout(1500)
+  check((await api(`/api/tenders/${id}/pricing`)).settings.margin_pct === before.settings.target_margin_pct, 'undo restores the company value')
 
   await page.click('nav button:has-text("Offer options")')
   check(await page.locator('button:has-text("Generate options")').isDisabled(), 'AI button is a placeholder')
@@ -102,6 +108,7 @@ try {
   await shot('6-export-de')
   await page.click('button:has-text("EN")')
 } finally {
+  if (!before) { await browser.close(); console.log('FAIL: upload did not reach the extraction view', errors); process.exit(1) }
   const left = (await api(`/api/tenders/${id}/pricing`)).lines.filter((l) => l.decision.overridden.length && !before.lines.find((b) => b.line_id === l.line_id)?.decision.overridden.length)
   for (const l of left) await api(`/api/tenders/${id}/lines/${l.line_id}/override`, 'DELETE')
   await api(`/api/tenders/${id}/settings`, 'PATCH', {

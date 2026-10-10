@@ -101,3 +101,12 @@ body {
     transform: translateX(300%);
   }
 }
+
+@keyframes scan {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(1200%);
+  }
+}

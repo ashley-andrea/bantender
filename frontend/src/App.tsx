@@ -1,20 +1,18 @@
 import { useEffect, useState } from 'react'
 import { Flow } from './components/Flow'
-import { Upload } from './components/Upload'
 import { LangProvider } from './i18n'
 import { STEPS, type Step } from './route'
 
-// Route: #/t/<tender_id>/<step>[/live]; anything else shows the upload screen.
+// Route: #/t/<tender_id>/<step>; anything else is the extraction step before a tender is uploaded.
 interface Route {
   id: string | null
   step: Step
-  live: boolean
 }
 
 function fromHash(): Route {
-  const m = window.location.hash.match(/^#\/t\/([a-f0-9]+)(?:\/(\w+))?(\/live)?/)
+  const m = window.location.hash.match(/^#\/t\/([a-f0-9]+)(?:\/(\w+))?/)
   const step = (STEPS as readonly string[]).includes(m?.[2] ?? '') ? (m![2] as Step) : 'extract'
-  return { id: m?.[1] ?? null, step, live: Boolean(m?.[3]) }
+  return { id: m?.[1] ?? null, step }
 }
 
 export default function App() {
@@ -26,17 +24,13 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
-  const go = (id: string | null, step: Step = 'extract', live = false) => {
-    window.location.hash = id ? `/t/${id}/${step}${live ? '/live' : ''}` : ''
+  const go = (id: string | null, step: Step = 'extract') => {
+    window.location.hash = id ? `/t/${id}/${step}` : ''
   }
 
   return (
     <LangProvider>
-      {route.id ? (
-        <Flow key={route.id} tenderId={route.id} step={route.step} live={route.live} onStep={(s) => go(route.id, s)} onHome={() => go(null)} />
-      ) : (
-        <Upload onOpen={(id, live) => go(id, 'extract', live)} />
-      )}
+      <Flow tenderId={route.id} step={route.step} onStep={(s) => go(route.id, s)} onOpen={(id) => go(id)} onHome={() => go(null)} />
     </LangProvider>
   )
 }

@@ -19,17 +19,8 @@ interface Props {
 
 export function CataloguePanel({ line, systems, active, onActive, onQuote, busy }: Props) {
   const { t, lang } = useI18n()
-  const [ctx, setCtx] = useState<CatalogContext | null>(null)
   const pid = line.decision.product_id
-
-  useEffect(() => {
-    let live = true
-    if (pid) api.catalog(pid).then((c) => live && setCtx(c)).catch(() => live && setCtx(null))
-    return () => {
-      live = false
-    }
-  }, [pid])
-  const shown = ctx && ctx.item.product_id === pid ? ctx : null
+  const shown = useCatalog(pid)
 
   const checks = line.decision.checks.filter((c) => c.key !== 'quantity' && c.key !== 'estimator')
   const needsQuote = line.status_key === 'supplier_quote_required' || line.decision.overridden.includes('unit_price')
@@ -62,33 +53,51 @@ export function CataloguePanel({ line, systems, active, onActive, onQuote, busy 
             </div>
           )}
 
-          {shown && (
-            <table className="mt-4 w-full text-[12.5px]">
-              <thead>
-                <tr className="text-left text-[11.5px] text-muted border-b border-hair">
-                  <th className="py-1 font-medium">{shown.item.subcategory}</th>
-                  <th className="py-1 font-medium text-right">{t('listPrice')}</th>
-                  <th className="py-1 font-medium text-right">{t('discount')}</th>
-                  <th className="py-1 font-medium text-right">{t('netPrice')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.family.map((i) => {
-                  const on = i.product_id === pid
-                  return (
-                    <tr key={i.product_id} className={`border-b border-hair/70 ${on ? 'bg-green/10 font-semibold text-ink' : 'text-muted'}`}>
-                      <td className="py-1 pr-2 truncate max-w-[260px]">{i.description}</td>
-                      <td className="py-1 text-right num">{fmtChf(i.list_price_chf, 2)}</td>
-                      <td className="py-1 text-right num">{i.discount_pct} %</td>
-                      <td className="py-1 text-right num">{fmtChf(i.net_cost_chf, 2)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
+          {shown && <FamilyTable ctx={shown} className="mt-4" />}
         </>
       )}
     </div>
+  )
+}
+
+/** The matched catalogue row (by product id) and its neighbours in the same family. */
+export function useCatalog(pid: string | null): CatalogContext | null {
+  const [ctx, setCtx] = useState<CatalogContext | null>(null)
+  useEffect(() => {
+    let live = true
+    if (pid) api.catalog(pid).then((c) => live && setCtx(c)).catch(() => live && setCtx(null))
+    return () => {
+      live = false
+    }
+  }, [pid])
+  return ctx && ctx.item.product_id === pid ? ctx : null
+}
+
+export function FamilyTable({ ctx, className = '' }: { ctx: CatalogContext; className?: string }) {
+  const { t } = useI18n()
+  return (
+    <table className={`w-full text-[12.5px] ${className}`}>
+      <thead>
+        <tr className="text-left text-[11.5px] text-muted border-b border-hair">
+          <th className="py-1 font-medium">{ctx.item.subcategory}</th>
+          <th className="py-1 font-medium text-right">{t('listPrice')}</th>
+          <th className="py-1 font-medium text-right">{t('discount')}</th>
+          <th className="py-1 font-medium text-right">{t('netPrice')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {ctx.family.map((i) => {
+          const on = i.product_id === ctx.item.product_id
+          return (
+            <tr key={i.product_id} className={`border-b border-hair/70 ${on ? 'bg-green/10 font-semibold text-ink' : 'text-muted'}`}>
+              <td className="py-1 pr-2 truncate max-w-[260px]">{i.description}</td>
+              <td className="py-1 text-right num">{fmtChf(i.list_price_chf, 2)}</td>
+              <td className="py-1 text-right num">{i.discount_pct} %</td>
+              <td className="py-1 text-right num">{fmtChf(i.net_cost_chf, 2)}</td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }

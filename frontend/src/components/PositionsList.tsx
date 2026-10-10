@@ -79,7 +79,12 @@ export function PositionsList({ lines, systems, stage, offer, selected, onSelect
                         <span className="size-1.5 rounded-full" style={{ background: l.status_key === 'supplier_quote_required' ? 'var(--color-warn)' : 'transparent' }} />
                       </span>
                     )}
-                    {stage === 'price' && (o?.kind === 'priced' ? fmtChf(o.amount, 2) : o?.kind === 'included' ? t('included') : '—')}
+                    {stage === 'price' && (o?.kind === 'priced' ? (
+                      <span className="whitespace-nowrap">
+                        {l.cost && l.cost.net_unit_cost > 0 && <span className="text-faint">{fmtChf(l.cost.net_unit_cost, 2)} → </span>}
+                        <span className="font-semibold">{fmtChf(o.unit_price, 2)}</span>
+                      </span>
+                    ) : o?.kind === 'included' ? t('included') : '—')}
                   </span>
                 </button>
               )

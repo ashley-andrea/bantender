@@ -15,6 +15,9 @@ const send = <T,>(url: string, method: string, body?: unknown) =>
     json<T>(r),
   )
 
+/** Tender data fetched during upload, handed to the flow so the extraction view opens without a second wait. */
+export const prefetched = new Map<string, { parsed: Parsed; pricing: Pricing }>()
+
 export const api = {
   reference: () => fetch('/api/reference').then((r) => json<{ version: string; parameters: ReferenceParameters }>(r)),
   listTenders: () => fetch('/api/tenders').then((r) => json<TenderSummary[]>(r)),

@@ -1,22 +1,29 @@
+import { Loader2, RotateCcw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { EditField } from '../../api'
 import { fmtChf, fmtNum, fmtPct, fmtUnit } from '../../format'
 import { LOCATION_LABEL, PARAM_LABELS, humanize, systemName, useI18n } from '../../i18n'
 import type { Offer, Parsed, Pricing, PricedLine, ReferenceParameters, Settings } from '../../types'
 import { InlineNumber } from '../InlineNumber'
+import { FamilyTable, useCatalog } from './Catalogue'
 import { LineHeader } from './Extraction'
 
-/** The selected position as it goes on the form; quantity and hours per unit can be corrected here. */
-export function LineStrip({ line, systems, offer, onEdit, busy }: {
-  line: PricedLine; systems: Parsed['systems']; offer: Offer | null; onEdit: (field: EditField, v: number | null) => void; busy: boolean
+/** One position: its recap, the catalogue row it is priced from, and the few steps from net price to unit price. */
+export function PriceDetail({ line, systems, offer, settings, onEdit, busy }: {
+  line: PricedLine; systems: Parsed['systems']; offer: Offer | null; settings: Settings
+  onEdit: (field: EditField, v: number | null) => void; busy: boolean
 }) {
   const { t, lang } = useI18n()
+  const ctx = useCatalog(line.decision.product_id)
   const o = offer?.lines[line.line_id]
+  const c = line.cost
   const unit = fmtUnit(line.decision.unit, lang)
+  const m = offer?.factor ?? 1
+
   return (
-    <div className="panel p-4">
+    <div className="h-full min-h-0 overflow-auto scroll-thin panel p-5">
       <LineHeader line={line} systems={systems} />
-      <div className="mt-3 grid grid-cols-4 gap-4 text-[13px]">
+      <div className="mt-4 grid grid-cols-4 gap-4 text-[13px]">
         <Cell label={t('quantity')}>
           {line.source === 'lv' ? (
             <InlineNumber value={line.decision.quantity} suffix={unit} edited={line.decision.overridden.includes('quantity')} busy={busy}
@@ -24,22 +31,76 @@ export function LineStrip({ line, systems, offer, onEdit, busy }: {
           ) : `${fmtNum(line.decision.quantity)} ${unit}`}
         </Cell>
         <Cell label={t('hoursPerUnit')}>
-          {line.cost && line.decision.install_code ? (
-            <InlineNumber value={line.cost.base_hours} suffix="h" edited={line.decision.overridden.includes('hours_per_unit')} busy={busy}
+          {c && line.decision.install_code ? (
+            <InlineNumber value={c.base_hours} suffix="h" edited={line.decision.overridden.includes('hours_per_unit')} busy={busy}
               onSave={(v) => onEdit('hours_per_unit', v)} onReset={() => onEdit('hours_per_unit', null)} />
           ) : '—'}
         </Cell>
-        {o?.kind === 'priced' ? (
-          <>
-            <Cell label={t('unitPrice')}><span className="num font-semibold">{fmtChf(o.unit_price, 2)}</span></Cell>
-            <Cell label={t('amount')}><span className="num font-semibold text-green">{fmtChf(o.amount, 2)}</span></Cell>
-          </>
-        ) : (
-          <div className="col-span-2 self-end text-muted">
-            {line.source === 'cad' ? t('cadNote') : o?.kind === 'included' ? t('includedNote') : '—'}
-          </div>
-        )}
+        <Cell label={t('unitPrice')}><span className="num font-semibold">{o?.kind === 'priced' ? fmtChf(o.unit_price, 2) : o?.kind === 'included' ? t('included') : '—'}</span></Cell>
+        <Cell label={t('amount')}><span className="num font-semibold text-green">{o?.kind === 'priced' ? fmtChf(o.amount, 2) : '—'}</span></Cell>
       </div>
+
+      {ctx && <FamilyTable ctx={ctx} className="mt-6" />}
+
+      {c && o?.kind === 'priced' && o.raw != null && (o.quantity ?? 0) > 0 && (
+        <Steps line={line} settings={settings} m={m} raw={o.raw / o.quantity!} unitPrice={o.unit_price!} includesLabour={!!o.includes_labour} />
+      )}
+      {!c && o?.kind === 'included' && <p className="mt-6 text-[13px] text-muted">{t('includedNote')}</p>}
+      {line.source === 'cad' && <p className="mt-6 text-[13px] text-muted">{t('cadNote')}</p>}
+    </div>
+  )
+}
+
+/** Net price → unit price per unit, in as few lines as it takes to trust the number. */
+function Steps({ line, settings, m, raw, unitPrice, includesLabour }: {
+  line: PricedLine; settings: Settings; m: number; raw: number; unitPrice: number; includesLabour: boolean
+}) {
+  const { t, lang } = useI18n()
+  const c = line.cost!
+  const q = line.decision.quantity || 1
+  const material = c.material_cost / q
+  const labour = c.labour_cost / q
+  const hours = c.adjusted_hours / q
+  const allowance = raw - material - (includesLabour ? labour : 0)
+  const supplier = c.price_source === 'supplier_package'
+  const rows: { label: string; value: number; sign?: string }[] = []
+  if (c.net_unit_cost > 0) {
+    rows.push({ label: t('stepNet'), value: c.net_unit_cost })
+    rows.push({ label: `${PARAM_LABELS.material_waste_pct[lang]} ${fmtPct(settings.allowances.material_waste_pct)}`, value: material - c.net_unit_cost, sign: '+' })
+  }
+  if (allowance > 0.005) {
+    const key = supplier ? 'supplier_package_contingency_pct' : 'small_material_pct'
+    rows.push({ label: `${PARAM_LABELS[key][lang]} ${fmtPct(settings.allowances[key])}`, value: allowance, sign: '+' })
+  }
+  if (includesLabour && labour > 0) {
+    rows.push({ label: `${t('labour')} ${fmtNum(Math.round(hours * 10) / 10)} h × CHF ${fmtNum(c.hourly_rate)}`, value: labour, sign: '+' })
+  }
+  return (
+    <div className="mt-6">
+      <div className="text-[12.5px] font-semibold">{t('stepsTitle')} <span className="font-normal text-muted">/ {fmtUnit(line.decision.unit, lang)}</span></div>
+      <table className="mt-1 w-full text-[13px] num">
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} className="border-b border-hair/70">
+              <td className="py-1 text-muted">{r.label}</td>
+              <td className="py-1 text-right">{r.sign ? `${r.sign} ` : ''}{fmtChf(r.value, 2)}</td>
+            </tr>
+          ))}
+          <tr className="border-b border-hair/70">
+            <td className="py-1 text-muted">× {t('factorM')} {m.toFixed(3)} <span className="text-faint">({t('factorWhy')})</span></td>
+            <td className="py-1 text-right">+ {fmtChf(raw * (m - 1), 2)}</td>
+          </tr>
+          <tr className="font-semibold">
+            <td className="pt-1.5">{t('unitPrice')}</td>
+            <td className="pt-1.5 text-right text-green">{fmtChf(unitPrice, 2)}</td>
+          </tr>
+        </tbody>
+      </table>
+      {!includesLabour && labour > 0 && (
+        <p className="mt-2 text-[12px] text-muted num">
+          {t('labour')} {fmtNum(Math.round(hours * 10) / 10)} h × CHF {fmtNum(c.hourly_rate)} = {fmtChf(labour * m, 2)} {t('labourInE')}
+        </p>
+      )}
     </div>
   )
 }
@@ -49,6 +110,35 @@ function Cell({ label, children }: { label: string; children: React.ReactNode })
     <div>
       <div className="text-[11.5px] text-muted">{label}</div>
       <div className="mt-0.5">{children}</div>
+    </div>
+  )
+}
+
+/** Locked to the bottom of the price step: how the positions add up to the offer price. */
+export function OfferBar({ pricing, busy }: { pricing: Pricing; busy: boolean }) {
+  const { t } = useI18n()
+  const p = pricing.project
+  return (
+    <div className="panel px-5 py-3 flex items-center gap-8 text-[13px] num">
+      <Part label={t('directCost')} value={p.direct} />
+      <span className="text-faint">+</span>
+      <Part label={t('overheadRisk')} value={p.baseline - p.direct} />
+      <span className="text-faint">+</span>
+      <Part label={`${t('margin')} ${fmtPct(p.margin_pct)}`} value={p.selling_price - p.baseline} />
+      <div className="ml-auto flex items-baseline gap-3">
+        {busy && <Loader2 className="size-4 animate-spin text-muted self-center" />}
+        <span className="text-muted">{t('offerPrice')}</span>
+        <span className="text-[24px] font-semibold text-navy">CHF {fmtChf(p.selling_price)}</span>
+      </div>
+    </div>
+  )
+}
+
+function Part({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <div className="text-[11.5px] text-muted">{label}</div>
+      <div className="font-semibold">{fmtChf(value)}</div>
     </div>
   )
 }
@@ -93,13 +183,11 @@ function fmt(value: number, spec: ParamSpec) {
   return spec.unit === '×' ? value.toFixed(2) : spec.unit === '%' ? fmtPct(value) : spec.unit === 'h' ? `${fmtNum(value)} h` : spec.unit === 'CHF/h' ? `${fmtNum(value)}/h` : fmtChf(value)
 }
 
-/** Offer price at the top, then every coefficient from the company parameters; the server recomputes on release. */
-export function ParameterPanel({ pricing, systems, defaults, onChange, busy }: {
-  pricing: Pricing; systems: Parsed['systems']; defaults: ReferenceParameters | null; onChange: (patch: Record<string, unknown>) => void; busy: boolean
+/** Every coefficient from the company parameters. Changed values can be undone one by one or all at once. */
+export function ParameterPanel({ settings, systems, defaults, onChange, busy }: {
+  settings: Settings; systems: Parsed['systems']; defaults: ReferenceParameters | null; onChange: (patch: Record<string, unknown>) => void; busy: boolean
 }) {
   const { t, lang } = useI18n()
-  const settings = pricing.settings
-  const p = pricing.project
   const [draft, setDraft] = useState(settings)
   useEffect(() => setDraft(settings), [settings])
 
@@ -108,10 +196,16 @@ export function ParameterPanel({ pricing, systems, defaults, onChange, busy }: {
     overhead_pct: defaults.commercial.overhead_pct, margin_pct: defaults.commercial.target_margin_pct, risk_allowance_chf: 0,
   }
   const baseValue = (path: ParamSpec['path']) => (base ? read(base, path) : undefined)
-  const modified = specs(settings).flatMap((g) => g.items).some((s) => {
+  // Location detected from the system and lot names (what the tool chose before any edit).
+  const detected = (code: string) => {
+    const loc = systems[code]?.location ?? 'default'
+    return settings.location_options.includes(loc) ? loc : settings.location_options[0]
+  }
+  const changedParams = specs(settings).flatMap((g) => g.items).some((s) => {
     const b = baseValue(s.path)
     return b !== undefined && Math.abs(b - read(settings, s.path)) > 1e-9
   })
+  const changedLocations = Object.entries(settings.locations).some(([code, loc]) => loc !== detected(code))
 
   const commit = (path: ParamSpec['path'], v: number) =>
     onChange(path.length === 1 ? { [path[0]]: v } : { [path[0]]: { ...(settings as unknown as Nested)[path[0]], [path[1]]: v } })
@@ -120,20 +214,12 @@ export function ParameterPanel({ pricing, systems, defaults, onChange, busy }: {
 
   return (
     <div className={`h-full min-h-0 overflow-auto scroll-thin panel p-4 ${busy ? 'opacity-80' : ''}`}>
-      <table className="w-full text-[13px] num">
-        <tbody>
-          <tr><td className="py-0.5 text-muted">{t('directCost')}</td><td className="text-right">{fmtChf(p.direct)}</td></tr>
-          <tr><td className="py-0.5 text-muted">{t('overheadRisk')}</td><td className="text-right">{fmtChf(p.baseline - p.direct)}</td></tr>
-          <tr><td className="py-0.5 text-muted">{t('margin')} {fmtPct(p.margin_pct)}</td><td className="text-right">{fmtChf(p.selling_price - p.baseline)}</td></tr>
-          <tr className="border-t border-hair"><td className="pt-1.5 font-semibold">{t('offerPrice')}</td><td className="pt-1.5 text-right text-[17px] font-semibold">CHF {fmtChf(p.selling_price)}</td></tr>
-        </tbody>
-      </table>
-
-      <div className="mt-4 flex items-baseline border-t border-hair pt-3">
+      <div className="flex items-center">
         <span className="text-[13px] font-semibold">{t('parameters')}</span>
-        {modified && base && (
-          <button disabled={busy} onClick={() => onChange(base)} className="ml-auto text-[12px] font-semibold text-green hover:underline">{t('resetAll')}</button>
-        )}
+        <button disabled={busy || !base || (!changedParams && !changedLocations)} onClick={() => base && onChange({ ...base, locations: {} })}
+          className="ml-auto inline-flex items-center gap-1 rounded-md border border-hair px-2 py-1 text-[12px] font-semibold text-green hover:bg-green/5 disabled:text-faint disabled:hover:bg-transparent">
+          <RotateCcw className="size-3.5" /> {t('resetAll')}
+        </button>
       </div>
       {specs(draft).map((g) => (
         <div key={g.group} className="mt-3">
@@ -144,8 +230,9 @@ export function ParameterPanel({ pricing, systems, defaults, onChange, busy }: {
             const b = baseValue(s.path)
             const changed = b !== undefined && Math.abs(v - b) > 1e-9
             return (
-              <Slider key={key} label={PARAM_LABELS[key]?.[lang] ?? humanize(key)} value={v} spec={s} changed={changed} base={b}
-                onInput={(x) => setLocal(s.path, x)} onCommit={(x) => x !== read(settings, s.path) && commit(s.path, x)} />
+              <Slider key={key} label={PARAM_LABELS[key]?.[lang] ?? humanize(key)} value={v} spec={s} changed={changed} busy={busy}
+                onInput={(x) => setLocal(s.path, x)} onCommit={(x) => x !== read(settings, s.path) && commit(s.path, x)}
+                onUndo={b !== undefined ? () => { setLocal(s.path, b); commit(s.path, b) } : undefined} />
             )
           })}
         </div>
@@ -156,12 +243,17 @@ export function ParameterPanel({ pricing, systems, defaults, onChange, busy }: {
           {Object.entries(settings.locations).map(([sys, loc]) => (
             <div key={sys} className="flex items-center gap-2 py-1 text-[12.5px]">
               <span className="truncate">{sys} {systemName(systems[sys], lang)}</span>
-              <select value={loc} disabled={busy} onChange={(e) => onChange({ locations: { ...settings.locations, [sys]: e.target.value } })}
-                className="ml-auto rounded border border-hair bg-surface px-1.5 py-0.5 text-[12.5px]">
-                {settings.location_options.map((o) => (
-                  <option key={o} value={o}>{LOCATION_LABEL[o]?.[lang] ?? humanize(o)}</option>
-                ))}
-              </select>
+              <span className="ml-auto inline-flex items-center gap-1.5">
+                {loc !== detected(sys) && (
+                  <UndoButton disabled={busy} onClick={() => onChange({ locations: { ...settings.locations, [sys]: detected(sys) } })} />
+                )}
+                <select value={loc} disabled={busy} onChange={(e) => onChange({ locations: { ...settings.locations, [sys]: e.target.value } })}
+                  className={`rounded border border-hair bg-surface px-1.5 py-0.5 text-[12.5px] ${loc !== detected(sys) ? 'text-green font-semibold' : ''}`}>
+                  {settings.location_options.map((o) => (
+                    <option key={o} value={o}>{LOCATION_LABEL[o]?.[lang] ?? humanize(o)}</option>
+                  ))}
+                </select>
+              </span>
             </div>
           ))}
         </div>
@@ -170,25 +262,35 @@ export function ParameterPanel({ pricing, systems, defaults, onChange, busy }: {
   )
 }
 
-function Slider({ label, value, spec, changed, base, onInput, onCommit }: {
-  label: string; value: number; spec: ParamSpec; changed: boolean; base?: number; onInput: (v: number) => void; onCommit: (v: number) => void
+function UndoButton({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
+  const { t } = useI18n()
+  return (
+    <button type="button" disabled={disabled} onClick={onClick} title={t('undo')} className="text-muted hover:text-green">
+      <RotateCcw className="size-3.5" />
+    </button>
+  )
+}
+
+function Slider({ label, value, spec, changed, busy, onInput, onCommit, onUndo }: {
+  label: string; value: number; spec: ParamSpec; changed: boolean; busy: boolean
+  onInput: (v: number) => void; onCommit: (v: number) => void; onUndo?: () => void
 }) {
   const max = Math.max(spec.max, value)
   return (
-    <label className="block py-1">
-      <div className="flex items-baseline text-[12.5px]">
+    <div className="py-1">
+      <div className="flex items-center gap-1.5 text-[12.5px]">
         <span>{label}</span>
-        <span className="ml-auto num" title={changed && base !== undefined ? fmt(base, spec) : undefined}>
-          {changed && base !== undefined && <span className="mr-1.5 text-[11px] text-faint line-through">{fmt(base, spec)}</span>}
-          <span className={changed ? 'font-semibold text-green' : ''}>{fmt(value, spec)}</span>
+        <span className="ml-auto inline-flex items-center gap-1.5">
+          {changed && onUndo && <UndoButton disabled={busy} onClick={onUndo} />}
+          <span className={`num ${changed ? 'font-semibold text-green' : ''}`}>{fmt(value, spec)}</span>
         </span>
       </div>
-      <input type="range" min={spec.min} max={max} step={spec.step} value={value}
+      <input type="range" aria-label={label} min={spec.min} max={max} step={spec.step} value={value}
         style={{ '--p': `${((value - spec.min) / (max - spec.min)) * 100}%` } as React.CSSProperties}
         onChange={(e) => onInput(Number(e.target.value))}
         onPointerUp={(e) => onCommit(Number((e.target as HTMLInputElement).value))}
         onKeyUp={(e) => onCommit(Number((e.target as HTMLInputElement).value))}
         className="range mt-1" />
-    </label>
+    </div>
   )
 }

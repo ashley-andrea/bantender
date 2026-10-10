@@ -8,17 +8,17 @@ Estimators told us where the time goes: reading and extracting positions, retypi
 
 ## The flow
 
-The estimator uploads one PDF. The tender page stays on the left in every step:
+The estimator drops one PDF into the Extraction step; its first page is shown being read until the positions are in. The tender page stays on the left in Extraction and Catalogue (and does not reload when switching between them):
 
 | Step | What the estimator sees | Can change |
 | --- | --- | --- |
 | 1 Extraction | How long reading took, then the positions. For each position, a graph: the position on top, what the tender says about it below (type, quantity, size, airflow, make, system, section). Edge style shows how each value was obtained; hovering a value outlines its row in the PDF. | Quantity |
 | 2 Catalogue | The same graph with the catalogue product, its net price and the installation time. The matched row is highlighted in its catalogue family. | Supplier quote (only for supplier-package items) |
-| 3 Price | Each position's unit price and amount as written on the form; the offer price build-up; sliders for every coefficient in `project_parameters.json`. | Hours per unit, every parameter, mounting height per system |
+| 3 Price | Left: every position with catalogue net price → unit price on the form. Centre: the selected position, its catalogue row, and the few steps from net price to unit price (waste, allowance, installation if included, factor m). Right: sliders for every coefficient in `project_parameters.json`, each undoable, plus reset all. Bottom: direct cost + overhead and risk + margin = offer price, always visible. | Quantity, hours per unit, every parameter, mounting height per system |
 | 4 Offer options | Reserved for the AI bid-optimisation loop. Placeholder only. | — |
 | 5 Export | The filled PDF, the filled pages in document order grouped by system, conditions, download. | Discount, cash discount |
 
-The top bar shows the offer price and the time since upload. Flags are limited to what needs a person: 28 supplier-package items waiting for a quote, and one position whose quantity the tender leaves blank. The English view uses English throughout; German names from the tender (systems, sections, lots) are translated with a small glossary.
+The top bar shows the offer price. Flags are limited to what needs a person: 28 supplier-package items waiting for a quote, and one position whose quantity the tender leaves blank. The English view uses English throughout; German names from the tender (systems, sections, lots) are translated with a small glossary.
 
 **How a value was obtained** (one level per value, not a probability):
 

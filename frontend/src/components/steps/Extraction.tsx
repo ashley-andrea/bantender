@@ -1,54 +1,9 @@
-import { useEffect, useState } from 'react'
 import type { EditField } from '../../api'
-import { LEVEL_COLOR, fmtNum, fmtUnit } from '../../format'
+import { LEVEL_COLOR, fmtUnit } from '../../format'
 import { lineTitle, sectionName, systemName, tx, useI18n, type Key } from '../../i18n'
 import type { Level, Parsed, PricedLine } from '../../types'
 import { InlineNumber } from '../InlineNumber'
 import { ItemGraph } from '../ItemGraph'
-
-/** Right after upload: how long reading took, then the positions as they were found (a quick replay). */
-export function ExtractionIntro({ parsed, lines, seconds, onPage, onDone }: {
-  parsed: Parsed; lines: PricedLine[]; seconds: number | null; onPage: (p: number) => void; onDone: () => void
-}) {
-  const { t, lang } = useI18n()
-  const [n, setN] = useState(0)
-  const lv = lines.filter((l) => l.source === 'lv')
-
-  useEffect(() => {
-    if (n >= lv.length) return
-    const id = setTimeout(() => setN((x) => Math.min(lv.length, x + 4)), 16)
-    return () => clearTimeout(id)
-  }, [n, lv.length])
-
-  const last = lv[Math.max(0, n - 1)]
-  useEffect(() => {
-    if (last && n % 24 === 0) onPage(last.page)
-  }, [n, last, onPage])
-
-  return (
-    <div className="h-full panel flex flex-col p-6">
-      <div className="flex items-baseline gap-3">
-        <span className="text-[40px] font-semibold num leading-none">{n}</span>
-        <span className="text-muted">{t('found')}</span>
-      </div>
-      <div className="mt-2 text-[13px] text-muted num">
-        {parsed.meta.pages} {t('pages')} {t('readIn')} <b className="text-ink">{seconds != null ? `${seconds.toFixed(1)} s` : '—'}</b>
-      </div>
-      <div className="mt-5 flex-1 min-h-0 overflow-hidden">
-        {lv.slice(Math.max(0, n - 18), n).reverse().map((l) => (
-          <div key={l.line_id} className="rise flex items-baseline gap-3 py-1.5 border-b border-hair text-[13px]">
-            <span className="text-faint num w-12">p.{l.page}</span>
-            <span className="flex-1 truncate">{lineTitle(l, lang)}</span>
-            <span className="num text-muted">{l.decision.quantity != null ? `${fmtNum(l.decision.quantity)} ${fmtUnit(l.decision.unit, lang)}` : '—'}</span>
-          </div>
-        ))}
-      </div>
-      <button onClick={onDone} className="mt-4 self-end rounded-md bg-green text-white px-4 py-2 text-[13px] font-semibold hover:brightness-110">
-        {t('skip')} →
-      </button>
-    </div>
-  )
-}
 
 interface PanelProps {
   line: PricedLine

@@ -35,7 +35,7 @@ class PlaceholderWinModel:
 
 
 class LogisticWinModel:
-    """One-hot categoricals + scaled numerics + LogisticRegression (PLAN.md step 2)."""
+    """One-hot categoricals + scaled numerics + LogisticRegression (plan step 2)."""
 
     name = "ml"
 
@@ -44,14 +44,14 @@ class LogisticWinModel:
         self.version = version
 
     def predict(self, bid_price: float, baseline: float, context: TenderContext) -> float:
-        raise NotImplementedError("Step 2 in PLAN.md")
+        raise NotImplementedError("Step 2 in docs/win-probability-model.md")
 
 
 def train(history_csv: Path) -> LogisticWinModel:
     """Fit on the history with a time-based split (by bid_date); seeded and deterministic."""
-    raise NotImplementedError("Step 2 in PLAN.md")
+    raise NotImplementedError("Step 2 in docs/win-probability-model.md")
 
 
 def evaluate(model: LogisticWinModel, history_csv: Path) -> dict:
     """AUC, Brier, log loss and calibration bins on the held-out (latest) bids."""
-    raise NotImplementedError("Step 2 in PLAN.md")
+    raise NotImplementedError("Step 2 in docs/win-probability-model.md")

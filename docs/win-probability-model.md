@@ -1,173 +1,359 @@
-# Win-probability model: design decisions
+# Win-probability model: plan
 
-Status: agreed design, not yet implemented (2026-10-10).
+Status: plan, not yet implemented. Code goes in `backend/app/winprob/`.
 
-## Goal
+## 1. Purpose
 
-Replace the placeholder win-probability formula with a model **learned from our bid history**, so the relation between offer and win probability changes as data accumulates. The model computes a **full curve** for a tender in one pass. The UI slider explores it, and the three bid scenarios are read from it.
+For a tender we are pricing, estimate the probability that the client accepts our offer, **as a function of the offer**. The estimate is learned from our historical bids.
 
-## Where we start from
+For each tender the model returns a **full curve**, computed in one pass, covering the range of offers we could make. At each point it gives:
 
-The placeholder in [`scenarios.py`](../backend/app/pricing/scenarios.py) (parameters in `project_parameters.json → stretch_bid_optimization`):
+- the offer (CHF) and the resulting margin
+- the win probability, with an uncertainty band
+- the expected profit
+
+The UI uses the curve for a slider. The three bid scenarios (Aggressive / Target / Conservative) are read from it. Explainability shows which features drive the probability, both overall and for this tender.
+
+## 2. Scope of this task
+
+- **Build:**
+  - the model structure: data loading and validation, feature pipeline, training, evaluation
+  - the curve and scenarios
+  - explainability
+  - integration into the pricing result and the API
+- **Not in scope: the real dataset.** It is generated separately and delivered as two CSV files following the data contract in §4. Until it arrives, tests use a small synthetic fixture generated inside the tests (§12).
+- **Starting point:** stubs already exist in `backend/app/winprob/` (`schema.py`, `model.py`, `curve.py`, `service.py`, `explain.py`, `synthetic.py`). They come from an earlier draft. Change their contents and signatures freely to match this plan. `synthetic.py` is not part of this task (the dataset is generated separately); leave it untouched.
+
+## 3. Existing code to know
+
+| What | Where | Notes |
+| --- | --- | --- |
+| Placeholder win model (linear, from Equans) | `app/pricing/scenarios.py::win_probability` | Used as the **fallback**. Must not change. |
+| Placeholder bid scenarios | `app/pricing/scenarios.py::bid_scenarios` | A golden test pins its results. Must keep passing. |
+| Parameters | `data/reference/v2/project_parameters.json` | `commercial.target_margin_pct`, `commercial.round_to_chf`; add a `win_model` section (§10.3) |
+| Price formula | `app/pricing/engine.py::build_project`, `round_up` | `offer = baseline / (1 − margin)`; `baseline` is our full cost (direct + risk + overhead) |
+| Pricing result | `app/pricing/service.py::price_tender` | Add a new key `win_curve`; leave existing keys unchanged |
+| Award rule from the tender | `app/parsing/tender_info.py::parse_award` | `weight` (price points) and `zero_at_ratio`, or `None` |
+| Trade from the tender | `app/parsing/tender_info.py::parse_project` | `project.bkp`, e.g. `"244"` |
+| Reference data loaded at import | `app/api/main.py` | Train the win model at the same moment |
+| AI config | `app/config.py` | `ai_provider`, `openai_model`, `openai_budget_usd` |
+| Tests | `backend/tests/`, `make test` | Offline, a few seconds, no OpenAI calls |
+
+## 4. Data contract
+
+The dataset is delivered as two CSV files in `data/reference/v2/`. Validate the files on load and fail with a clear message if a column is missing or a value is out of range.
+
+### 4.1 `historical_bids.csv`: one row per past bid
+
+About 2,000 rows covering about 3 years.
+
+| Column | Type / allowed values | Role |
+| --- | --- | --- |
+| `bid_id` | str, unique | id |
+| `bid_date` | ISO date | validation split only; **not a feature** |
+| `bkp_trade` | `242` heat generation, `243` heat distribution, `244` ventilation, `245` air conditioning, `246` refrigeration, `250` plumbing | feature (categorical) |
+| `building_type` | `school`, `hospital`, `office`, `residential`, `industrial`, `public_building` | feature (categorical) |
+| `canton` | Swiss canton code, e.g. `ZH`, `AG`, `BE` | feature (categorical) |
+| `client_type` | `municipality`, `canton`, `federal`, `private` | feature (categorical) |
+| `procedure` | `open`, `invited` | feature (categorical) |
+| `market_reference_chf` | float > 0, the client's cost estimate | gives `price_position`; `log(market_reference_chf)` is a feature |
+| `n_lots` | int ≥ 1 | feature (numeric) |
+| `price_weight_pct` | float 0–100, price points in the award rule | gives `price_sensitivity` |
+| `zero_at_ratio` | float > 1, the offer ratio at which price scores 0 points | gives `price_sensitivity` |
+| `n_bidders` | int ≥ 1 | feature (numeric, log) |
+| `competitive_intensity` | float 1–5 | feature (numeric) |
+| `strategic_appetite` | float 1–5 | feature (numeric) |
+| `available_capacity_pct` | float 0–100 | feature (numeric) |
+| `incumbent_present` | 0/1 | feature (numeric) |
+| `prior_wins_with_client` | int ≥ 0 | feature (numeric, capped at 3) |
+| `technical_score_expected` | float 1–5 | feature (numeric) |
+| `baseline_cost_chf` | float > 0, our full cost | **not a feature** (only for analysis) |
+| `margin_pct` | float | **not a feature** (only for analysis) |
+| `bid_price_chf` | float > 0, our offer | gives `price_position` |
+| `won` | 0/1 | **target** |
+
+Missing award rule: `price_weight_pct` and `zero_at_ratio` may be empty when the tender stated no rule.
+
+### 4.2 `market_snapshots.csv`: one row per manual update of market data
+
+| Column | Type |
+| --- | --- |
+| `snapshot_date` | ISO date |
+| `competitive_intensity` | float 1–5 |
+| `strategic_appetite` | float 1–5 |
+| `available_capacity_pct` | float 0–100 |
+
+This data does not come from the tender; someone updates it periodically. For a **new** tender, the latest snapshot gives the default values of these three features, and the estimator can change them for that tender. The history already stores the values that applied to each bid.
+
+## 5. Features
+
+Derived features (computed the same way for training and prediction, in one function in `schema.py` or `model.py`):
+
+| Feature | Definition |
+| --- | --- |
+| `price_position` | `bid_price_chf / market_reference_chf` |
+| `price_sensitivity` | `price_weight_pct / ((zero_at_ratio − 1) × 100)`: price points lost per 1 % above the lowest offer (e.g. 60 points, 0 at 150 % → 1.2). If the rule is missing: the training mean. |
+| `price_position_x_sensitivity` | `(price_position − 1) × price_sensitivity` |
+| `log_market_reference` | `log(market_reference_chf)` |
+| `log_n_bidders` | `log(n_bidders)` |
+| `prior_wins_capped` | `min(prior_wins_with_client, 3)` |
+
+Model inputs:
+
+- **Categorical:** `bkp_trade`, `building_type`, `canton`, `client_type`, `procedure`
+- **Numeric:** `price_position`, `price_position_x_sensitivity`, `price_sensitivity`, `log_market_reference`, `n_lots`, `log_n_bidders`, `competitive_intensity`, `strategic_appetite`, `available_capacity_pct`, `incumbent_present`, `prior_wins_capped`, `technical_score_expected`
+
+**Never inputs:** `bid_id`, `bid_date`, `margin_pct`, `baseline_cost_chf`, `bid_price_chf` (except through `price_position`), `won`.
+
+Price enters **only** through `price_position` and `price_position_x_sensitivity`. The offer therefore matters more when the award rule weights price more.
+
+## 6. Model
+
+### 6.1 Pipeline
+
+scikit-learn, installed as the optional extra `winprob` in `backend/pyproject.toml`. Import it in a guarded way so the API runs without it (§11).
 
 ```
-p = 0.55 + 0.05 (appetite) − 0.05 (competition) − 0.05 × (offer / ref − 1) × 100,  clamped to [0.05, 0.95]
-ref = cost baseline ÷ (1 − 5.5 % target margin)
+Pipeline([
+  ("features", ColumnTransformer([
+      ("cat", OneHotEncoder(handle_unknown="ignore"), CATEGORICAL),
+      ("num", StandardScaler(), NUMERIC),
+  ])),
+  ("clf", LogisticRegression(max_iter=1000)),
+])
 ```
 
-Scenarios use fixed margins (Aggressive 2.5 %, Target 4.0 %, Conservative 6.5 %).
+- Default regularization. Fixed `random_state` wherever one applies.
+- `handle_unknown="ignore"`: a category not seen in training (e.g. a new canton) contributes nothing.
+- The learned weights decide which features matter. Features without a real effect should end up with weights near zero. Explainability (§9) reports this, and the model must not be built to favour any feature.
 
-Problems we found:
+### 6.2 Training and evaluation
 
-- It is linear: 5 probability points lost per 1 % of price, everywhere.
-- It ignores tender type, market conditions and the tender's award rule.
-- The 5.5 % target margin and the 4.0 % "Target" scenario disagree.
-- Its scenarios are fixed margins and are not derived from the curve.
+- **`train(history, snapshots)`** fits on all rows and returns a `LogisticWinModel`. Its `version` is `"logreg-" + the first 8 characters of the SHA-256 of the history CSV`.
+- **`evaluate(history)`:**
+  - Time-based split: the last 6 months of `bid_date` are the test set; everything before is the training set.
+  - Reports **AUC, Brier score, log loss and 10-bin calibration** on the test set.
+  - Reports the same metrics for the placeholder model on the same rows, for comparison.
 
-The golden numbers in `expected_output_example.json` are three (margin, probability) pairs: (2.5 %, 0.69), (4.0 %, 0.63), (6.5 %, 0.49). They are **outputs of the placeholder formula, not observations**, so they are not training data.
+  The results go into the model summary (§10.4).
 
-## Decisions
+### 6.3 Monotonicity
 
-### 1. The curve is over the offer, not the margin
-
-The client accepts or rejects an **offer**; the margin is only a consequence of it. Offers in CHF cannot be compared across tenders of different size, so the model works on the offer relative to **our own cost baseline**:
+A higher offer must never raise the win probability. After fitting, check on the raw feature scale that the derivative of the logit with respect to `price_position` is negative for every `price_sensitivity` in the training range:
 
 ```
-x = offer ÷ cost baseline      (offer = cost baseline ÷ (1 − margin))
+d logit / d price_position = w_pp / sd_pp + w_int × sensitivity / sd_int < 0
 ```
 
-- The UI axis and the slider are in **CHF offer**. The margin is shown next to each offer.
-- Option rejected for now: a market reference price independent of our costs, such as the build-up at catalogue list prices instead of net prices. The interface should allow adding it later.
+Here `w` are the fitted weights and `sd` the scaler's standard deviations. Check both ends of the range. If the check fails, reject the model and use the fallback (§11).
 
-### 2. One full curve, computed at once
+### 6.4 Uncertainty band
 
-For each tender, the API returns the whole curve on a grid of offers. Each point has:
+The band is an 80 % band per curve point, from the Laplace approximation:
 
-- offer (CHF) and the resulting margin
-- win probability, with an uncertainty band
-- expected contribution = (offer − cost baseline) × p(offer)
+- Covariance of the weights: `Σ = H⁻¹`, where `H` is the Hessian of the fitted objective on the transformed training matrix, with the intercept column included:
+  - `H = C · Xᵀ W X + P`
+  - `W = diag(p (1 − p))`
+  - `P` is the identity, with 0 for the intercept
+- Logit variance at a point `x`: `xᵀ Σ x`.
+- Band: `σ(logit ± 1.2816 × sd)`.
 
-The slider only reads precomputed points; nothing is recomputed while sliding.
+This is computed with numpy, which comes with scikit-learn.
 
-### 3. Scenarios come from the curve
+## 7. Prediction for a new tender
 
-The expected contribution is the average profit per tender if we bid this way many times. Cheap offers win often but earn little. Expensive offers earn a lot but rarely win. In between there is a peak.
+### 7.1 `TenderContext` (pydantic model in `schema.py`)
+
+It holds every feature input except the offer:
+
+| Inputs | Source for the current tender |
+| --- | --- |
+| `bkp_trade`, `price_weight_pct`, `zero_at_ratio`, `n_lots` | parser (`project.bkp`, `award`, `lots`) |
+| `building_type`, `canton`, `procedure` | parser where possible (project name words, postal code, procedure text); otherwise the fixture |
+| `market_reference_chf`, `client_type`, `n_bidders`, `incumbent_present`, `prior_wins_with_client`, `technical_score_expected` | ingestion; for the demo, `data/samples/oberglatt/tender_context.json` |
+| `competitive_intensity`, `strategic_appetite`, `available_capacity_pct` | latest market snapshot |
+
+- Any of these values can be overridden by estimator settings (`settings["win_context"]`).
+- **Market reference missing:** use our price at the target margin, `baseline / (1 − target_margin_pct / 100)`, and report `market_reference_source: "target_margin_fallback"`. Otherwise report `"ingestion"`.
+
+### 7.2 Model interface
+
+```python
+class WinModel(Protocol):
+    name: str      # "ml" | "placeholder"
+    version: str
+    def predict(self, offers: np.ndarray, context: TenderContext) -> np.ndarray: ...      # p per offer
+    def predict_band(self, offers: np.ndarray, context: TenderContext) -> tuple[np.ndarray, np.ndarray]: ...
+```
+
+- **`PlaceholderWinModel`** wraps `app/pricing/scenarios.py::win_probability`, with reference = our price at the target margin. It is the same formula as today and has no band: `low = high = p`.
+
+## 8. Curve and scenarios (`curve.py`)
+
+### 8.1 Curve
+
+- **Grid:** margin from 0 % to 20 % in 0.1 % steps (201 points).
+- **Each point:**
+  - `offer = baseline / (1 − margin)`, exact (not rounded)
+  - `price_position = offer / market_reference`
+  - `win_probability`, `p_low`, `p_high`
+  - `expected_profit = win_probability × (offer − baseline)`
+
+All points come from one vectorized `predict` call.
+
+### 8.2 Scenarios
+
+Computed from the curve, using only points with margin ≥ `min_margin_pct` (2 %):
 
 | Scenario | Definition |
-|---|---|
-| **Target** | The offer with the highest expected contribution |
-| **Aggressive** | The **lowest** offer whose expected contribution is still ≥ 90 % of the peak: higher win chance, for when we really want the job |
-| **Conservative** | The **highest** offer whose expected contribution is still ≥ 90 % of the peak: more profit per win, for when we are busy |
+| --- | --- |
+| **Target** | The point with the highest expected profit |
+| **Aggressive** | The lowest offer whose expected profit is ≥ `near_optimal_share` (90 %) of the Target's |
+| **Conservative** | The highest offer whose expected profit is ≥ 90 % of the Target's |
 
-The span from Aggressive to Conservative is the *Recommended Bid Range*.
+- Each scenario's offer is rounded up to `round_to_chf` with `engine.round_up`. Then its margin, probability and expected profit are recomputed at the rounded offer.
+- The output order is always Aggressive ≤ Target ≤ Conservative.
 
-- Tolerance: **90 %** of the peak (parameter).
-- Minimum margin: **2 %**. No scenario or recommendation goes below it (company policy, parameter).
+## 9. Explainability (`explain.py`)
 
-Illustration only, using the placeholder curve on the golden subset (cost CHF 414,489):
+- **Global (model summary):** feature relevance on the held-out set, using permutation importance (`sklearn.inspection.permutation_importance`, log loss, fixed seed). Categorical features are grouped back to their original column. Report every feature, ranked, with its importance and the sign of its effect.
+- **Per tender, at the Target offer:** the contribution of each feature to the logit, `weight × (transformed value − training mean of the transformed value)`, summed per original feature and converted to percentage points against the average tender. Ranked by absolute size.
+  - Output: `[{feature, value, pts}]`
+  - Example: "price position 1.03: −6 pts · building type school: +5 pts · competitive intensity 4: −4 pts".
+- **Optional, off by default:** a plain-language OpenAI summary of the curve, budget-capped, only when `ai_provider != "off"`. Send only curve numbers and non-sensitive tender facts, never costs, catalogue, baseline or history. No OpenAI calls in tests.
 
-| Margin | Offer | Profit if won | p(win) | Expected contribution |
-|---|---|---|---|---|
-| 4 % | 431,760 | 17,271 | 63 % | 10,848 |
-| 6 % | 440,946 | 26,457 | 52 % | 13,848 |
-| **8 %** | **450,532** | **36,042** | **41 %** | **14,926** (peak) |
-| 10 % | 460,543 | 46,054 | 30 % | 13,816 |
-| 12 % | 471,010 | 56,521 | 18 % | 10,212 |
+## 10. Integration
 
-With these values the range would be about 5.6 % (Aggressive), 8.0 % (Target) and 10.3 % (Conservative).
+### 10.1 Service (`service.py`)
 
-### 4. Tender keywords
+`get_win_model(history_csv, snapshots_csv, params, mode)`:
 
-Each tender is described by four keywords in a **fixed order**, most general first:
+1. loads and validates the CSVs
+2. trains and checks monotonicity
+3. evaluates
+4. returns the model plus its summary
 
-| Level | Values | Read from the tender |
-|---|---|---|
-| Trade | ventilation, heating, air conditioning, refrigeration, plumbing | BKP code (the parser already finds it; 244 → ventilation) |
-| Building type | school, hospital, office, residential, industrial, public building | Words in the project name (e.g. "Schule", "Schulhaus" → school; "Spital", "Klinik" → hospital) |
-| Size class | S < CHF 0.5 M, M 0.5–2 M, L > 2 M | Our cost baseline |
-| Region | Zurich, Bern, Northwest, Central, Eastern, Romandie | Postal code in the tender documents (mapping table in code) |
+It is called once at import in `app/api/main.py`.
 
-- The parser derives the keywords deterministically. **The estimator can override each one** in the UI.
-- If a keyword cannot be read, it is left out. Its effect is zero and the UI says so (e.g. "region unknown").
-- The order is set by domain knowledge, not learned. Trade comes first because it is always known.
+### 10.2 Config
 
-### 5. Market data: competitive pressure only
+`WIN_MODEL=ml | placeholder` in `app/config.py` (default `ml`). Paths for the two CSVs default to `data/reference/v2/`.
 
-Market data is not in the tender. It is **entered manually from time to time** (e.g. quarterly) as a market snapshot:
+### 10.3 Parameters
 
-- **Competitive pressure**, on a 1–5 scale (1 = competitors are busy, 5 = the market is hungry for work).
+Add to `project_parameters.json`:
 
-Each historical bid uses the snapshot that was current on its date. A new tender uses the latest snapshot.
-
-**Dropped:** strategic appetite and available capacity. They express how much *we* want the job. That does not change whether the client accepts an offer, so they do not belong in the win-probability model. (The placeholder's +5-point appetite bonus is removed for that reason.)
-
-### 6. The award rule sets the steepness
-
-Swiss public tenders score each offer as price points plus quality points. Oberglatt gives price 60 of 100 points: the lowest offer gets 60, falling linearly to 0 at 150 % of the lowest. Being 10 % above the lowest therefore costs 12 points. With a rule of 30 points and 0 at 200 %, it costs only 3 points, and quality decides.
-
-The rule is in the tender (already parsed by `parse_award`) and is known before bidding. The model uses it to **scale the slope** of the curve:
-
-```
-price sensitivity = points lost per 1 % above the lowest offer = weight ÷ ((zero_at_ratio − 1) × 100)
-                    (Oberglatt: 60 ÷ 50 = 1.2)
+```json
+"win_model": {
+  "margin_grid_pct": {"start": 0.0, "stop": 20.0, "step": 0.1},
+  "near_optimal_share": 0.9,
+  "min_margin_pct": 2.0,
+  "band": 0.8
+}
 ```
 
-How strongly the slope follows this sensitivity is learned from the data. If a tender states no rule, the sensitivity is neutral (the average of the history).
+Extend `app/reference/models.py` with the matching pydantic model.
 
-### 7. Model structure: shared keyword effects plus combination corrections
+### 10.4 Output
 
-The model is a logistic curve in the offer:
+`price_tender` gets a new key `win_curve`. The existing `scenarios` key is unchanged.
+
+```json
+{
+  "model": "ml",
+  "model_version": "logreg-3fa2c1d0",
+  "market_reference_chf": 1820000,
+  "market_reference_source": "ingestion",
+  "context": {"bkp_trade": "244", "building_type": "school", "...": "..."},
+  "snapshot_date": "2026-07-01",
+  "points": [
+    {"margin_pct": 0.0, "offer": 1660000.0, "price_position": 0.912,
+     "win_probability": 0.71, "p_low": 0.64, "p_high": 0.77, "expected_profit": 0.0}
+  ],
+  "scenarios": [
+    {"name": "Aggressive", "margin_pct": 5.6, "offer": 1758000, "win_probability": 0.54, "expected_profit": 51000.0},
+    {"name": "Target", "margin_pct": 8.0, "offer": 1805000, "win_probability": 0.42, "expected_profit": 57000.0},
+    {"name": "Conservative", "margin_pct": 10.3, "offer": 1851000, "win_probability": 0.29, "expected_profit": 52000.0}
+  ],
+  "explanation": [{"feature": "price_position", "value": 1.03, "pts": -6.0}]
+}
+```
+
+`GET /api/win-model` returns the model summary: model and version, number of rows, date range, the metrics from §6.2 (model vs placeholder), and the global feature relevance from §9.
+
+## 11. Fallback
+
+Use `PlaceholderWinModel` when any of these holds:
+
+- `WIN_MODEL=placeholder`
+- scikit-learn is not installed
+- the history CSV is missing or invalid
+- training fails
+- the monotonicity check fails
+
+The curve and scenarios are then computed the same way, `win_curve.model` is `"placeholder"`, and the summary states the reason. The API must start and price tenders in every case.
+
+## 12. Tests (`backend/tests/test_winprob.py`)
+
+- **Fixture:** a small synthetic history (e.g. 600 rows, fixed seed) generated in `conftest.py`, following the data contract. The fixture should include:
+  - a clear negative price effect, stronger with higher price sensitivity
+  - a few features with real effects
+  - a couple of features with no effect
+
+  This is only to test the code. Its formula is not the real dataset.
+- **Data:** validation rejects a missing column and an out-of-range value.
+- **Model:**
+  - trains deterministically (same data → same weights)
+  - the monotonicity check passes
+  - test AUC on the fixture ≥ 0.70
+  - beats the placeholder's log loss on the fixture
+  - no-effect features rank below the real ones in permutation importance
+- **Curve:**
+  - 201 points
+  - probability non-increasing in the offer, for many random contexts
+  - `p_low ≤ p ≤ p_high`
+- **Scenarios:**
+  - ordered
+  - margins ≥ 2 %
+  - Target is the maximum expected profit on the grid
+  - rounded offers are multiples of `round_to_chf`
+- **Fallback:**
+  - forced by `WIN_MODEL=placeholder`
+  - triggered when the history path does not exist
+  - the result still has `win_curve`
+- **Unchanged:** existing golden tests still pass.
+
+## 13. Rules
+
+- Do not change `app/pricing/scenarios.py` or the golden numbers.
+- Never use `margin_pct`, `baseline_cost_chf`, `bid_date` or `won` as inputs.
+- Fixed seeds everywhere: same CSV → same model → same curve.
+- Guarded scikit-learn import; the API works without the extra.
+- No OpenAI calls in tests.
+
+## 14. Steps (in order; each ends with `make test` green)
+
+| Step | Work |
+| --- | --- |
+| 1 | `schema.py`: column lists, derived features, CSV loading and validation, `TenderContext`; test fixture in `conftest.py` |
+| 2 | `model.py`: pipeline, `train`, `evaluate`, monotonicity check, Laplace band, `PlaceholderWinModel` |
+| 3 | `curve.py`: grid, curve, scenarios |
+| 4 | `explain.py`: global relevance and per-tender breakdown (OpenAI summary optional, off) |
+| 5 | `service.py`, config, parameters, `tender_context.json` fixture, `win_curve` in `price_tender`, `GET /api/win-model` |
+| 6 | Once the real dataset is in `data/reference/v2/`: run `evaluate`, check the metrics and feature relevance, adjust nothing in the model structure unless a test fails |
+
+## 15. Files
 
 ```
-logit p = intercept − slope × (x − x₀) + γ × (competitive pressure − 3)
+backend/app/winprob/
+  schema.py      columns, derived features, loading/validation, TenderContext, CurvePoint
+  model.py       WinModel protocol, LogisticWinModel, PlaceholderWinModel, train, evaluate
+  curve.py       grid → offer → price position → probability → expected profit; scenarios
+  explain.py     global relevance, per-tender breakdown, optional OpenAI summary
+  service.py     load, train, check, fallback; model summary
+  synthetic.py   dataset generator (not part of this task)
+backend/tests/test_winprob.py, backend/tests/conftest.py (fixture)
+data/reference/v2/historical_bids.csv, data/reference/v2/market_snapshots.csv   (delivered separately)
+data/samples/oberglatt/tender_context.json
+docs/win-probability-model.md   this plan
 ```
-
-`x₀` is a fixed centring point, e.g. the offer at a 5 % margin.
-
-The intercept and the slope are both built from:
-
-1. **A global value**, learned from all bids.
-2. **Main effects**, one per keyword: a shift for "school", for "ventilation" and so on. Each is learned from **every** bid that has that keyword, across all other keywords, so the data is used efficiently.
-3. **Combination corrections**, following the fixed order: trade × building type, then trade × building type × size, then adding region. Each starts at **zero** and moves away from zero only as its own data accumulates. This is how the model *specializes*: smoothly, with no hard threshold.
-
-Rules:
-
-- All effects are shrunk towards zero (penalized logistic regression, i.e. a Gaussian prior). Deeper combinations, and effects on the slope, are shrunk harder.
-- The shrinkage strength is chosen by **out-of-time validation**: train on the first 2.5 years, evaluate on the last 6 months.
-- The award-rule sensitivity scales the slope (decision 6).
-- **The slope is always positive**: a higher offer never raises the win probability.
-- The uncertainty band comes from the fit's covariance. It is wide for rare keyword combinations.
-
-For each tender the UI can explain the curve step by step, e.g. "ventilation −3 pts · school +5 pts · ventilation × school correction (42 bids) +2 pts · competitive pressure 4 −4 pts".
-
-### 8. Synthetic dataset
-
-We have no real history, so we generate one. It is for our own use only and **does not need to be realistic**.
-
-- **2,000 bids over 3 years** (2023-10 to 2026-09), reproducible from a fixed seed.
-- **One row per bid**, with only what we would really know: date, the four keywords, cost baseline, offer (and margin), the award rule (weight, zero-points ratio, or none), and won/lost.
-- **No competitor bids** (in reality we would not have them).
-- **Market snapshots** in their own table: one row per manual update, with date and competitive pressure.
-- **How outcomes are generated:** from a hidden "true" curve built with the same structure as the model: global, plus keyword effects, plus a few sizeable combination effects, plus pressure and award sensitivity. Outcomes are drawn at random from it. Because the truth is known, we can show that the model recovers it, and how its accuracy improves as the number of bids grows.
-- **How offers are chosen:** margins vary around ~5 % with a realistic spread, and estimators bid a little lower when pressure is high. The model must therefore include pressure to avoid a biased slope.
-- Keyword frequencies are generic. **The Oberglatt segment (ventilation / school / M / Zurich) is not given special weight**, to avoid tuning the demo to our own case.
-
-### 9. Runtime
-
-- The model is **fitted at API startup** from the bid history and the market snapshots. Refitting is cheap: there is no stored model file.
-- If there is no history, the system falls back to the placeholder formula, and the curve and scenarios are computed from it. The output says which source was used.
-- `test_golden_scenarios` keeps testing the placeholder (the fallback). New tests cover the learned model:
-  - it recovers the hidden truth
-  - the slope is always positive
-  - scenarios are ordered Aggressive < Target < Conservative and respect the 2 % minimum
-  - out-of-time validation beats the placeholder and a model without keywords
-
-## Planned layout (tentative)
-
-| What | Where |
-|---|---|
-| Bid history, market snapshots | `data/reference/v2/bid_history.csv`, `data/reference/v2/market_snapshots.csv` |
-| Generator, model, curve and scenarios | `backend/app/winprob/` |
-| New parameters (tolerance 90 %, minimum margin 2 %, offer grid) | `project_parameters.json` |
-| API | Pricing result gains the curve, the scenarios, the keyword explanation and the model source; a model summary endpoint (data used, validation scores) |
-| UI | Slider over the curve (later) |

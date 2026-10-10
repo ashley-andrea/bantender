@@ -1,4 +1,4 @@
-"""Model lifecycle: train at API start, cache by history hash, fall back to the placeholder (PLAN.md §4.2, step 4)."""
+"""Model lifecycle: train at API start, fall back to the placeholder (plan §10, step 5)."""
 
 from __future__ import annotations
 
@@ -11,4 +11,4 @@ from .model import WinModel
 
 def get_win_model(history_csv: Path, cache_dir: Path, params: ProjectParameters, mode: str = "ml") -> WinModel:
     """`mode="placeholder"`, missing sklearn, or a training error → PlaceholderWinModel."""
-    raise NotImplementedError("Step 4 in PLAN.md")
+    raise NotImplementedError("Step 5 in docs/win-probability-model.md")

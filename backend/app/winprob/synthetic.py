@@ -1,4 +1,4 @@
-"""Fake bid history generated from a known hidden formula (PLAN.md §6). The model never reads GROUND_TRUTH."""
+"""Fake bid history generated from a known hidden formula. Generated separately (see the plan §2). The model never reads GROUND_TRUTH."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 SEED = 42
 N_ROWS = 1500
 
-# Starting values; tune so the overall win rate is ~25–35 % (PLAN.md §6).
+# Starting values; tune so the overall win rate is ~25–35 %.
 GROUND_TRUTH = {
     "b0": 0.0,
     "b_price": -0.25,  # per 1 % above the market reference, at price_weight_pct = 50
@@ -28,8 +28,8 @@ GROUND_TRUTH = {
 
 def generate(n: int = N_ROWS, seed: int = SEED) -> list[dict]:
     """One dict per past bid with every column in schema.py, including `won`."""
-    raise NotImplementedError("Step 1 in PLAN.md")
+    raise NotImplementedError("dataset generator, outside the model task (plan §2)")
 
 
 def write_csv(rows: list[dict], path: Path) -> None:
-    raise NotImplementedError("Step 1 in PLAN.md")
+    raise NotImplementedError("dataset generator, outside the model task (plan §2)")

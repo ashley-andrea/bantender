@@ -1,4 +1,4 @@
-"""Win probability per margin, learned from (synthetic) bid history. Plan and status: PLAN.md."""
+"""Win probability per margin, learned from (synthetic) bid history. Plan and status: docs/win-probability-model.md."""
 
 from .curve import margin_grid, win_curve
 from .model import LogisticWinModel, PlaceholderWinModel, WinModel

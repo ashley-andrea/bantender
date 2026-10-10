@@ -1,4 +1,4 @@
-"""Column names and data contracts for the win-probability model (single source of truth; see PLAN.md §5)."""
+"""Column names and data contracts for the win-probability model (single source of truth; see the plan §4)."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ class TenderContext(BaseModel):
     client_type: str
     canton: str
     procedure: str
-    market_reference_chf: float | None = None  # None → fallback, see PLAN.md §4.5
+    market_reference_chf: float | None = None  # None → fallback, see the plan §7.1
     n_lots: int = 1
     price_weight_pct: float = 50.0
     n_bidders: int

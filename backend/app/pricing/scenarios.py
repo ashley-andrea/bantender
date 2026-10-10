@@ -45,7 +45,7 @@ def bid_scenarios(baseline: float, params: ProjectParameters) -> list[Scenario]:
     return out
 
 
-def award_price_points(price: float, lowest_price: float, weight: float = 60.0, zero_at_ratio: float = 1.5) -> float:
-    """Tender p.9: 100 points at the lowest offer, linearly to 0 at 150 % of it, times the 60-point weight."""
+def award_price_points(price: float, lowest_price: float, weight: float, zero_at_ratio: float) -> float:
+    """Linear price scoring: full weight at the lowest offer, 0 at zero_at_ratio × the lowest (both read from the tender)."""
     share = max(0.0, 1 - (price / lowest_price - 1) / (zero_at_ratio - 1))
     return weight * min(share, 1.0)

@@ -47,7 +47,7 @@ def test_rejects_non_pdf(client):
 def test_pricing_override_settings_and_audit(client):
     tid = client.get("/api/tenders").json()[0]["tender_id"]
     base = client.get(f"/api/tenders/{tid}/pricing").json()
-    assert base["project"]["selling_price"] > 0 and base["summary"]["priced_lines"] > 100
+    assert base["project"]["selling_price"] > 0 and base["summary"]["tender"]["priced"] > 100
     target = next(r for r in base["lines"] if r["decision"]["status"] == "review_required" and not r["cost"])
     edited = client.patch(f"/api/tenders/{tid}/lines/{target['line_id']}", json={"unit_price": 250, "note": "list price"}).json()
     assert edited["project"]["selling_price"] >= base["project"]["selling_price"]

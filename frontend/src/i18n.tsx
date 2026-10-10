@@ -30,8 +30,32 @@ const STRINGS = {
   priced: { en: 'Priced', de: 'Kalkuliert' },
   needsPrice: { en: 'Need a price', de: 'Ohne Preis' },
   allLots: { en: 'All lots', de: 'Alle Lose' },
-  lot1: { en: 'Lot 1 · School', de: 'Los 1 · Schulhaus' },
-  lot2: { en: 'Lot 2 · Sports hall', de: 'Los 2 · Turnhalle' },
+  lot: { en: 'Lot', de: 'Los' },
+  allSources: { en: 'All lines', de: 'Alle Zeilen' },
+  tenderLines: { en: 'Tender lines', de: 'LV-Positionen' },
+  cadLines: { en: 'From CAD lists', de: 'Aus Bauteilliste' },
+  pricedOf: { en: 'priced', de: 'kalkuliert' },
+  ofLines: { en: 'of', de: 'von' },
+  linesToPrice: { en: 'tender lines priced', de: 'LV-Positionen kalkuliert' },
+  calculatedWord: { en: 'calculated', de: 'berechnet' },
+  provisionalWord: { en: 'provisional', de: 'provisorisch' },
+  unpricedWord: { en: 'unpriced', de: 'ohne Preis' },
+  excludedWord: { en: 'excluded', de: 'ausgeschlossen' },
+  statusHelp: {
+    en: 'Calculated: priced with no open question. Provisional: priced, but a supplier quote, an assumption or a review is still open. Unpriced: no catalogue item or no quantity yet. Excluded lines (covered elsewhere or not priceable) are not counted.',
+    de: 'Berechnet: kalkuliert, keine offene Frage. Provisorisch: kalkuliert, aber Offerte, Annahme oder Prüfung offen. Ohne Preis: kein Katalogartikel oder keine Menge. Ausgeschlossene Positionen werden nicht gezählt.',
+  },
+  atMargin: { en: 'at', de: 'bei' },
+  marginWord: { en: 'margin', de: 'Marge' },
+  lineCost: { en: 'line cost', de: 'Positionskosten' },
+  bySystemNote: { en: 'Direct line costs (material + labour), before allowances, overhead and margin.', de: 'Direkte Positionskosten (Material + Montage), vor Zuschlägen, Gemeinkosten und Marge.' },
+  chooseProduct: { en: 'Choose a catalogue product', de: 'Katalogprodukt wählen' },
+  searchCatalog: { en: 'Search catalogue, e.g. valve DN160', de: 'Katalog durchsuchen, z.B. Ventil DN160' },
+  invalidNumber: { en: 'Enter a number, e.g. 12.5', de: 'Zahl eingeben, z.B. 12.5' },
+  loading: { en: 'Loading tender…', de: 'Ausschreibung wird geladen…' },
+  mountingHeight: { en: 'Mounting height per system', de: 'Montagehöhe pro Anlage' },
+  noLines: { en: 'No lines match these filters.', de: 'Keine Positionen für diese Filter.' },
+  awardMissing: { en: 'The tender states no price-scoring rule.', de: 'Die Ausschreibung nennt keine Preisbewertung.' },
   search: { en: 'Search, e.g. valve, DN160, 78', de: 'Suchen, z.B. Tellerventil, DN160, 78' },
   linesShown: { en: 'lines shown · ↑↓ to move', de: 'Positionen · ↑↓ zum Wechseln' },
   colLine: { en: 'Line', de: 'Pos.' },
@@ -74,11 +98,7 @@ const STRINGS = {
   scenarios: { en: 'Recommended bid range', de: 'Empfohlene Angebotsspanne' },
   winProb: { en: 'Win probability', de: 'Zuschlagschance' },
   contribution: { en: 'Expected contribution', de: 'Erwarteter Deckungsbeitrag' },
-  awardTitle: { en: 'Award points for price (tender p.9)', de: 'Preispunkte gemäss Ausschreibung (S.9)' },
-  awardNote: {
-    en: 'Price is worth 60 of 100 points: 100 % at the lowest offer, 0 at 150 % of it. Each 1 % above the lowest costs 1.2 points.',
-    de: 'Der Preis zählt 60 von 100 Punkten: volle Punktzahl beim tiefsten Angebot, 0 bei 150 %. Jedes 1 % darüber kostet 1.2 Punkte.',
-  },
+  awardTitle: { en: 'Award points for price', de: 'Preispunkte gemäss Ausschreibung' },
   placeholderModel: { en: 'Win model supplied by Equans (placeholder).', de: 'Zuschlagsmodell von Equans (Platzhalter).' },
   bySystem: { en: 'By system', de: 'Nach Anlage' },
   close: { en: 'Close', de: 'Schliessen' },
@@ -117,6 +137,36 @@ export function useI18n() {
   const { lang, setLang } = useContext(LangContext)
   const t = (k: Key) => STRINGS[k][lang]
   return { lang, setLang, t }
+}
+
+/** Text from the API: either a plain string or {en, de}. */
+export function tx(v: string | { en: string; de: string } | null | undefined, lang: Lang): string {
+  if (v == null) return ''
+  return typeof v === 'string' ? v : v[lang] || v.en
+}
+
+export function awardNote(a: { weight: number; total_points: number; zero_at_ratio: number; points_per_pct: number; page: number }, lang: Lang) {
+  const zero = Math.round(a.zero_at_ratio * 100)
+  const per = a.points_per_pct.toLocaleString(lang === 'de' ? 'de-CH' : 'en-GB', { maximumFractionDigits: 2 })
+  return lang === 'de'
+    ? `Der Preis zählt ${a.weight} von ${a.total_points} Punkten: volle Punktzahl beim tiefsten Angebot, 0 bei ${zero} % davon. Jedes 1 % über dem tiefsten Angebot kostet ${per} Punkte (Ausschreibung S. ${a.page}).`
+    : `Price is worth ${a.weight} of ${a.total_points} points: full points at the lowest offer, 0 at ${zero} % of it. Each 1 % above the lowest offer costs ${per} points (tender p.${a.page}).`
+}
+
+export function humanize(key: string) {
+  return key.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
+}
+
+export const FLAG_LABELS: Record<string, { en: string; de: string }> = {
+  header_system_mismatch: { en: 'Page header mislabelled', de: 'Seitenkopf falsch beschriftet' },
+  implausible_size: { en: 'Implausible size', de: 'Unplausible Grösse' },
+  reader_disagreement: { en: 'Readers disagree', de: 'Leser uneinig' },
+  quantity_missing: { en: 'Quantity missing', de: 'Menge fehlt' },
+}
+
+export const SECTION_EN: Record<string, string> = {
+  Apparate: 'Equipment', 'Kanäle': 'Ductwork', 'Armaturen und Instrumente': 'Fittings and instruments', Regulierung: 'Controls',
+  'Montage, Dienstleistungen': 'Installation and services', 'Dämmungen': 'Insulation',
 }
 
 export function LangToggle() {

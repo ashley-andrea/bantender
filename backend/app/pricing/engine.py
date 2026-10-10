@@ -12,8 +12,7 @@ from dataclasses import dataclass, field
 from app.reference.models import ProjectParameters, ReferenceData
 
 SITE_EFFICIENCY = "site_efficiency"
-SCHOOL_HEIGHT = "mounting_height_school"
-SPORTS_HALL_HEIGHT = "mounting_height_sports_hall"
+HEIGHT_PREFIX = "mounting_height_"
 
 
 @dataclass(frozen=True)
@@ -31,8 +30,9 @@ class LineInput:
     unit: str
     product_id: str | None
     install_code: str | None
-    # "school" or "sports_hall": selects the mounting-height factor.
-    location: str = "school"
+    # Mounting-height location: "default" keeps the rule's own factor; any other value selects
+    # "mounting_height_<location>" when the parameters define it (e.g. "sports_hall").
+    location: str = "default"
     unit_cost_override: float | None = None  # estimator input or supplier quote
     unit_cost_source: str | None = None
 
@@ -64,8 +64,8 @@ def factor_for(rule_keys: list[str], factors: dict[str, float], location: str) -
     """Product of the rule's project factors; site_efficiency is applied as 1/x."""
     product, parts = 1.0, []
     for key in rule_keys:
-        if key == SCHOOL_HEIGHT and location == "sports_hall" and SPORTS_HALL_HEIGHT in factors:
-            key = SPORTS_HALL_HEIGHT
+        if key.startswith(HEIGHT_PREFIX) and location != "default" and f"{HEIGHT_PREFIX}{location}" in factors:
+            key = f"{HEIGHT_PREFIX}{location}"
         value = factors[key]
         if key == SITE_EFFICIENCY:
             product /= value

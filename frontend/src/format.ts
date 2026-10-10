@@ -16,24 +16,9 @@ export function sizeChips(s: { dn_mm?: number; width_mm?: number; height_mm?: nu
   return chips
 }
 
-export const SECTION_NAMES: Record<string, string> = {
-  A: 'Apparate',
-  B: 'Kanäle',
-  C: 'Armaturen',
-  D: 'Regulierung',
-  E: 'Montage',
-  F: 'Dämmungen',
-}
-
-export const FLAG_LABEL: Record<string, string> = {
-  header_system_mismatch: 'Page header mislabelled',
-  implausible_size: 'Implausible size',
-  reader_disagreement: 'Readers disagree',
-  quantity_missing: 'Quantity missing',
-}
-
 const chf0 = new Intl.NumberFormat('de-CH', { maximumFractionDigits: 0 })
 const chf2 = new Intl.NumberFormat('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-export const fmtChf = (n: number | null | undefined, decimals = 0) => (n == null ? '—' : (decimals ? chf2 : chf0).format(n))
+export const fmtChf = (n: number | null | undefined, decimals = 0) =>
+  n == null ? '—' : decimals === 0 ? chf0.format(n) : decimals === 2 ? chf2.format(n) : new Intl.NumberFormat('de-CH', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(n)
 export const fmtPct = (n: number) => `${n.toLocaleString('de-CH', { maximumFractionDigits: 1 })} %`

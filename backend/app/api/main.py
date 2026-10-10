@@ -53,16 +53,21 @@ async def upload_tender(file: UploadFile) -> dict:
         raise HTTPException(400, "Please upload a PDF file.")
     tender_id = hashlib.sha256(data).hexdigest()[:16]
     result_key = f"tenders/{tender_id}/parsed.json"
-    current = storage.exists(result_key) and json.loads(storage.get(result_key))["meta"].get("parser_version") == PARSER_VERSION
-    if not current:
+    if not storage.exists(result_key):
         storage.put(f"tenders/{tender_id}/tender.pdf", data)
-        with tempfile.TemporaryDirectory() as tmp:
-            pdf = Path(tmp) / "tender.pdf"
-            pdf.write_bytes(data)
-            tender, meta = parse_tender(pdf)
-        meta["filename"] = file.filename
-        storage.put(result_key, json.dumps(tender_to_dict(tender, meta), ensure_ascii=False).encode())
+        _parse_and_store(tender_id, file.filename)
     return {"tender_id": tender_id, **summary(tender_id)}
+
+
+def _parse_and_store(tender_id: str, filename: str | None) -> dict:
+    with tempfile.TemporaryDirectory() as tmp:
+        pdf = Path(tmp) / "tender.pdf"
+        pdf.write_bytes(storage.get(f"tenders/{tender_id}/tender.pdf"))
+        tender, meta = parse_tender(pdf)
+    meta["filename"] = filename
+    parsed = tender_to_dict(tender, meta)
+    storage.put(f"tenders/{tender_id}/parsed.json", json.dumps(parsed, ensure_ascii=False).encode())
+    return parsed
 
 
 def _load(tender_id: str) -> dict:
@@ -70,6 +75,9 @@ def _load(tender_id: str) -> dict:
     if not tender_id.isalnum() or not storage.exists(key):
         raise HTTPException(404, "Unknown tender")
     parsed = json.loads(storage.get(key))
+    if parsed["meta"].get("parser_version") != PARSER_VERSION:
+        # Parser improved since this tender was stored: re-parse the stored PDF (line ids are stable, overrides survive).
+        parsed = _parse_and_store(tender_id, parsed["meta"].get("filename"))
     check_key = f"tenders/{tender_id}/crosscheck.json"
     if storage.exists(check_key):
         check = json.loads(storage.get(check_key))
@@ -84,6 +92,7 @@ def summary(tender_id: str) -> dict:
     return {
         "filename": parsed["meta"].get("filename"),
         "pages": parsed["meta"]["pages"],
+        "project": parsed.get("project", {}),
         "systems": parsed["systems"],
         "lines": len(parsed["lines"]),
         "anomalies": len(parsed["anomalies"]),
@@ -140,6 +149,8 @@ def _pricing(tender_id: str) -> dict:
     settings_ = _get_json(f"tenders/{tender_id}/settings.json", {})
     result = price_tender(parsed, reference, overrides, settings_)
     result["anomalies"] = parsed["anomalies"]
+    result["tender"] = {"project": parsed.get("project", {}), "lots": parsed.get("lots", {}),
+                        "systems": parsed["systems"], "award": parsed.get("award")}
     result["reference_version"] = reference.version
     return result
 
@@ -191,7 +202,7 @@ def reset_line(tender_id: str, line_id: str) -> dict:
 def update_settings(tender_id: str, body: dict) -> dict:
     _load(tender_id)
     allowed = {"factors", "allowances", "overhead_pct", "margin_pct", "risk_allowance_chf", "include_project_costs",
-               "include_small_material", "include_supplier_contingency", "include_cad_ductwork"}
+               "include_small_material", "include_supplier_contingency", "include_cad_ductwork", "locations"}
     if set(body) - allowed:
         raise HTTPException(400, f"Unknown settings: {sorted(set(body) - allowed)}")
     key = f"tenders/{tender_id}/settings.json"

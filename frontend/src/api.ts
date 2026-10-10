@@ -1,4 +1,4 @@
-import type { Override, Parsed, Pricing, TenderSummary } from './types'
+import type { CatalogItem, Override, Parsed, Pricing, TenderSummary } from './types'
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -26,4 +26,5 @@ export const api = {
     return fetch('/api/tenders', { method: 'POST', body: form }).then((r) => json<TenderSummary>(r))
   },
   pdfUrl: (id: string) => `/api/tenders/${id}/pdf`,
+  searchCatalog: (q: string) => fetch(`/api/catalog/search?q=${encodeURIComponent(q)}`).then((r) => json<CatalogItem[]>(r)),
 }

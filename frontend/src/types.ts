@@ -34,17 +34,38 @@ export interface Line {
   size_key: string | null
 }
 
+export type Text = string | { en: string; de: string }
+
 export interface Anomaly {
   page: number
   code: string
   message: string
+  message_de?: string
 }
 
 export interface SystemInfo {
   name: string
   lot: string
+  location?: string
   first_page: number
   last_page: number
+}
+
+export interface TenderProject {
+  name: string | null
+  bkp: string | null
+  trade_en: string | null
+  trade_de: string | null
+}
+
+export interface Award {
+  weight: number
+  zero_at_ratio: number
+  total_points: number
+  page: number
+  quote: string
+  points_per_pct: number
+  examples: { ratio: number; points: number }[]
 }
 
 export interface Parsed {
@@ -57,6 +78,8 @@ export interface Parsed {
     cross_check?: string
     page_sizes: Record<string, [number, number]>
   }
+  project?: TenderProject
+  lots?: Record<string, { name: string | null; systems: string[] }>
   systems: Record<string, SystemInfo>
   lines: Line[]
   anomalies: Anomaly[]
@@ -66,6 +89,7 @@ export interface Parsed {
 export interface TenderSummary {
   tender_id: string
   filename: string | null
+  project?: TenderProject
   pages: number
   systems: Record<string, SystemInfo>
   lines: number
@@ -74,10 +98,10 @@ export interface TenderSummary {
 
 export interface Check {
   key: string
-  label: string
+  label: Text
   result: 'pass' | 'partial' | 'fail'
   score: number
-  detail: string
+  detail: Text
 }
 
 export interface TraceStep {
@@ -102,8 +126,8 @@ export interface Decision {
   confidence: number | null
   band: 'high' | 'medium' | 'low' | null
   checks: Check[]
-  reasons: string[]
-  assumptions: string[]
+  reasons: Text[]
+  assumptions: Text[]
   alternatives: { product_id: string; description: string; net_cost_chf: number; reason: string }[]
   labour_only_possible: boolean
   overridden: string[]
@@ -129,12 +153,14 @@ export interface PricedLine {
   system: string
   lot: string
   section: string
+  section_name: string
   title_en: string
   title_de: string
   tender_quantity: number | null
   tender_unit: string | null
   decision: Decision
   cost: LineCost | null
+  status_key: string
   evidence: { page: number; bbox: BBox }[] | null
   pages: number[] | null
 }
@@ -173,27 +199,45 @@ export interface Pricing {
   lines: PricedLine[]
   project: ProjectCost
   scenarios: Scenario[]
+  award: Award | null
   summary: {
-    lv_lines: number
-    cad_lines: number
-    actionable_lines: number
-    priced_lines: number
-    coverage_pct: number
-    value_confirmed_pct: number
-    needs_price: number
-    by_status: Record<string, { count: number; chf: number }>
+    tender: {
+      lines: number
+      excluded: number
+      to_price: number
+      priced: number
+      calculated: number
+      provisional: number
+      unpriced: number
+      needs_price: number
+      missing_info: number
+      coverage_pct: number
+    }
+    cad: { lines: number; priced: number; chf: number }
+    value: { total_chf: number; calculated_chf: number; provisional_chf: number; calculated_pct: number }
+    by_status: Record<string, { count: number; lv: number; cad: number; chf: number }>
     by_system: Record<string, number>
     by_lot: Record<string, number>
   }
   settings: {
     factors: Record<string, number>
     margin_pct: number
+    target_margin_pct: number
+    round_to_chf: number
     risk_allowance_chf: number
     include_project_costs: boolean
     include_cad_ductwork: boolean
     overhead_pct: number
+    locations: Record<string, string>
+    location_options: string[]
   }
   anomalies: Anomaly[]
+  tender: {
+    project: TenderProject
+    lots: Record<string, { name: string | null; systems: string[] }>
+    systems: Record<string, SystemInfo>
+    award: Award | null
+  }
 }
 
 export interface Override {
@@ -205,4 +249,15 @@ export interface Override {
   status?: string
   confirmed?: boolean
   note?: string
+}
+
+export interface CatalogItem {
+  product_id: string
+  category: string
+  subcategory: string
+  description: string
+  unit: string
+  net_cost_chf: number
+  install_code: string
+  supplier_quote_required: boolean
 }

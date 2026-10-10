@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
 import { fmtChf, fmtPct } from '../format'
-import { useI18n } from '../i18n'
-import type { Pricing } from '../types'
+import { awardNote, humanize, useI18n } from '../i18n'
+import type { Award as AwardRule, Pricing } from '../types'
 
 interface Props {
   pricing: Pricing
-  systems: Record<string, { name: string; lot: string }>
   onSettings: (body: Record<string, unknown>) => void
 }
 
-export function BuildUp({ pricing, systems, onSettings }: Props) {
+export function BuildUp({ pricing, onSettings }: Props) {
+  const systems = pricing.tender.systems
   const { t, lang } = useI18n()
   const L = (en: string, de: string) => (lang === 'de' ? de : en)
   const p = pricing.project
@@ -32,7 +32,7 @@ export function BuildUp({ pricing, systems, onSettings }: Props) {
     { label: L('Risk allowance', 'Risikozuschlag'), value: p.risk, kind: 'part' },
     { label: L('Overhead', 'Gemeinkosten'), value: p.overhead, kind: 'part', note: `${s.overhead_pct} %` },
     { label: L('Cost baseline', 'Selbstkosten'), value: p.baseline, kind: 'total' },
-    { label: L('Margin', 'Marge'), value: margin, kind: 'part', note: L(`${fmtPct(p.margin_pct)} of price, rounded up to CHF 1'000`, `${fmtPct(p.margin_pct)} vom Preis, auf CHF 1'000 aufgerundet`) },
+    { label: L('Margin', 'Marge'), value: margin, kind: 'part', note: L(`${fmtPct(p.margin_pct)} of price, rounded up to CHF ${fmtChf(s.round_to_chf)}`, `${fmtPct(p.margin_pct)} vom Preis, auf CHF ${fmtChf(s.round_to_chf)} aufgerundet`) },
   ]
   let running = 0
 
@@ -40,6 +40,11 @@ export function BuildUp({ pricing, systems, onSettings }: Props) {
     <div className="h-full min-h-0 grid grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] gap-3">
       <div className="min-h-0 overflow-auto scroll-thin rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-card)] p-5">
         <h2 className="text-[15px] font-semibold">{t('buildUp')}</h2>
+        <p className="mt-1 text-[12.5px] text-muted">
+          {L('Line costs', 'Positionskosten')} CHF {fmtChf(pricing.summary.value.total_chf)}:{' '}
+          <span className="text-[#078a57] font-semibold">{fmtPct(pricing.summary.value.calculated_pct)} {L('calculated', 'berechnet')}</span>,{' '}
+          <span className="text-[#b36b00] font-semibold">{fmtPct(100 - pricing.summary.value.calculated_pct)} {L('provisional (supplier quotes, assumptions, reviews)', 'provisorisch (Offerten, Annahmen, Prüfungen)')}</span>.
+        </p>
         <div className="mt-4 space-y-1.5">
           {steps.map((st) => {
             const start = st.kind === 'total' ? 0 : running
@@ -71,6 +76,7 @@ export function BuildUp({ pricing, systems, onSettings }: Props) {
         </div>
 
         <h3 className="mt-8 text-[11px] font-semibold uppercase tracking-wide text-muted">{t('bySystem')}</h3>
+        <p className="text-[11.5px] text-muted mt-0.5">{t('bySystemNote')}</p>
         <div className="mt-2 space-y-1.5">
           {Object.entries(pricing.summary.by_system).map(([code, chf]) => (
             <div key={code} className="grid grid-cols-[190px_1fr_110px] items-center gap-3 text-[13px]">
@@ -107,7 +113,9 @@ export function BuildUp({ pricing, systems, onSettings }: Props) {
           </div>
           <p className="mt-2 text-[11px] text-muted">{t('placeholderModel')}</p>
         </div>
-        <Award />
+        {pricing.award ? <Award rule={pricing.award} /> : (
+          <div className="rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-card)] p-5 text-[13px] text-muted">{t('awardMissing')}</div>
+        )}
       </div>
     </div>
   )
@@ -137,6 +145,26 @@ function Parameters({ pricing, onSettings }: { pricing: Pricing; onSettings: (b:
       </form>
       <Toggle label={t('includeCad')} on={s.include_cad_ductwork} onChange={(v) => onSettings({ include_cad_ductwork: v })} />
       <Toggle label={t('includeProject')} on={s.include_project_costs} onChange={(v) => onSettings({ include_project_costs: v })} />
+      {s.location_options.length > 1 && (
+        <div className="mt-4">
+          <div className="text-[13px] mb-1.5">{t('mountingHeight')}</div>
+          <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-1 text-[12.5px] items-center">
+            {Object.entries(pricing.tender.systems).map(([code, sys]) => {
+              const loc = s.locations[code]
+              return (
+                <div key={code} className="contents">
+                  <span className="truncate">{code} {sys.name}</span>
+                  <select value={loc} onChange={(e) => onSettings({ locations: { ...s.locations, [code]: e.target.value } })}
+                    className="rounded-md border border-hair bg-surface px-1.5 py-0.5">
+                    {s.location_options.map((o) => <option key={o} value={o}>{humanize(o)}</option>)}
+                  </select>
+                  <span className="num text-muted w-10 text-right">×{s.factors[`mounting_height_${loc}`] ?? 1}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -166,31 +194,32 @@ function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange:
   )
 }
 
-function Award() {
-  const { t } = useI18n()
-  // Tender p.9: 60 × max(0, 1 − (P/Pmin − 1)/0.5)
-  const pts = (r: number) => 60 * Math.max(0, 1 - (r - 1) / 0.5)
-  const W = 460, H = 150, x = (r: number) => 30 + ((r - 1) / 0.6) * (W - 50), y = (v: number) => 26 + (1 - v / 60) * (H - 56)
-  const marks = [1, 1.05, 1.1, 1.2, 1.5]
+function Award({ rule }: { rule: AwardRule }) {
+  const { t, lang } = useI18n()
+  // Linear scoring read from the tender: full weight at the lowest offer, 0 at zero_at_ratio × lowest.
+  const span = rule.zero_at_ratio - 1
+  const pts = (r: number) => rule.weight * Math.max(0, 1 - (r - 1) / span)
+  const W = 460, H = 150, x = (r: number) => 30 + ((r - 1) / (span * 1.2)) * (W - 50), y = (v: number) => 26 + (1 - v / rule.weight) * (H - 56)
+  const marks = rule.examples.map((e) => e.ratio)
   return (
     <div className="rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-card)] p-5">
       <h2 className="text-[15px] font-semibold">{t('awardTitle')}</h2>
       <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full max-w-[460px]">
         <line x1={24} y1={H - 22} x2={W - 8} y2={H - 22} stroke="#e5e5ea" />
-        <polyline fill="none" stroke="#f0b90b" strokeWidth={2.5} points={[1, 1.5, 1.6].map((r) => `${x(r)},${y(pts(r))}`).join(' ')} />
+        <polyline fill="none" stroke="#f0b90b" strokeWidth={2.5} points={[1, rule.zero_at_ratio, 1 + span * 1.2].map((r) => `${x(r)},${y(pts(r))}`).join(' ')} />
         {marks.map((r) => (
           <g key={r}>
             <circle cx={x(r)} cy={y(pts(r))} r={3.5} fill="#1d1d1f" />
             <text x={x(r)} y={y(pts(r)) - 8} fontSize={11} textAnchor="middle" fill="#1d1d1f">
-              {pts(r).toFixed(0)}
+              {fmtChf(Math.round(pts(r) * 10) / 10, Number.isInteger(Math.round(pts(r) * 10) / 10) ? 0 : 1)}
             </text>
-            <text x={x(r) + (r === 1.05 ? 4 : 0)} y={H - 8} fontSize={10.5} textAnchor="middle" fill="#6e6e73">
+            <text x={x(r)} y={H - 8} fontSize={10.5} textAnchor="middle" fill="#6e6e73">
               +{Math.round((r - 1) * 100)}%
             </text>
           </g>
         ))}
       </svg>
-      <p className="mt-1 text-[12px] text-muted">{t('awardNote')}</p>
+      <p className="mt-1 text-[12px] text-muted">{awardNote(rule, lang)}</p>
     </div>
   )
 }

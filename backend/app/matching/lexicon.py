@@ -26,6 +26,7 @@ class Rule:
     fixed_product: str | None = None
     disposition: str | None = None  # non_priceable | covered | out_of_scope | no_catalogue
     note: str = ""
+    note_de: str = ""
     extra: dict = field(default_factory=dict)
 
 
@@ -33,15 +34,15 @@ R = Rule
 RULES: tuple[Rule, ...] = (
     # Covered elsewhere or not priced per line
     R("hygiene", "Hygiene inspection (VDI 6022)", "Hygiene-Erstinspektion", (r".",), (r"laboranalysen|hygiene",),
-      sections="E", disposition="covered", note="Covered by the project cost 'hygiene inspection'."),
+      sections="E", disposition="covered", note="Covered by the project cost 'hygiene inspection'.", note_de="In den Projektkosten «Hygieneprüfung» enthalten."),
     R("commissioning", "Commissioning and balancing", "Einregulierung / Inbetriebnahme", (r"einregulierung|reven|ibn",),
-      disposition="covered", note="Covered by the project cost 'commissioning'."),
+      disposition="covered", note="Covered by the project cost 'commissioning'.", note_de="In den Projektkosten «Inbetriebnahme» enthalten."),
     R("installation_time", "Installation time (bidder to fill in)", "Montagezeit", (r"^montage$|montagezeit",),
-      disposition="covered", note="Labour is calculated line by line from the productivity rules."),
+      disposition="covered", note="Labour is calculated line by line from the productivity rules.", note_de="Die Montage wird pro Position aus den Leistungswerten berechnet."),
     R("installation_transport", "Installation and transport (lump sum)", "Montage und Transport", (r"montage und transport",), sections="E",
-      disposition="covered", note="Calculated from the lines' labour plus the transport/equipment allowance."),
+      disposition="covered", note="Calculated from the lines' labour plus the transport/equipment allowance.", note_de="Aus der Montage der Positionen plus Zuschlag Transport/Inventar berechnet."),
     R("ahu_part", "Part of the air-handling unit", "Geräteteil", (r"^\d+\s+.*teil\b|^zubehor|^bemerkungen|^fortluft \d|^\d+ satz kulissen|geratanschluss|gerateanschluss|wrg-system",),
-      sections="A", disposition="non_priceable", note="Included in the air-handling unit package."),
+      sections="A", disposition="non_priceable", note="Included in the air-handling unit package.", note_de="Im Lüftungsgeräte-Paket enthalten."),
     R("ahu", "Air-handling unit", "Lüftungsgerät", (r"(zu|ab)?luftgerat|luftungsgerat|gerat komplett|monoblock",),
       sections="A", install_code="AHU_LARGE", size_mode="airflow", subcategory="Air-handling unit"),
     # Air terminals
@@ -68,7 +69,7 @@ RULES: tuple[Rule, ...] = (
     R("support_set", "Connection-angle set", "Anschlusswinkel", (r"anschlusswink",), install_code="SUPPORT_SET", size_mode="fixed", fixed_product="P-SUP-001"),
     R("cleaning_cover", "Duct inspection / cleaning cover", "Kontroll- und Putzdeckel", (r"kontroll- und putzdeckel|putzdeckel",),
       install_code="FIRE_ACCESS", size_mode="rect", subcategory="Inspection cover",
-      note="Closest catalogue item is the inspection cover for fire insulation; check the function."),
+      note="Closest catalogue item is the inspection cover for fire insulation; check the function.", note_de="Nächster Katalogartikel ist der Revisionsdeckel für Brandschutzdämmung; Funktion prüfen."),
     # Silencers, flow controllers
     R("silencer_compact", "Compact circular silencer", "Kompakt-/Rohrschalldämpfer", (r"kompaktschalldampfer|rohrschalldampfer",),
       install_code="SILENCER", size_mode="dn", subcategory="Compact"),
@@ -83,7 +84,7 @@ RULES: tuple[Rule, ...] = (
     R("actuator", "Damper actuator 24 V", "Drehantrieb", (r".",), (r"drehantrieb|stellantrieb",), sections="D", install_code="CONTROL_POINT",
       size_mode="fixed", fixed_product="P-CTL-003"),
     R("pressure_switch", "Differential pressure switch", "Druckwächter", (r".",), (r"druckwachter|differenzdruck",), sections="D", install_code="CONTROL_POINT",
-      size_mode="fixed", fixed_product="P-CTL-001", note="Catalogue item is a pressure transmitter; tender asks for a switch."),
+      size_mode="fixed", fixed_product="P-CTL-001", note="Catalogue item is a pressure transmitter; tender asks for a switch.", note_de="Katalogartikel ist ein Drucktransmitter; verlangt ist ein Druckwächter."),
     R("thermometer", "Dial thermometer", "Zeigerthermometer", (r"zeigerthermometer",), install_code="CONTROL_POINT", disposition="no_catalogue"),
     # Insulation (section F)
     R("insulation_weatherproof", "Weatherproof insulation with stainless cladding", "Wetterfeste Dämmung mit V2A-Ummantelung", (r".",),
@@ -104,7 +105,6 @@ RULES: tuple[Rule, ...] = (
     R("kitchen_element", "Kitchen ventilation ceiling element", "Küchenlüftungsdecke (EVS)", (r"evs-w|abwascherei|kuche",), sections="A", disposition="no_catalogue"),
 )
 
-LOT_LOCATION = {"2": "sports_hall"}
 
 
 def fold(text: str) -> str:

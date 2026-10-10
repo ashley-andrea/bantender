@@ -11,6 +11,7 @@ from dataclasses import asdict
 
 from app.matching.ducts import derive_duct_lines
 from app.matching.matcher import Check, Decision, decide_all
+from app.matching.text import T, chf
 from app.reference.models import ProjectParameters, ReferenceData
 
 from .engine import BuildUpOptions, LineInput, build_project, price_line
@@ -44,19 +45,21 @@ def apply_override(d: Decision, ov: dict, ref: ReferenceData) -> Decision:
         d.product_id, d.install_code = item.product_id, item.install_code
         d.priced = True
         d.status = "supplier_quote_required" if item.supplier_quote_required and not ov.get("unit_price") else "calculated"
-        d.checks.append(Check("estimator", "Product chosen by the estimator", "pass", 1.0, item.description))
+        d.checks.append(Check("estimator", T("Product chosen by the estimator", "Produkt vom Kalkulator gewählt"), "pass", 1.0, item.description))
         changed.append("product")
     if ov.get("labour_only") and d.install_code:
         d.product_id, d.priced, d.status = None, True, "calculated"
-        d.reasons = ["Priced as labour only, decided by the estimator."]
-        d.checks.append(Check("estimator", "Labour only, decided by the estimator", "pass", 1.0, ""))
+        d.reasons = [T("Priced as labour only, decided by the estimator.", "Nur Montage kalkuliert, vom Kalkulator entschieden.")]
+        d.checks.append(Check("estimator", T("Labour only, decided by the estimator", "Nur Montage, vom Kalkulator entschieden"), "pass", 1.0, ""))
         changed.append("labour_only")
     if ov.get("unit_price") is not None:
         d.priced = True
         d.status = "calculated"
-        source = "supplier quote" if ov.get("unit_price_source") == "quote" else "the estimator"
-        d.reasons = [f"Unit price CHF {float(ov['unit_price']):,.2f} entered by {source}.".replace(",", "'")]
-        d.checks.append(Check("estimator", f"Unit price set by {source}", "pass", 1.0, ov.get("note") or ""))
+        quote = ov.get("unit_price_source") == "quote"
+        price = chf(float(ov["unit_price"]))
+        d.reasons = [T(f"Unit price CHF {price} from {'a supplier quote' if quote else 'the estimator'}.",
+                       f"Einheitspreis CHF {price} {'aus Lieferantenofferte' if quote else 'vom Kalkulator eingegeben'}.")]
+        d.checks.append(Check("estimator", T("Unit price set by the estimator", "Einheitspreis vom Kalkulator gesetzt"), "pass", 1.0, ov.get("note") or ""))
         changed.append("unit_price")
     if ov.get("status"):
         d.status = ov["status"]
@@ -64,7 +67,7 @@ def apply_override(d: Decision, ov: dict, ref: ReferenceData) -> Decision:
         changed.append("status")
     if ov.get("confirmed") and d.priced and d.status in ("review_required", "assumption_applied"):
         d.status = "calculated"
-        d.checks.append(Check("estimator", "Confirmed by the estimator", "pass", 1.0, ov.get("note", "")))
+        d.checks.append(Check("estimator", T("Confirmed by the estimator", "Vom Kalkulator bestätigt"), "pass", 1.0, ov.get("note", "")))
         changed.append("confirmed")
     if changed:
         d.confidence = 1.0 if d.priced else d.confidence
@@ -88,8 +91,9 @@ def price_tender(parsed: dict, ref: ReferenceData, overrides: dict | None = None
     params = effective_parameters(ref, settings)
 
     rows: list[dict] = []
-    decisions = decide_all(parsed["lines"], ref)
-    derived = derive_duct_lines(parsed, ref) if settings.get("include_cad_ductwork", True) else []
+    locations = system_locations(parsed, params, settings)
+    decisions = decide_all(parsed["lines"], ref, locations)
+    derived = derive_duct_lines(parsed, ref, locations) if settings.get("include_cad_ductwork", True) else []
     entries = [(line, d, "lv") for line, d in zip(parsed["lines"], decisions)] + [(line, d, "cad") for line, d in derived]
 
     costs = []
@@ -105,8 +109,10 @@ def price_tender(parsed: dict, ref: ReferenceData, overrides: dict | None = None
             cost = asdict(c)
         rows.append({
             "line_id": line["line_id"], "source": source, "page": line["page"], "system": line["system"], "lot": line["lot"],
-            "section": line["section"], "title_en": d["title_en"], "title_de": d["title_de"],
+            "section": line["section"], "section_name": line.get("section_name") or "",
+            "title_en": d["title_en"], "title_de": d["title_de"],
             "tender_quantity": line["quantity"], "tender_unit": line["unit"], "decision": d, "cost": cost,
+            "status_key": status_key(d["status"], cost),
             "evidence": line.get("evidence"), "pages": line.get("pages"),
         })
 
@@ -124,42 +130,100 @@ def price_tender(parsed: dict, ref: ReferenceData, overrides: dict | None = None
         "lines": rows,
         "project": asdict(project),
         "scenarios": [asdict(s) for s in scenarios],
-        "award": {"weight": 60, "zero_at_ratio": 1.5,
-                  "examples": [{"ratio": r, "points": award_price_points(r, 1.0)} for r in (1.0, 1.05, 1.1, 1.2, 1.5)]},
+        "award": award_curve(parsed.get("award")),
         "summary": summarize(rows),
         "settings": {"factors": params.productivity_factors, "allowances": params.allowances.model_dump(),
                      "overhead_pct": params.commercial.overhead_pct, "margin_pct": project.margin_pct,
                      "risk_allowance_chf": opts.risk_allowance_chf, "include_project_costs": opts.include_project_costs,
                      "include_small_material": opts.include_small_material,
                      "include_supplier_contingency": opts.include_supplier_contingency,
-                     "include_cad_ductwork": settings.get("include_cad_ductwork", True)},
+                     "include_cad_ductwork": settings.get("include_cad_ductwork", True),
+                     "locations": locations, "location_options": location_options(params),
+                     "target_margin_pct": params.commercial.target_margin_pct, "round_to_chf": params.commercial.round_to_chf},
     }
 
 
+HEIGHT_PREFIX = "mounting_height_"
+
+
+def location_options(params: ProjectParameters) -> list[str]:
+    """Mounting-height locations defined in the parameters (mounting_height_<location>)."""
+    return [k[len(HEIGHT_PREFIX):] for k in params.productivity_factors if k.startswith(HEIGHT_PREFIX)]
+
+
+def system_locations(parsed: dict, params: ProjectParameters, settings: dict) -> dict[str, str]:
+    """Location per system: estimator setting, else detected from the system / lot name, else the first option."""
+    options = location_options(params)
+    default = options[0] if options else "default"
+    chosen = settings.get("locations") or {}
+    out = {}
+    for code, info in parsed["systems"].items():
+        detected = info.get("location", "default")
+        out[code] = chosen.get(code) or (detected if detected in options else default)
+    return out
+
+
+def award_curve(award: dict | None) -> dict | None:
+    """The tender's own price-scoring rule, with points at a few price ratios. None if the tender states none."""
+    if not award or not award.get("weight"):
+        return None
+    ratios = [1.0, 1.05, 1.1, 1.2] + [award["zero_at_ratio"]]
+    return {**award, "points_per_pct": award["weight"] / ((award["zero_at_ratio"] - 1) * 100),
+            "examples": [{"ratio": r, "points": award_price_points(r, 1.0, award["weight"], award["zero_at_ratio"])} for r in ratios]}
+
+
+def status_key(status: str, cost: dict | None) -> str:
+    """One status per line for filters and counts: an unpriced review line is 'needs_price'."""
+    return "needs_price" if status == "review_required" and not cost else status
+
+
+EXCLUDED = {"out_of_scope", "non_priceable"}
+UNPRICED = {"needs_price", "insufficient_information"}
+
+
 def summarize(rows: list[dict]) -> dict:
-    by_status: dict[str, dict] = defaultdict(lambda: {"count": 0, "chf": 0.0})
+    """Counts and CHF. Definitions (tender lines only for the counts):
+    - excluded  = out_of_scope + non_priceable
+    - to_price  = lines − excluded
+    - priced    = to_price lines that have a computed cost (calculated, supplier quote, assumption, priced review)
+    - calculated= priced lines with status 'calculated' (no open question); provisional = priced − calculated
+    - unpriced  = to_price − priced = needs_price + insufficient_information
+    - coverage  = priced / to_price
+    CHF values are direct line costs (material + labour) before project allowances, overhead and margin.
+    """
+    by_status: dict[str, dict] = defaultdict(lambda: {"count": 0, "lv": 0, "cad": 0, "chf": 0.0})
     by_system: dict[str, float] = defaultdict(float)
     by_lot: dict[str, float] = defaultdict(float)
     by_section: dict[str, float] = defaultdict(float)
-    priced_value = high_value = 0.0
     for r in rows:
         chf = r["cost"]["direct_cost"] if r["cost"] else 0.0
-        s = by_status[r["decision"]["status"]]
-        s["count"] += 1
-        s["chf"] += chf
+        b = by_status[r["status_key"]]
+        b["count"] += 1
+        b[r["source"]] += 1
+        b["chf"] += chf
         by_system[r["system"]] += chf
         by_lot[r["lot"]] += chf
         by_section[r["section"] or "X"] += chf
-        priced_value += chf
-        if r["decision"]["band"] == "high" and r["decision"]["status"] == "calculated":
-            high_value += chf
+
     lv = [r for r in rows if r["source"] == "lv"]
-    actionable = [r for r in lv if r["decision"]["status"] not in ("out_of_scope", "non_priceable")]
-    priced_lv = [r for r in actionable if r["cost"]]
+    cad = [r for r in rows if r["source"] == "cad"]
+    excluded = sum(1 for r in lv if r["status_key"] in EXCLUDED)
+    to_price = len(lv) - excluded
+    priced = sum(1 for r in lv if r["cost"])
+    calculated = sum(1 for r in lv if r["cost"] and r["status_key"] == "calculated")
+    total = sum(r["cost"]["direct_cost"] for r in rows if r["cost"])
+    calc_chf = sum(r["cost"]["direct_cost"] for r in rows if r["cost"] and r["status_key"] == "calculated")
     return {
-        "lv_lines": len(lv), "cad_lines": len(rows) - len(lv), "actionable_lines": len(actionable), "priced_lines": len(priced_lv),
-        "coverage_pct": round(100 * len(priced_lv) / len(actionable), 1) if actionable else 0.0,
-        "value_confirmed_pct": round(100 * high_value / priced_value, 1) if priced_value else 0.0,
-        "needs_price": sum(1 for r in actionable if not r["cost"]),
+        "tender": {
+            "lines": len(lv), "excluded": excluded, "to_price": to_price, "priced": priced,
+            "calculated": calculated, "provisional": priced - calculated, "unpriced": to_price - priced,
+            "needs_price": sum(1 for r in lv if r["status_key"] == "needs_price"),
+            "missing_info": sum(1 for r in lv if r["status_key"] == "insufficient_information"),
+            "coverage_pct": round(100 * priced / to_price, 1) if to_price else 0.0,
+        },
+        "cad": {"lines": len(cad), "priced": sum(1 for r in cad if r["cost"]),
+                "chf": sum(r["cost"]["direct_cost"] for r in cad if r["cost"])},
+        "value": {"total_chf": total, "calculated_chf": calc_chf, "provisional_chf": total - calc_chf,
+                  "calculated_pct": round(100 * calc_chf / total, 1) if total else 0.0},
         "by_status": dict(by_status), "by_system": dict(by_system), "by_lot": dict(by_lot), "by_section": dict(by_section),
     }

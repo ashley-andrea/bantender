@@ -31,6 +31,26 @@ No OpenAI calls are made anywhere yet (`AI_PROVIDER=off`).
 
 Current result on the Oberglatt tender: indicative price CHF 1'758'000; 112 of 229 actionable LV lines priced from the catalogue, the rest flagged "needs price" (not in the 56-item catalogue) for the estimator.
 
+## How the numbers are defined
+
+Counts use **tender lines** only (lines read from the LV). Lines derived from the CAD component lists are priced and shown, but counted separately.
+
+| Term | Definition |
+| --- | --- |
+| Excluded | Status `out_of_scope` (covered by project costs, by others, or excluded by the estimator) or `non_priceable` (part of a package, text only) |
+| To price | Tender lines − excluded |
+| Priced | To-price lines with a computed cost: `calculated`, `supplier_quote_required`, `assumption_applied`, or `review_required` with a price |
+| Calculated | Priced with no open question (status `calculated`) |
+| Provisional | Priced − calculated: a supplier quote, an assumption or a review is still open |
+| Unpriced | To price − priced = "Needs price" (no catalogue item) + "Missing info" (no quantity) |
+| Coverage | Priced ÷ to price |
+
+Money, per line: material = quantity × net unit cost × (1 + waste %); hours = quantity × base hours × the rule's project factors (site efficiency as 1/x; the mounting-height factor follows the system's location); labour = hours × hourly rate; line cost = material + labour.
+Project: direct cost = Σ line costs + transport % × Σ line costs + small material % × catalogue material + contingency % × supplier-package material + engineering + commissioning + hygiene + documentation; baseline = (direct + risk) × (1 + overhead %); indicative price = baseline ÷ (1 − margin %), rounded up to the rounding step. All percentages and steps come from `project_parameters.json` or the estimator's settings.
+Scenarios use the win-probability model in the parameters; award points use the scoring rule read from the tender's conditions (hidden if the tender states none).
+
+Invariants are tested (`tests/test_matching.py::test_summary_counts_and_formulas_add_up`) and the UI is checked against the API (`make e2e`).
+
 ## Known follow-ups
 
 - Docling is optional: the API image (≈420 MB) has none of it; the cross-check runs in its own image on demand (`make crosscheck`).

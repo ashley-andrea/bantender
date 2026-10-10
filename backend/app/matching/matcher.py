@@ -12,7 +12,8 @@ from dataclasses import dataclass, field
 from app.parsing.normalize import parse_sizes
 from app.reference.models import CatalogItem, ReferenceData
 
-from .lexicon import LOT_LOCATION, Rule, classify, fold, install_only_device
+from .lexicon import Rule, classify, fold, install_only_device
+from .text import T
 
 HIGH, MEDIUM = 0.85, 0.6
 NEAREST_TOLERANCE = 0.25  # a "nearest size" substitute must be within ±25 % (diameter) or ~±56 % (area)
@@ -23,10 +24,10 @@ STATUSES = ("calculated", "supplier_quote_required", "assumption_applied", "revi
 @dataclass
 class Check:
     key: str
-    label: str
+    label: dict  # {"en", "de"}
     result: str  # pass | partial | fail
     score: float
-    detail: str = ""
+    detail: str | dict = ""
 
 
 @dataclass
@@ -53,8 +54,8 @@ class Decision:
     confidence: float | None
     band: str | None  # high | medium | low
     checks: list[Check] = field(default_factory=list)
-    reasons: list[str] = field(default_factory=list)
-    assumptions: list[str] = field(default_factory=list)
+    reasons: list[dict] = field(default_factory=list)  # {"en", "de"}
+    assumptions: list[dict] = field(default_factory=list)
     alternatives: list[Alternative] = field(default_factory=list)
     labour_only_possible: bool = False
 
@@ -104,9 +105,8 @@ def title_of(line: dict) -> str:
     return line["header"] or (line["local_text"][0] if line["local_text"] else "")
 
 
-def decide(line: dict, ref: ReferenceData, ahu_context: bool = False, extra_text: str = "") -> Decision:
+def decide(line: dict, ref: ReferenceData, ahu_context: bool = False, extra_text: str = "", location: str = "default") -> Decision:
     title = title_of(line)
-    location = LOT_LOCATION.get(line["lot"], "school")
     device = install_only_device(line["description"], line["local_text"], line["section"])
     if device:
         return _install_only(line, device, location)
@@ -118,37 +118,39 @@ def decide(line: dict, ref: ReferenceData, ahu_context: bool = False, extra_text
                  status="review_required", priced=False, confidence=None, band=None)
 
     if rule is None:
-        d.reasons.append("Not recognised by the classification rules. Classify or price it manually.")
+        d.reasons.append(T("Not recognised by the classification rules. Classify or price it manually.", "Von den Klassifizierungsregeln nicht erkannt. Bitte manuell zuordnen oder bepreisen."))
         return d
 
     if rule.disposition == "non_priceable":
-        d.status, d.reasons = "non_priceable", [rule.note]
+        d.status, d.reasons = "non_priceable", [T(rule.note, rule.note_de)]
         return d
     if rule.disposition == "covered":
-        d.status, d.reasons = "out_of_scope", [rule.note]
+        d.status, d.reasons = "out_of_scope", [T(rule.note, rule.note_de)]
         return d
     if ahu_context and rule.key not in ("ahu",) and line["section"] == "A" and rule.disposition is None and rule.size_mode == "none":
-        d.status, d.reasons = "non_priceable", ["Included in the air-handling unit package."]
+        d.status, d.reasons = "non_priceable", [T("Included in the air-handling unit package.", "Im Lüftungsgeräte-Paket enthalten.")]
         return d
 
     # Quantity
-    qty_check = Check("quantity", "Quantity and unit read from the tender", "pass", 1.0,
+    QTY = T("Quantity and unit read from the tender", "Menge und Einheit aus der Ausschreibung gelesen")
+    qty_check = Check("quantity", QTY, "pass", 1.0,
                       f"{line['quantity']:g} {line['unit_raw']}" if line["quantity"] is not None else "")
     if line["quantity"] is None:
         if rule.key == "ahu":
             d.quantity = 1.0
-            d.assumptions.append("The tender leaves the quantity blank; one unit is assumed (one unit per numbered device).")
-            qty_check = Check("quantity", "Quantity and unit read from the tender", "partial", 0.7, "blank in tender; 1 assumed")
+            d.assumptions.append(T("The tender leaves the quantity blank; one unit is assumed (one unit per numbered device).", "Die Menge ist in der Ausschreibung leer; ein Gerät angenommen (ein Gerät pro Gerätenummer)."))
+            qty_check = Check("quantity", QTY, "partial", 0.7, T("blank in tender; 1 assumed", "leer in der Ausschreibung; 1 angenommen"))
         else:
             d.status = "insufficient_information"
-            d.reasons.append("The tender gives no quantity for this line.")
-            d.checks.append(Check("quantity", "Quantity and unit read from the tender", "fail", 0.0, "blank in tender"))
+            d.reasons.append(T("The tender gives no quantity for this line.", "Die Ausschreibung nennt keine Menge für diese Position."))
+            d.checks.append(Check("quantity", QTY, "fail", 0.0, T("blank in tender", "leer in der Ausschreibung")))
             return d
     d.checks.append(qty_check)
 
     if rule.disposition == "no_catalogue":
         d.status = "review_required"
-        d.reasons.append(f"No catalogue item for '{rule.en}' ({rule.de}). Enter a unit price, send to a supplier, or price labour only.")
+        d.reasons.append(T(f"No catalogue item for '{rule.en}'. Enter a unit price, choose a product, or price labour only.",
+                            f"Kein Katalogartikel für «{rule.de}». Einheitspreis eingeben, Produkt wählen oder nur Montage kalkulieren."))
         d.labour_only_possible = bool(rule.install_code)
         return d
 
@@ -160,7 +162,7 @@ def decide(line: dict, ref: ReferenceData, ahu_context: bool = False, extra_text
     product, size_check, assumption = _choose_product(rule, sizes, line, ref, d)
     if product is None:
         d.status = "review_required"
-        d.reasons.append(f"No catalogue item fits this {rule.en.lower()}{(' (' + size_check.detail + ')') if size_check and size_check.detail else ''}.")
+        d.reasons.append(T(f"No catalogue item fits this {rule.en.lower()}.", f"Kein passender Katalogartikel für «{rule.de}»."))
         if size_check:
             d.checks.append(size_check)
         d.labour_only_possible = bool(rule.install_code)
@@ -168,14 +170,14 @@ def decide(line: dict, ref: ReferenceData, ahu_context: bool = False, extra_text
 
     item = ref.catalog[product]
     d.product_id, d.install_code = product, item.install_code
-    d.checks.append(Check("category", "Item type matches the catalogue", "pass", 1.0, f"{rule.de} → {item.subcategory}"))
+    d.checks.append(Check("category", T("Item type matches the catalogue", "Artikeltyp passt zum Katalog"), "pass", 1.0, f"{rule.de} → {item.subcategory}"))
     if size_check:
         d.checks.append(size_check)
     unit_ok = d.unit == item.unit
-    d.checks.append(Check("unit", "Unit matches the catalogue", "pass" if unit_ok else "fail", 1.0 if unit_ok else 0.5,
+    d.checks.append(Check("unit", T("Unit matches the catalogue", "Einheit passt zum Katalog"), "pass" if unit_ok else "fail", 1.0 if unit_ok else 0.5,
                           f"{d.unit} vs {item.unit}"))
     if rule.note:
-        d.checks.append(Check("function", "Function matches", "partial", 0.7, rule.note))
+        d.checks.append(Check("function", T("Function matches", "Funktion passt"), "partial", 0.7, T(rule.note, rule.note_de)))
     if assumption:
         d.assumptions.append(assumption)
 
@@ -187,12 +189,13 @@ def decide(line: dict, ref: ReferenceData, ahu_context: bool = False, extra_text
 
     if item.supplier_quote_required:
         d.status = "supplier_quote_required"
-        d.reasons.append("Supplier package: the catalogue price is a placeholder until a quote is received.")
+        d.reasons.append(T("Supplier package: the catalogue price is a placeholder until a quote is received.",
+                            "Lieferantenpaket: Der Katalogpreis ist ein Richtwert, bis eine Offerte vorliegt."))
     elif d.assumptions:
         d.status = "assumption_applied"
     elif d.band != "high":
         d.status = "review_required"
-        d.reasons.append("Match confidence is below 'high'. Please confirm.")
+        d.reasons.append(T("Match confidence is below 'high'. Please confirm.", "Die Zuordnung ist nicht eindeutig. Bitte bestätigen."))
     else:
         d.status = "calculated"
     return d
@@ -205,14 +208,17 @@ def _install_only(line: dict, device: tuple[str, str], location: str) -> Decisio
                  location=location, status="calculated", priced=True, confidence=None, band=None)
     if line["quantity"] is None:
         d.status, d.priced = "insufficient_information", False
-        d.reasons.append("The tender gives no quantity for this line.")
+        d.reasons.append(T("The tender gives no quantity for this line.", "Die Ausschreibung nennt keine Menge für diese Position."))
         return d
     d.checks = [
-        Check("quantity", "Quantity and unit read from the tender", "pass", 1.0, f"{line['quantity']:g} {line['unit_raw']}"),
-        Check("scope", "Scope stated in the tender", "pass", 1.0, "'Einbau der folgenden Feldgeräte': install only"),
+        Check("quantity", T("Quantity and unit read from the tender", "Menge und Einheit aus der Ausschreibung gelesen"), "pass", 1.0,
+              f"{line['quantity']:g} {line['unit_raw']}"),
+        Check("scope", T("Scope stated in the tender", "Leistungsumfang gemäss Ausschreibung"), "pass", 1.0,
+              T("'Einbau der folgenden Feldgeräte': install only", "«Einbau der folgenden Feldgeräte»: nur Montage")),
     ]
     d.confidence, d.band = 1.0, "high"
-    d.reasons.append("Install only: the device itself comes with the separate controls tender. Labour is priced, material is not.")
+    d.reasons.append(T("Install only: the device itself comes with the separate controls tender. Labour is priced, material is not.",
+                       "Nur Montage: Das Gerät wird mit der separaten MSRL-Ausschreibung geliefert. Kalkuliert wird nur die Montage."))
     return d
 
 
@@ -227,32 +233,33 @@ def _choose_product(rule: Rule, sizes, line: dict, ref: ReferenceData, d: Decisi
         hit = next((i for i in ref.catalog.values() if i.category == "Insulation" and i.source_type == "catalog"
                     and item_size(i).thickness == t), None)
         if hit:
-            return hit.product_id, Check("size", "Insulation thickness matches", "pass", 1.0, f"{t:g} mm"), None
-        return None, Check("size", "Insulation thickness matches", "fail", 0.0, f"{t:g} mm not in catalogue" if t else "thickness not stated"), None
+            return hit.product_id, Check("size", T("Insulation thickness matches", "Dämmstärke passt"), "pass", 1.0, f"{t:g} mm"), None
+        return None, Check("size", T("Insulation thickness matches", "Dämmstärke passt"), "fail", 0.0,
+                     T(f"{t:g} mm not in catalogue", f"{t:g} mm nicht im Katalog") if t else T("thickness not stated", "Dämmstärke nicht angegeben")), None
 
     if mode == "airflow":
         need = sizes.airflow_m3h
         items = sorted(candidates(ref, rule), key=lambda i: item_size(i).airflow or 0)
         if not need:
-            return None, Check("size", "Airflow stated", "fail", 0.0, "no airflow found"), None
+            return None, Check("size", T("Airflow stated", "Luftmenge angegeben"), "fail", 0.0, T("no airflow found", "keine Luftmenge gefunden")), None
         fit = next((i for i in items if (item_size(i).airflow or 0) >= need), items[-1] if items else None)
         if not fit:
             return None, None, None
         _alts(d, items, fit, "other unit size")
-        return (fit.product_id, Check("size", "Unit sized by airflow", "pass", 1.0, f"{need:g} m³/h → {item_size(fit).airflow:g} m³/h unit"),
-                f"Unit chosen as the smallest catalogue unit for {need:g} m³/h.")
+        return (fit.product_id, Check("size", T("Unit sized by airflow", "Gerät nach Luftmenge gewählt"), "pass", 1.0, f"{need:g} m³/h → {item_size(fit).airflow:g} m³/h"),
+                T(f"Unit chosen as the smallest catalogue unit for {need:g} m³/h.", f"Kleinstes Katalog-Gerät für {need:g} m³/h gewählt."))
 
     if mode == "duct_length":
         m = re.search(r"l[äa]nge\s*(\d+(?:[.,]\d+)?)\s*m\b", fold(line["description"]))
         dn = sizes.dn_mm
         item = next((i for i in candidates(ref, rule) if item_size(i).dn == dn), None)
         if not (m and item):
-            return None, Check("size", "Duct size and length stated", "fail", 0.0, "length or DN missing"), None
+            return None, Check("size", T("Duct size and length stated", "Rohrgrösse und Länge angegeben"), "fail", 0.0, T("length or DN missing", "Länge oder DN fehlt")), None
         length = float(m.group(1).replace(",", "."))
         qty = (line["quantity"] or 0) * length
         d.quantity, d.unit = qty, "m"
-        return (item.product_id, Check("size", "Diameter matches", "pass", 1.0, f"DN{dn:g}"),
-                f"{line['quantity']:g} pieces × {length:g} m = {qty:g} m of duct.")
+        return (item.product_id, Check("size", T("Diameter matches", "Durchmesser passt"), "pass", 1.0, f"DN{dn:g}"),
+                T(f"{line['quantity']:g} pieces × {length:g} m = {qty:g} m of duct.", f"{line['quantity']:g} Stück × {length:g} m = {qty:g} m Rohr."))
 
     if mode == "dn_or_rect":
         mode = "rect" if sizes.width_mm and sizes.height_mm else "dn"
@@ -266,21 +273,22 @@ def _choose_product(rule: Rule, sizes, line: dict, ref: ReferenceData, d: Decisi
     if mode == "dn":
         dn = sizes.dn_mm
         if dn is None:
-            return None, Check("size", "Diameter stated", "fail", 0.0, "no diameter found"), None
+            return None, Check("size", T("Diameter stated", "Durchmesser angegeben"), "fail", 0.0, T("no diameter found", "kein Durchmesser gefunden")), None
         exact = [i for i in items if item_size(i).dn == dn]
         if exact:
             _alts(d, items, exact[0], "different diameter")
-            return exact[0].product_id, Check("size", "Diameter matches exactly", "pass", 1.0, f"DN{dn:g}"), None
+            return exact[0].product_id, Check("size", T("Diameter matches exactly", "Durchmesser passt genau"), "pass", 1.0, f"DN{dn:g}"), None
         near = min(items, key=lambda i: abs((item_size(i).dn or 1e9) - dn))
         if abs(item_size(near).dn - dn) / dn > NEAREST_TOLERANCE:
-            return None, Check("size", "Diameter matches", "fail", 0.0, f"DN{dn:g}: no catalogue size within ±25 %"), None
+            return None, Check("size", T("Diameter matches", "Durchmesser passt"), "fail", 0.0,
+                         T(f"DN{dn:g}: no catalogue size within ±25 %", f"DN{dn:g}: keine Kataloggrösse innerhalb ±25 %")), None
         _alts(d, items, near, "different diameter")
-        return (near.product_id, Check("size", "Diameter matches", "partial", 0.6, f"DN{dn:g} → nearest DN{item_size(near).dn:g}"),
-                f"DN{dn:g} is not in the catalogue; priced as DN{item_size(near).dn:g}.")
+        return (near.product_id, Check("size", T("Diameter matches", "Durchmesser passt"), "partial", 0.6, f"DN{dn:g} → DN{item_size(near).dn:g}"),
+                T(f"DN{dn:g} is not in the catalogue; priced as DN{item_size(near).dn:g}.", f"DN{dn:g} ist nicht im Katalog; als DN{item_size(near).dn:g} kalkuliert."))
 
     if mode in ("rect", "rect_len"):
         if not (sizes.width_mm and sizes.height_mm):
-            return None, Check("size", "Dimensions stated", "fail", 0.0, "no B×H found"), None
+            return None, Check("size", T("Dimensions stated", "Abmessungen angegeben"), "fail", 0.0, T("no B×H found", "keine B×H gefunden")), None
         wh = (sizes.width_mm, sizes.height_mm)
         label = f"{wh[0]:g}×{wh[1]:g}" + (f"×{sizes.length_mm:g}" if mode == "rect_len" and sizes.length_mm else "")
         exact = [i for i in items if item_size(i).w and _same_rect(wh, (item_size(i).w, item_size(i).h))]
@@ -289,18 +297,19 @@ def _choose_product(rule: Rule, sizes, line: dict, ref: ReferenceData, d: Decisi
             exact = exact_len or exact
         if exact:
             _alts(d, items, exact[0], "different size")
-            return exact[0].product_id, Check("size", "Dimensions match exactly", "pass", 1.0, f"{label} mm"), None
+            return exact[0].product_id, Check("size", T("Dimensions match exactly", "Abmessungen passen genau"), "pass", 1.0, f"{label} mm"), None
         sized = [i for i in items if item_size(i).w]
         if not sized:
             return None, None, None
         near = min(sized, key=lambda i: abs(item_size(i).w * item_size(i).h - wh[0] * wh[1]))
         ratio = item_size(near).w * item_size(near).h / (wh[0] * wh[1])
         if not 1 / (1 + NEAREST_TOLERANCE) ** 2 <= ratio <= (1 + NEAREST_TOLERANCE) ** 2:
-            return None, Check("size", "Dimensions match", "fail", 0.0, f"{label} mm: no catalogue size close enough"), None
+            return None, Check("size", T("Dimensions match", "Abmessungen passen"), "fail", 0.0,
+                         T(f"{label} mm: no catalogue size close enough", f"{label} mm: keine ähnliche Kataloggrösse")), None
         _alts(d, sized, near, "different size")
         ns = item_size(near)
-        return (near.product_id, Check("size", "Dimensions match", "partial", 0.6, f"{label} → nearest {ns.w:g}×{ns.h:g}"),
-                f"{label} mm is not in the catalogue; priced as {ns.w:g}×{ns.h:g} mm.")
+        return (near.product_id, Check("size", T("Dimensions match", "Abmessungen passen"), "partial", 0.6, f"{label} → {ns.w:g}×{ns.h:g}"),
+                T(f"{label} mm is not in the catalogue; priced as {ns.w:g}×{ns.h:g} mm.", f"{label} mm ist nicht im Katalog; als {ns.w:g}×{ns.h:g} mm kalkuliert."))
 
     return None, None, None
 
@@ -310,7 +319,7 @@ def _alts(d: Decision, items: list[CatalogItem], chosen: CatalogItem, reason: st
                       for i in items if i.product_id != chosen.product_id][:3]
 
 
-def decide_all(lines: list[dict], ref: ReferenceData) -> list[Decision]:
+def decide_all(lines: list[dict], ref: ReferenceData, locations: dict[str, str] | None = None) -> list[Decision]:
     """Decide every line; lines inside an air-handling unit block are treated as part of that package."""
     out, in_ahu = [], False
     rules = [classify(title_of(l), l["description"], l["section"]) for l in lines]
@@ -327,5 +336,6 @@ def decide_all(lines: list[dict], ref: ReferenceData) -> list[Decision]:
                     break
                 block.append(nxt["description"])
             extra = " | ".join(block)
-        out.append(decide(line, ref, ahu_context=in_ahu and not (rule and rule.key == "ahu"), extra_text=extra))
+        out.append(decide(line, ref, ahu_context=in_ahu and not (rule and rule.key == "ahu"), extra_text=extra,
+                          location=(locations or {}).get(line["system"], "default")))
     return out

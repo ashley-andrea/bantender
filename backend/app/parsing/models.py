@@ -80,6 +80,7 @@ class Anomaly:
     page: int
     code: str
     message: str
+    message_de: str = ""
 
 
 @dataclass
@@ -100,4 +101,7 @@ class ParsedTender:
     lines: list[LVLine]
     component_rows: list[ComponentRow]
     anomalies: list[Anomaly]
-    systems: dict[str, dict]  # code -> {name, lot, first_page, last_page}
+    systems: dict[str, dict]  # code -> {name, lot, location, first_page, last_page}
+    project: dict = field(default_factory=dict)  # name, bkp, trade
+    lots: dict = field(default_factory=dict)  # lot -> {name, systems}
+    award: dict | None = None  # price-scoring rule from the conditions

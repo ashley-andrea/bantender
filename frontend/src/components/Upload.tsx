@@ -135,9 +135,9 @@ export function Upload({ onOpen }: { onOpen: (id: string) => void }) {
               >
                 <FileText className="size-5 text-muted" />
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{r.filename ?? r.tender_id}</div>
+                  <div className="font-medium truncate">{r.project?.name ?? r.filename ?? r.tender_id}</div>
                   <div className="text-sm text-muted num">
-                    {r.pages} {t('pages').toLowerCase()} · {Object.keys(r.systems).length} {t('systems').toLowerCase()} · {fmtNum(r.lines)} {t('linesFound').toLowerCase()}
+                    {r.project?.bkp ? `BKP ${r.project.bkp} · ` : ''}{r.pages} {t('pages').toLowerCase()} · {Object.keys(r.systems).length} {t('systems').toLowerCase()} · {fmtNum(r.lines)} {t('linesFound').toLowerCase()}
                   </div>
                 </div>
                 <span className="text-sm text-sel font-medium">{t('open')}</span>

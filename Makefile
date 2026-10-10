@@ -1,4 +1,4 @@
-.PHONY: test bench bench-fast api deploy logs smoke crosscheck
+.PHONY: test bench bench-fast api deploy logs smoke crosscheck e2e
 
 test:            ## run all backend tests (no OpenAI calls)
 	cd backend && uv run pytest -q
@@ -23,3 +23,6 @@ logs:
 
 smoke:           ## smoke-test a running stack (default https://localhost)
 	./deploy/smoke.sh $(BASE)
+
+e2e:             ## UI consistency check against a running stack (chips = rows, counts add up)
+	cd e2e && npm install --silent && npx playwright install chromium >/dev/null && node consistency.mjs $(BASE)

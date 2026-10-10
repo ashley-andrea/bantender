@@ -11,13 +11,15 @@ from collections import defaultdict
 
 from .models import Anomaly, ComponentRow, LVLine, PageInfo, ParsedTender, Row
 from .normalize import normalize_unit, parse_number, parse_sizes
+from .tender_info import location_for, parse_award, parse_lots, parse_project
 
 CONTENT_TOP = 60.0  # pt: above this are page header and LV column titles
 CONTENT_BOTTOM = 785.0  # pt: below this is the file-path footer
 DEFAULT_COLUMNS = (365.0, 405.0, 445.0)  # unit, quantity, unit-price column starts
 
-SYSTEM_RE = re.compile(r"\b(244\.\d{2})\s+(.+?)\s+Seite\s+\d+\s*/\s*\d+", re.I)
-SYSTEM_TITLE_RE = re.compile(r"^244\.\d{2}\b")
+# Page header of an LV page: "<project>  <BKP>.<nn> <system name>  Seite x / y" (any BKP code).
+SYSTEM_RE = re.compile(r"\b(\d{3}\.\d{2})\s+(.+?)\s+Seite\s+\d+\s*/\s*\d+", re.I)
+SYSTEM_TITLE_RE = re.compile(r"^\d{3}\.\d{2}\b")
 SECTION_RE = re.compile(r"^([A-F])\s+([A-ZÄÖÜ][A-ZÄÖÜ ,/\-]+)$")
 DOTS_RE = re.compile(r"^[.\s_…]+$")
 UNIT_QTY_RE = re.compile(r"^(\S+)\s+(\d[\d'’.,]*)$")
@@ -42,20 +44,6 @@ def classify_page(page: int, rows: list[Row]) -> PageInfo:
     elif re.search(r"Planliste|^9\.\s*Pl[äa]ne", head_rows):
         info.kind = "plans"
     return info
-
-
-def parse_lots(rows: list[Row]) -> dict[str, str]:
-    """Read 'LOS n' and '244.n' labels from the cost summary page (p.3)."""
-    lots, current = {}, None
-    for r in rows:
-        for seg in r.segments:
-            m = re.match(r"LOS\s+(\d)", seg.text)
-            if m:
-                current = m.group(1)
-            m = re.match(r"244\.(\d)\b", seg.text)
-            if m and current:
-                lots[f"244.{int(m.group(1)):02d}"] = current
-    return lots
 
 
 def _split_row(row: Row, info: PageInfo) -> tuple[list, list]:
@@ -87,7 +75,10 @@ def _quantity(right, info: PageInfo):
 
 def segment(rows_by_page: dict[int, list[Row]], use_bold: bool = True) -> ParsedTender:
     pages = [classify_page(p, rows_by_page[p]) for p in sorted(rows_by_page)]
-    lots = parse_lots(rows_by_page.get(3, []))
+    header_codes = [p.header_system for p in pages if p.header_system]
+    project = parse_project(rows_by_page, pages, header_codes)
+    lot_info = parse_lots(rows_by_page, pages, project["bkp"])
+    lots = lot_info["system_lot"]
     anomalies: list[Anomaly] = []
     lines: list[LVLine] = []
     component_rows: list[ComponentRow] = []
@@ -125,12 +116,16 @@ def segment(rows_by_page: dict[int, list[Row]], use_bold: bool = True) -> Parsed
                     system = code
                     name = SYSTEM_RE.search(" ".join(r.text for r in rows if r.y < CONTENT_TOP)).group(2)
                     system_name = re.sub(r"^LA\d+\s+", "", name).strip()
-                    systems[system] = {"name": system_name, "lot": lots.get(system, "1"), "first_page": info.page}
+                    lot = lots.get(system, "1")
+                    lot_name = lot_info["lots"].get(lot, {}).get("name")
+                    systems[system] = {"name": system_name, "lot": lot, "location": location_for(system_name, lot_name),
+                                       "first_page": info.page}
                     section, section_name = "", ""
                     start_item("", None, None)
             elif code < system:
                 anomalies.append(Anomaly(info.page, "header_system_mismatch",
-                                         f"Page header says {code}, but document order places this page in {system}."))
+                                         f"Page header says {code}, but document order places this page in {system}.",
+                                         f"Seitenkopf nennt {code}, gemäss Reihenfolge gehört die Seite zu {system}."))
             systems[system]["last_page"] = info.page
         elif info.kind == "component_list":
             if system:
@@ -167,7 +162,7 @@ def segment(rows_by_page: dict[int, list[Row]], use_bold: bool = True) -> Parsed
 
             m = SECTION_RE.match(text)
             if m and row.segments[0].x0 < 80:
-                section, section_name = m.group(1), m.group(2).title()
+                section, section_name = m.group(1), m.group(2).title().replace(" Und ", " und ")
                 start_item("", None, None)
                 continue
             if text.startswith("Total") or SYSTEM_TITLE_RE.match(text):
@@ -209,7 +204,8 @@ def segment(rows_by_page: dict[int, list[Row]], use_bold: bool = True) -> Parsed
             sizes = parse_sizes(" | ".join([header, *shared_now, *local]))
             for note in sizes.notes:
                 if not any(a.code == "implausible_size" and note in a.message for a in anomalies):
-                    anomalies.append(Anomaly(info.page, "implausible_size", f"{line_id}: {note}"))
+                    anomalies.append(Anomaly(info.page, "implausible_size", f"{line_id}: {note}",
+                                             f"{line_id}: " + note.replace("implausible diameter", "unplausibler Durchmesser")))
             lines.append(LVLine(
                 line_id=line_id, page=info.page, system=system, system_name=system_name,
                 lot=systems[system]["lot"], section=section, section_name=section_name,
@@ -220,8 +216,14 @@ def segment(rows_by_page: dict[int, list[Row]], use_bold: bool = True) -> Parsed
             local = []
             item_has_qty = True
 
+    lot_table = lot_info["lots"] or {"1": {"name": None, "systems": []}}
+    for code, info_ in systems.items():
+        lot_table.setdefault(info_["lot"], {"name": None, "systems": []})
+        if code not in lot_table[info_["lot"]]["systems"]:
+            lot_table[info_["lot"]]["systems"].append(code)
     return ParsedTender(pages=pages, lines=lines, component_rows=component_rows,
-                        anomalies=_merge_header_flags(anomalies, systems), systems=systems)
+                        anomalies=_merge_header_flags(anomalies, systems), systems=systems,
+                        project=project, lots=lot_table, award=parse_award(rows_by_page, pages))
 
 
 def _merge_header_flags(anomalies: list[Anomaly], systems: dict) -> list[Anomaly]:
@@ -235,11 +237,13 @@ def _merge_header_flags(anomalies: list[Anomaly], systems: dict) -> list[Anomaly
     for prev, cur in zip(pages, pages[1:] + [None]):
         if cur is not None and cur - prev <= 3:  # component-list pages in between keep the run together
             continue
-        said, actual = re.findall(r"244\.\d{2}", by_page[start].message)[:2]
+        said, actual = re.findall(r"\d{3}\.\d{2}", by_page[start].message)[:2]
         name = systems.get(actual, {}).get("name", "")
         merged.append(Anomaly(start, "header_system_mismatch",
                               f"Pages {start}–{prev}: page headers say {said}, but document order places them in {actual} {name}. "
-                              f"Lines are assigned to {actual}."))
+                              f"Lines are assigned to {actual}.",
+                              f"Seiten {start}–{prev}: Seitenkopf nennt {said}, gemäss Reihenfolge gehören sie zu {actual} {name}. "
+                              f"Die Positionen werden {actual} zugeordnet."))
         if cur is not None:
             start = cur
     return merged + others

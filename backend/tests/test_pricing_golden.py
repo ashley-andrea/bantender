@@ -80,4 +80,4 @@ def test_override_price_is_used_and_labelled(ref):
 
 @pytest.mark.parametrize("ratio,points", [(1.0, 60), (1.1, 48), (1.5, 0), (1.8, 0)])
 def test_award_points(ratio, points):
-    assert award_price_points(100 * ratio, 100) == pytest.approx(points)
+    assert award_price_points(100 * ratio, 100, 60, 1.5) == pytest.approx(points)

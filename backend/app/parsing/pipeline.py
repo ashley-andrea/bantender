@@ -19,7 +19,7 @@ from .normalize import parse_sizes, size_key
 from .pdf_layer import read_rows
 
 # Bump when parsing output changes: stored results with an older version are re-parsed on upload.
-PARSER_VERSION = "2026.10.10-4"
+PARSER_VERSION = "2026.10.10-6"
 
 
 def parse_tender(pdf_path: Path) -> tuple[ParsedTender, dict]:
@@ -51,7 +51,9 @@ def docling_cross_check(pdf_path: Path, parsed: dict, mode: str = "tables_accura
         detail = ", ".join(f"p.{p} {mine[p]} vs {theirs[p]}" for p in differ)
         anomalies.append({"page": differ[0], "code": "reader_disagreement",
                           "message": f"Component lists: PyMuPDF and Docling read different row counts on {len(differ)} page(s) "
-                                     f"({detail}). PyMuPDF is used; check these pages."})
+                                     f"({detail}). PyMuPDF is used; check these pages.",
+                          "message_de": f"Bauteillisten: PyMuPDF und Docling lesen auf {len(differ)} Seite(n) unterschiedlich viele Zeilen "
+                                        f"({detail}). Verwendet wird PyMuPDF; bitte diese Seiten prüfen."})
     return {
         "parser_version": parsed["meta"].get("parser_version"),
         "meta": {"cross_check": f"docling:{mode}", "figures": docling_layer.figures(doc)},
@@ -70,6 +72,9 @@ def tender_to_dict(tender: ParsedTender, meta: dict) -> dict:
         lines.append(d)
     return {
         "meta": meta,
+        "project": tender.project,
+        "lots": tender.lots,
+        "award": tender.award,
         "systems": tender.systems,
         "pages": [asdict(p) for p in tender.pages],
         "lines": lines,

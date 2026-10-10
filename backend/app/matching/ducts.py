@@ -12,6 +12,7 @@ from collections import defaultdict
 from app.reference.models import ReferenceData
 
 from .matcher import Check, Decision, item_size
+from .text import T
 
 ROUND_NAMES = {"BGE": ("Round bend", "Bogen")}
 
@@ -31,8 +32,8 @@ def _line(system: str, info: dict, n: int, rows: list[dict], title_en: str, titl
     }
 
 
-def _decision(line: dict, product_id: str | None, install_code: str, location: str, checks: list[Check], assumption: str,
-              status: str = "assumption_applied", reason: str | None = None) -> Decision:
+def _decision(line: dict, product_id: str | None, install_code: str, location: str, checks: list[Check], assumption: dict,
+              status: str = "assumption_applied", reason: dict | None = None) -> Decision:
     d = Decision(line_id=line["line_id"], rule_key="cad_ductwork", title_en=line["title_en"], title_de=line["header"],
                  product_id=product_id, install_code=install_code, quantity=line["quantity"], unit=line["unit"],
                  location=location, status=status, priced=True, confidence=None, band=None, checks=checks)
@@ -46,7 +47,7 @@ def _decision(line: dict, product_id: str | None, install_code: str, location: s
     return d
 
 
-def derive_duct_lines(parsed: dict, ref: ReferenceData) -> list[tuple[dict, Decision]]:
+def derive_duct_lines(parsed: dict, ref: ReferenceData, locations: dict[str, str] | None = None) -> list[tuple[dict, Decision]]:
     out: list[tuple[dict, Decision]] = []
     catalog = list(ref.catalog.values())
     round_ducts = {item_size(i).dn: i for i in catalog if i.install_code == "DUCT_ROUND"}
@@ -61,9 +62,10 @@ def derive_duct_lines(parsed: dict, ref: ReferenceData) -> list[tuple[dict, Deci
 
     for system, rows in sorted(by_system.items()):
         info = parsed["systems"][system]
-        location = "sports_hall" if info["lot"] == "2" else "school"
+        location = (locations or {}).get(system, "default")
         n = 0
-        listed = Check("source", "Quantities from the CAD component list", "pass", 1.0, f"pp.{', '.join(str(p) for p in sorted({r['page'] for r in rows}))}")
+        listed = Check("source", T("Quantities from the CAD component list", "Mengen aus der Bauteilliste (CAD)"), "pass", 1.0,
+                       f"pp.{', '.join(str(p) for p in sorted({r['page'] for r in rows}))}")
 
         # Round ducts: total length per DN.
         groups: dict[float, list[dict]] = defaultdict(list)
@@ -75,9 +77,11 @@ def derive_duct_lines(parsed: dict, ref: ReferenceData) -> list[tuple[dict, Deci
             mm = sum(r["quantity"] for r in rs)
             item = round_ducts.get(dn)
             line = _line(system, info, n, rs, f"Spiral round duct DN{dn:g}", f"Wickelfalzrohr Ø{dn:g} mm", mm / 1000, "m")
-            size = Check("size", "Diameter matches", "pass" if item else "fail", 1.0 if item else 0.0, f"DN{dn:g}")
+            size = Check("size", T("Diameter matches", "Durchmesser passt"), "pass" if item else "fail", 1.0 if item else 0.0, f"DN{dn:g}")
+            total = f"{mm:,.0f}".replace(",", "'")
             out.append((line, _decision(line, item.product_id if item else None, "DUCT_ROUND", location, [listed, size],
-                                        f"Length summed from the component list: {mm:,.0f} mm = {mm / 1000:.2f} m.".replace(",", "'"))))
+                                        T(f"Length summed from the component list: {total} mm = {mm / 1000:.2f} m.",
+                                          f"Länge aus der Bauteilliste summiert: {total} mm = {mm / 1000:.2f} m."))))
 
         # Rectangular ducts: surface area 2(a+b)·L, priced at the nearest catalogue size by perimeter.
         rect_groups: dict[str, list[tuple[dict, float]]] = defaultdict(list)
@@ -94,10 +98,12 @@ def derive_duct_lines(parsed: dict, ref: ReferenceData) -> list[tuple[dict, Deci
             sizes = sorted({f"{r['dims'][0]:g}×{r['dims'][1]:g}" for r, _ in entries})
             line = _line(system, info, n, [r for r, _ in entries], f"Rectangular duct, sizes near {item_size(item).w:g}×{item_size(item).h:g} mm",
                          f"Luftleitung {', '.join(sizes[:4])}{' …' if len(sizes) > 4 else ''} mm", area, "m2")
-            size = Check("size", "Size matches the catalogue", "partial", 0.8, f"{len(sizes)} size(s) priced as {item_size(item).w:g}×{item_size(item).h:g}")
+            near = f"{item_size(item).w:g}×{item_size(item).h:g}"
+            size = Check("size", T("Size matches the catalogue", "Grösse passt zum Katalog"), "partial", 0.8,
+                         T(f"{len(sizes)} size(s) priced as {near}", f"{len(sizes)} Grösse(n) als {near} kalkuliert"))
             out.append((line, _decision(line, pid, "DUCT_RECT", location, [listed, size],
-                                        f"Area = 2 × (a + b) × length over {len(entries)} duct run(s) = {area:.1f} m²; "
-                                        f"priced at the nearest catalogue size by perimeter.")))
+                                        T(f"Area = 2 × (a + b) × length over {len(entries)} duct run(s) = {area:.1f} m²; priced at the nearest catalogue size by perimeter.",
+                                          f"Fläche = 2 × (a + b) × Länge über {len(entries)} Kanalstück(e) = {area:.1f} m²; zur nächsten Kataloggrösse (Umfang) kalkuliert."))))
 
         # Round bends: exact catalogue item by DN and angle; other fittings: labour only.
         bend_groups: dict[tuple, list[dict]] = defaultdict(list)
@@ -114,22 +120,23 @@ def derive_duct_lines(parsed: dict, ref: ReferenceData) -> list[tuple[dict, Deci
             line = _line(system, info, n, rs, f"Round bend {ang:g}° DN{dn:g}", f"Bogen {ang:g}° Ø{dn:g}", pcs, "pc")
             if item:
                 out.append((line, _decision(line, item.product_id, "DUCT_FITTING", location,
-                                            [listed, Check("size", "DN and angle match", "pass", 1.0, f"DN{dn:g}, {ang:g}°")],
-                                            "Pieces counted from the component list.")))
+                                            [listed, Check("size", T("DN and angle match", "DN und Winkel passen"), "pass", 1.0, f"DN{dn:g}, {ang:g}°")],
+                                            T("Pieces counted from the component list.", "Stückzahl aus der Bauteilliste."))))
             else:
                 out.append((line, _decision(line, None, "DUCT_FITTING", location,
-                                            [listed, Check("size", "DN and angle match", "fail", 0.6, f"DN{dn:g}, {ang:g}° not in catalogue")],
-                                            "Pieces counted from the component list.", status="review_required",
-                                            reason="No catalogue price for this bend; labour only included.")))
+                                            [listed, Check("size", T("DN and angle match", "DN und Winkel passen"), "fail", 0.6, f"DN{dn:g}, {ang:g}°")],
+                                            T("Pieces counted from the component list.", "Stückzahl aus der Bauteilliste."), status="review_required",
+                                            reason=T("No catalogue price for this bend; labour only included.", "Kein Katalogpreis für diesen Bogen; nur Montage eingerechnet."))))
         if other:
             n += 1
             pcs = sum(r["quantity"] for r in other)
             line = _line(system, info, n, other, "Other duct fittings (transitions, branches, sockets)",
                          "Formstücke (Übergänge, Abzweige, Muffen)", pcs, "pc")
             out.append((line, _decision(line, None, "DUCT_FITTING", location,
-                                        [listed, Check("size", "Catalogue price available", "fail", 0.6, "fitting types not in catalogue")],
-                                        "Pieces counted from the component list.", status="review_required",
-                                        reason="No catalogue price for these fitting types; labour only included.")))
+                                        [listed, Check("size", T("Catalogue price available", "Katalogpreis vorhanden"), "fail", 0.6,
+                                                       T("fitting types not in catalogue", "Formstücktypen nicht im Katalog"))],
+                                        T("Pieces counted from the component list.", "Stückzahl aus der Bauteilliste."), status="review_required",
+                                        reason=T("No catalogue price for these fitting types; labour only included.", "Kein Katalogpreis für diese Formstücke; nur Montage eingerechnet."))))
     return out
 
 

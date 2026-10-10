@@ -181,6 +181,7 @@ export interface Settings {
   location_options: string[]
   discount_pct: number
   cash_discount_pct: number
+  win_context?: Partial<WinContext>
 }
 
 export interface Pricing {
@@ -194,6 +195,76 @@ export interface Pricing {
   }
   tender: { project: TenderProject; lots: Record<string, { name: string | null; systems: string[] }>; systems: Record<string, SystemInfo> }
   anomalies: Anomaly[]
+  win_curve?: WinCurve
+}
+
+/** Inputs of the win-probability model for one tender (backend/app/winprob/schema.py::TenderContext). */
+export interface WinContext {
+  bkp_trade: string
+  building_type: string
+  canton: string
+  client_type: string
+  procedure: string
+  market_reference_chf: number
+  n_lots: number
+  price_weight_pct: number | null
+  zero_at_ratio: number | null
+  n_bidders: number
+  competitive_intensity: number
+  strategic_appetite: number
+  available_capacity_pct: number
+  incumbent_present: number
+  prior_wins_with_client: number
+  technical_score_expected: number
+}
+
+export type WinSource = 'tender' | 'market_snapshot' | 'demo_fixture' | 'estimator' | 'target_margin_fallback' | 'default'
+
+export interface WinPoint {
+  margin_pct: number
+  offer: number
+  price_position: number
+  win_probability: number
+  p_low: number
+  p_high: number
+  expected_profit: number
+}
+
+export interface WinScenario {
+  name: 'Aggressive' | 'Target' | 'Conservative'
+  offer: number
+  margin_pct: number
+  win_probability: number
+  expected_profit: number
+}
+
+/** The `win_curve` block of the pricing result (docs/win-probability-model.md §10.4). */
+export interface WinCurve {
+  model: 'ml' | 'placeholder' | 'unavailable' | 'error'
+  reason: string | null
+  model_version?: string
+  baseline?: number
+  market_reference_chf?: number
+  market_reference_source?: WinSource
+  context?: WinContext
+  sources?: Record<keyof WinContext, WinSource>
+  snapshot_date?: string | null
+  parameters?: { margin_grid_pct: [number, number, number]; near_optimal_share: number; min_margin_pct: number; band: number; round_to_chf: number }
+  points?: WinPoint[]
+  scenarios?: WinScenario[]
+  current?: { offer: number; margin_pct: number; win_probability: number; p_low: number; p_high: number; expected_profit: number }
+  explanation?: { feature: string; value: string | number; pts: number }[]
+}
+
+export interface WinModelSummary {
+  model: WinCurve['model']
+  model_version: string | null
+  reason: string | null
+  rows: { train: number; test: number } | null
+  date_range: [string, string] | null
+  metrics: { ml: { auc: number; brier: number; log_loss: number } | null; placeholder: { auc: number; brier: number; log_loss: number } | null }
+  importance: { feature: string; importance: number; effect: string }[] | null
+  latest_snapshot: Record<string, string> | null
 }
 
 export interface CatalogItem {

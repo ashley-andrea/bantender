@@ -11,7 +11,8 @@ import { PositionsList } from './PositionsList'
 import { UploadView } from './Upload'
 import { CataloguePanel } from './steps/Catalogue'
 import { ExtractionPanel } from './steps/Extraction'
-import { ExportPanel, OfferOptions } from './steps/Offer'
+import { ExportPanel } from './steps/Offer'
+import { OfferOptions } from './steps/OfferOptions'
 import { OfferBar, ParameterPanel, PriceDetail } from './steps/Pricing'
 
 const STEP_LABEL: Record<Step, Key> = { extract: 'step1', catalog: 'step2', price: 'step3', offers: 'step4', export: 'step5' }
@@ -226,7 +227,7 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
             {step === 'price' && <div className="pt-3 rise"><OfferBar pricing={pricing} busy={busy} /></div>}
           </div>
         )}
-        {step === 'offers' && <OfferOptions pricing={pricing} />}
+        {step === 'offers' && <OfferOptions pricing={pricing} busy={busy} onSettings={(patch) => apply(api.settings(tenderId, patch))} />}
         {step === 'export' && (offer ? (
           <div className="h-full flex">
             <div className="flex-1 min-w-[400px] h-full">

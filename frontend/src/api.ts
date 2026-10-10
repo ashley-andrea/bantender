@@ -1,4 +1,4 @@
-import type { CatalogContext, Offer, Parsed, Pricing, ReferenceParameters, TenderSummary } from './types'
+import type { CatalogContext, Offer, Parsed, Pricing, ReferenceParameters, TenderSummary, WinModelSummary } from './types'
 
 export type EditField = 'quantity' | 'unit_price' | 'hours_per_unit'
 
@@ -20,6 +20,7 @@ export const prefetched = new Map<string, { parsed: Parsed; pricing: Pricing }>(
 
 export const api = {
   reference: () => fetch('/api/reference').then((r) => json<{ version: string; parameters: ReferenceParameters }>(r)),
+  winModel: () => fetch('/api/win-model').then((r) => json<WinModelSummary>(r)),
   listTenders: () => fetch('/api/tenders').then((r) => json<TenderSummary[]>(r)),
   getTender: (id: string) => fetch(`/api/tenders/${id}`).then((r) => json<Parsed>(r)),
   getPricing: (id: string) => fetch(`/api/tenders/${id}/pricing`).then((r) => json<Pricing>(r)),

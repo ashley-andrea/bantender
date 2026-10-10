@@ -182,7 +182,7 @@ const STRINGS = {
   bubbleUsual: { en: 'The usual?', de: 'Wie immer?' },
   bubbleReading: { en: 'Reading it…', de: 'Lese gerade…' },
   uploadTender: { en: 'Upload a tender', de: 'Ausschreibung hochladen' },
-  orDrop: { en: 'or drop the PDF anywhere', de: 'oder PDF irgendwo ablegen' },
+  orDrop: { en: 'or drop it anywhere', de: 'oder irgendwo ablegen' },
   winShort: { en: 'each offer with its chance of winning, learned from past bids', de: 'jedes Angebot mit seiner Zuschlagschance, gelernt aus früheren Offerten' },
   chooseOffer: { en: 'Choose this offer', de: 'Dieses Angebot wählen' },
   chosen: { en: 'Chosen', de: 'Gewählt' },

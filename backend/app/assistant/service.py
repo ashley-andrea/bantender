@@ -82,11 +82,11 @@ class AssistantService:
     # ---- ask ----------------------------------------------------------------------------------
 
     def ask(self, tender_id: str, question: str, pricing: Callable[[], dict], *, history: list[dict] | None = None,
-            lang: str = "en", view: dict | None = None) -> dict:
+            lang: str = "en", view: dict | None = None, offer: Callable[[dict], dict] | None = None) -> dict:
         if not self.enabled:
             raise RuntimeError("The assistant is off (set AI_PROVIDER=openai and OPENAI_API_KEY).")
         self._check_budget()
-        toolbox = Toolbox(self.index(tender_id), pricing, self.data, self.embed)
+        toolbox = Toolbox(self.index(tender_id), pricing, self.data, self.embed, offer=offer)
         result, usage = answer(self.client, self.model, question, toolbox, history=history, lang=lang, view=view,
                                reasoning_effort=self.reasoning_effort)
         self._add_spend(usage.input_tokens * self.prices["input"] / 1e6 + usage.output_tokens * self.prices["output"] / 1e6)

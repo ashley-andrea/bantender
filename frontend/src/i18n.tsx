@@ -147,6 +147,8 @@ const STRINGS = {
   botQ2: { en: 'What are the payment terms?', de: 'Was sind die Zahlungsbedingungen?' },
   botQ3: { en: 'How is the price weighted in the award?', de: 'Wie wird der Preis beim Zuschlag gewichtet?' },
   botQ4: { en: 'What is our win rate on similar bids?', de: 'Wie oft gewinnen wir ähnliche Ausschreibungen?' },
+  botQ5: { en: 'How do we get from direct cost to the offer price?', de: 'Wie kommen wir von den direkten Kosten zum Angebotspreis?' },
+  botQ6: { en: 'Which positions still need a supplier quote?', de: 'Welche Positionen brauchen noch eine Lieferantenofferte?' },
   botAsk: { en: 'Ask a question…', de: 'Frage stellen…' },
   botThinking: { en: 'Looking it up', de: 'Ich schaue nach' },
   botSource: { en: 'source', de: 'Quelle' },

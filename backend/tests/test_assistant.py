@@ -130,6 +130,62 @@ def test_bid_and_company_data_quotes_are_checked_against_the_tool_output(toolbox
     assert [c["kind"] for c in out["citations"]] == ["bid", "data"]
 
 
+# ---- explaining our offer (real pricing of the sample tender) ----------------------------------------
+
+@pytest.fixture(scope="module")
+def priced(ref):
+    from app.offer.build import build_offer
+    from app.parsing.pipeline import parse_tender, tender_to_dict
+    from app.pricing.service import price_tender
+
+    tender, meta = parse_tender(TENDER_PDF)
+    parsed = tender_to_dict(tender, meta)
+    pricing = price_tender(parsed, ref)
+    return pricing, lambda p: build_offer(parsed, p)
+
+
+@pytest.fixture
+def offer_toolbox(index, priced):
+    pricing, offer = priced
+    return Toolbox(index, lambda: pricing, CompanyData(REFERENCE_DIR), offer=offer)
+
+
+def test_summary_shows_statuses_systems_and_settings(offer_toolbox):
+    text = offer_toolbox.bid_summary()
+    assert "Status supplier_quote_required:" in text and "System 244.01: direct line cost" in text
+    assert "Settings in use: margin" in text and "Mounting height by system:" in text
+
+
+def test_positions_filter_by_status_and_explain_one(offer_toolbox, priced):
+    pricing, _ = priced
+    quotes = [l for l in pricing["lines"] if l["status_key"] == "supplier_quote_required"]
+    text = offer_toolbox.bid_positions("", status="supplier_quote_required", system=None)
+    assert text.startswith("[source: q1]") and f"{len(quotes)} positions with status supplier_quote_required" in text
+    assert "Statuses here:" in offer_toolbox.bid_positions("", status="nonsense", system=None)
+    detail = offer_toolbox.bid_positions(quotes[0]["line_id"])
+    assert "Why: Supplier package" in detail and "On the offer form: unit price CHF" in detail and "{'en'" not in detail
+
+
+def test_offer_form_win_and_guide_are_quotable(offer_toolbox):
+    form, win, guide = offer_toolbox.bid_offer_form(), offer_toolbox.win_probability(), offer_toolbox.tool_guide()
+    assert "Factor m = offer price ÷ direct cost" in form and "net incl. VAT" in form
+    assert win.startswith("[source: win]") or win.startswith("No win probability")
+    raw = {"status": "answered", "message": "", "claims": [
+        claim("Installation goes to section E.", "form", "Section E carries installation and transport"),
+        claim("Supplier quotes are entered in the catalogue step.", "guide", "type the quoted net price and save it"),
+    ]}
+    out = ground(raw, offer_toolbox.sources, "en")
+    assert out["unverified"] == 0 and [c["kind"] for c in out["citations"]] == ["bid", "data"]
+    assert "guide" in guide
+
+
+def test_long_sources_give_the_auditor_the_lines_around_the_quote(offer_toolbox):
+    text = offer_toolbox.bid_summary()
+    last = text.splitlines()[-1]
+    out = ground({"status": "answered", "message": "", "claims": [claim("x", "bid", last[:60])]}, offer_toolbox.sources, "en")
+    assert last[:60] in out["citations"][0]["context"]
+
+
 # ---- company data --------------------------------------------------------------------------------
 
 def test_company_data_covers_every_file_and_aggregates():

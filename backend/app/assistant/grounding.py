@@ -64,10 +64,23 @@ def find_quote(quote: str, source: Source) -> list[TextBox] | None:
     return None
 
 
-def context(source: Source, boxes: list[TextBox]) -> str:
-    """The quote with the rows around it (tender pages), or the source itself (bid, positions, data results)."""
+def context(source: Source, boxes: list[TextBox], quote: str = "") -> str:
+    """The quote with the rows around it (tender pages), or the source itself (bid, positions, data results);
+    for a long source, its first lines and the lines around the quote."""
     if not boxes:
-        return source.text[:CONTEXT_CHARS]
+        if len(source.text) <= CONTEXT_CHARS:
+            return source.text
+        lines = source.text.splitlines()
+        starts, joined = [], ""
+        for line in lines:
+            starts.append(len(joined))
+            joined += skeleton(line)
+        at, q = joined.find(skeleton(quote)), skeleton(quote)
+        if at < 0:
+            return source.text[:CONTEXT_CHARS]
+        hit = [i for i, s in enumerate(starts) if s < at + len(q) and (starts[i + 1] if i + 1 < len(starts) else len(joined)) > at]
+        lo, hi = max(0, hit[0] - CONTEXT_ROWS), hit[-1] + CONTEXT_ROWS + 1
+        return "\n".join(lines[:2] + (["…"] if lo > 2 else []) + lines[max(lo, 2):hi])
     lo, hi = min(b.row for b in boxes) - CONTEXT_ROWS, max(b.row for b in boxes) + CONTEXT_ROWS
     return page_text([b for b in source.boxes if lo <= b.row <= hi])
 
@@ -101,7 +114,7 @@ def ground(raw: dict, sources: dict[str, Source], lang: str) -> dict:
                 citations.append({
                     "n": keys[key], "kind": source.kind, "source": source.id, "label": source.label, "quote": quote,
                     "page": source.page, "line_id": source.line_id,
-                    "bboxes": [list(b.bbox) for b in boxes], "context": context(source, boxes),
+                    "bboxes": [list(b.bbox) for b in boxes], "context": context(source, boxes, quote),
                 })
             if keys[key] not in refs:
                 refs.append(keys[key])

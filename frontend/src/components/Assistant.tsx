@@ -14,7 +14,7 @@ interface Props {
 type Message = { role: 'user'; text: string } | { role: 'assistant'; answer: AssistantAnswer } | { role: 'error'; text: string }
 
 const HINT_KEY = 'bartender-hint-seen'
-const SUGGESTIONS: Key[] = ['botQ1', 'botQ2', 'botQ3', 'botQ4']
+const SUGGESTIONS: Key[] = ['botQ5', 'botQ6', 'botQ1', 'botQ3']
 const KIND_ICON = { tender: FileText, bid: Calculator, position: ListTree, data: Database }
 const ACTION: Partial<Record<Citation['kind'], Key>> = { tender: 'botShowPdf', position: 'botOpenPosition', bid: 'botOpenPrice' }
 

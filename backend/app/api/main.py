@@ -291,11 +291,13 @@ class Question(BaseModel):
 
 @app.post("/api/tenders/{tender_id}/assistant")
 def ask_assistant(tender_id: str, body: Question) -> dict:
-    _load(tender_id)
+    parsed = _load(tender_id)
     if not assistant.enabled:
         raise HTTPException(503, "The assistant is off: set AI_PROVIDER=openai and OPENAI_API_KEY.")
+    settings_ = _get_json(f"tenders/{tender_id}/settings.json", {})
     try:
         return assistant.ask(tender_id, body.question, lambda: _pricing(tender_id), history=[m.model_dump() for m in body.history],
-                             lang="de" if body.lang == "de" else "en", view=body.view)
+                             lang="de" if body.lang == "de" else "en", view=body.view,
+                             offer=lambda pricing: build_offer(parsed, pricing, settings_))
     except BudgetExceeded as e:
         raise HTTPException(429, str(e)) from e

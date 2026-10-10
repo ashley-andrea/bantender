@@ -1,7 +1,10 @@
-.PHONY: test api deploy logs smoke e2e
+.PHONY: test api deploy logs smoke e2e winprob-data
 
 test:            ## run all backend tests (no OpenAI calls)
 	cd backend && uv run pytest -q
+
+winprob-data:    ## regenerate the synthetic bid history + market snapshots (data/reference/v2), deterministic
+	cd backend && uv run --extra winprob python -m app.winprob.synthetic --summary
 
 api:             ## run the API for development
 	cd backend && uv run uvicorn app.api.main:app --reload --port 8000

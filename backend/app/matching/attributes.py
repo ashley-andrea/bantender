@@ -112,7 +112,7 @@ def line_attributes(line: dict, decision: dict, mismatch_pages: set[int]) -> lis
 
 def _reference_value(rows: list[dict]) -> dict:
     """'Fabrikat z.B. X' / 'Typ z.B. Y' → 'X · Y' (make and model; the tender says 'or equivalent')."""
-    parts = [re.sub(r"^(Fabrikat|Typ)\s*(z\.\s?B\.?)?\s*", "", r["text"]).strip() for r in rows]
+    parts = [re.sub(r"^(Fabrikat|Typ)\s*:?\s*(z\.\s?B\.?)?\s*:?\s*", "", r["text"]).strip() for r in rows]
     value = " · ".join(p for p in parts if p)
     return {"en": value, "de": value}
 

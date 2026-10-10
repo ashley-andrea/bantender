@@ -5,12 +5,13 @@ import type { Level } from '../types'
 
 const W = 660
 const TOP = 74
-const R_TOP = 44
-const R = 26
+const R_TOP = 48
+const R = 29
 const R_SUB = 13
 const SUB_GAP = 62
 const DASH = '6 5' // one dash pattern for every level: the colour carries the meaning
 const INK = '#1c2933'
+const LINK = '#002439' // trunk and bus: Equans navy, never the grey that means "missing"
 
 interface Props {
   spec: GraphSpec
@@ -23,7 +24,7 @@ interface Props {
 function wrap(text: string, width: number, lines = 2): string[] {
   const out: string[] = []
   let cur = ''
-  for (const word of text.split(/\s+/)) {
+  for (const word of text.split(/\s+/).flatMap((w) => (w.length > width && w.includes('-') ? w.split(/(?<=-)/) : [w]))) {
     if ((cur + ' ' + word).trim().length > width && cur) {
       out.push(cur)
       cur = word
@@ -63,8 +64,8 @@ export function ItemGraph({ spec, catalog = false, active, onActive }: Props) {
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto select-none overflow-visible" role="img" aria-label={spec.top.value}>
       {/* trunk and bus from the type to the values */}
-      <path d={seg([[tx, TOP + R_TOP], [tx, bus]])} stroke={INK} strokeOpacity={0.45} strokeWidth={1.6} strokeDasharray={DASH} fill="none" filter="url(#pencil)" />
-      <path d={seg([[busFrom, bus], [busTo, bus]])} stroke={INK} strokeOpacity={0.45} strokeWidth={1.6} strokeDasharray={DASH} fill="none" filter="url(#pencil)" />
+      <path d={seg([[tx, TOP + R_TOP], [tx, bus]])} stroke={LINK} strokeOpacity={0.85} strokeWidth={1.6} strokeDasharray={DASH} fill="none" filter="url(#pencil)" />
+      <path d={seg([[busFrom, bus], [busTo, bus]])} stroke={LINK} strokeOpacity={0.85} strokeWidth={1.6} strokeDasharray={DASH} fill="none" filter="url(#pencil)" />
       {spec.nodes.map((n, i) => {
         const on = active === n.key || n.subs?.some((s) => s.key === active)
         return (
@@ -78,7 +79,7 @@ export function ItemGraph({ spec, catalog = false, active, onActive }: Props) {
         <ChainNode node={spec.product} x={px} fromX={tx + R_TOP} lang={lang} active={active} onActive={onActive} open={isOpen(spec.product)} dim={dim} filled />
       )}
       {catalog && spec.hours && (
-        <ChainNode node={spec.hours} x={hx} fromX={spec.product ? px + 40 : tx + R_TOP} lang={lang} active={active} onActive={onActive} open={isOpen(spec.hours)} dim={dim} />
+        <ChainNode node={spec.hours} x={hx} fromX={spec.product ? px + 44 : tx + R_TOP} lang={lang} active={active} onActive={onActive} open={isOpen(spec.hours)} dim={dim} />
       )}
 
       {/* parts: their own type beside the parent's */}
@@ -103,8 +104,8 @@ export function ItemGraph({ spec, catalog = false, active, onActive }: Props) {
       <g className="cursor-pointer" onMouseEnter={() => onActive('type')} onClick={() => onActive('type')}>
         <title>{spec.top.value}</title>
         <circle cx={tx} cy={TOP} r={R_TOP} fill="#002439" stroke={active === 'type' ? ring(spec.top.level) : INK} strokeWidth={active === 'type' ? 4 : 1.5} filter="url(#pencil)" />
-        {wrap(spec.top.value, 12, 3).map((t, i, all) => (
-          <text key={i} x={tx} y={TOP + 4 - (all.length - 1) * 7.5 + i * 15} textAnchor="middle" fontSize={12.5} fontWeight={600} fill="#fff">{t}</text>
+        {wrap(spec.top.value, 11, 3).map((t, i, all) => (
+          <text key={i} x={tx} y={TOP + 4 - (all.length - 1) * 7.5 + i * 15} textAnchor="middle" fontSize={12} fontWeight={600} fill="#fff">{t}</text>
         ))}
         <g transform={`translate(${tx} ${TOP - R_TOP - 9}) rotate(-3)`}>
           <rect x={-22} y={-10} width={44} height={19} rx={6} fill="#ffffff" stroke={INK} strokeWidth={1.3} />
@@ -128,7 +129,7 @@ export function ItemGraph({ spec, catalog = false, active, onActive }: Props) {
               <title>{`${n.label}: ${n.value}`}</title>
               {many && <circle cx={x} cy={rowY} r={R + 5} fill="none" stroke={ring(n.level)} strokeWidth={1.3} strokeDasharray="3 4" filter="url(#pencil)" />}
               <circle cx={x} cy={rowY} r={on ? R + 2 : R} fill={on || open ? LEVEL_MARKER[n.level] : '#ffffff'} stroke={ring(n.level)} strokeWidth={2.6} filter="url(#pencil)" className="transition-all" />
-              <text x={x} y={rowY + 4} textAnchor="middle" fontSize={11} fontWeight={700} fill={INK}>{n.label}</text>
+              <text x={x} y={rowY + 4} textAnchor="middle" fontSize={10.5} fontWeight={700} fill={INK}>{n.label}</text>
               {many && (
                 <g transform={`translate(${x + R * 0.82} ${rowY - R * 0.82})`}>
                   <circle r={8.5} fill={INK} />
@@ -168,7 +169,7 @@ function ChainNode({ node, x, fromX, lang, active, onActive, open, dim, filled }
   node: AttrNode; x: number; fromX: number; lang: 'en' | 'de'; active: string | null; onActive: (k: string) => void
   open: boolean; dim: (s: SubValue) => boolean; filled?: boolean
 }) {
-  const r = filled ? 40 : 30
+  const r = filled ? 44 : 31
   const [main, sub] = node.value.split(' · ')
   const on = active === node.key
   const subY = TOP + r + 46
@@ -188,7 +189,7 @@ function ChainNode({ node, x, fromX, lang, active, onActive, open, dim, filled }
         <circle cx={x} cy={TOP} r={on ? r + 2 : r} fill={filled ? '#008163' : '#ffffff'} stroke={filled ? INK : '#008163'} strokeWidth={filled ? 1.5 : 2.2} filter="url(#pencil)" />
         {sub !== undefined ? (
           <>
-            <text x={x} y={TOP - 4} textAnchor="middle" fontSize={10.5} fill={filled ? '#d6efe4' : '#5f6a72'}>{main}</text>
+            <text x={x} y={TOP - 4} textAnchor="middle" fontSize={main.length > 9 ? 9.5 : 10.5} fill={filled ? '#d6efe4' : '#5f6a72'}>{main}</text>
             <text x={x} y={TOP + 14} textAnchor="middle" fontSize={13.5} fontWeight={700} fill={filled ? '#fff' : INK}>{sub}</text>
           </>
         ) : (

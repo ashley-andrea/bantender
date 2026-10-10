@@ -4,7 +4,7 @@
   "canton": "ZH",
   "client_type": "municipality",
   "procedure": "open",
-  "market_reference_chf": 460000,
+  "market_reference_chf": 2530000,
   "n_lots": 1,
   "price_weight_pct": 60,
   "zero_at_ratio": 1.5,

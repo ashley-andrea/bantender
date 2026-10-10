@@ -22,10 +22,12 @@ from app.parsing.pipeline import PARSER_VERSION, parse_tender, tender_to_dict
 from app.pricing.service import price_tender
 from app.reference import load_reference
 from app.storage import make_storage
+from app.winprob.service import WinService
 
 settings = get_settings()
 storage = make_storage(settings.storage, settings.data_dir)
 reference = load_reference(settings.reference_dir)
+win = WinService(settings.reference_dir, reference.parameters, settings.win_context_path, settings.win_model)  # trains here
 
 app = FastAPI(title="Tender Pricing API", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["*"], allow_headers=["*"])
@@ -34,6 +36,12 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_me
 @app.get("/api/healthz")
 def healthz() -> dict:
     return {"status": "ok", "environment": settings.environment, "reference_version": reference.version}
+
+
+@app.get("/api/win-model")
+def win_model_summary() -> dict:
+    """The win-probability model: which one runs, the data behind it, held-out metrics vs the placeholder, feature relevance."""
+    return win.summary()
 
 
 @app.get("/api/reference")
@@ -142,7 +150,7 @@ def _pricing(tender_id: str) -> dict:
     parsed = _load(tender_id)
     overrides = _get_json(f"tenders/{tender_id}/overrides.json", {})
     settings_ = _get_json(f"tenders/{tender_id}/settings.json", {})
-    result = price_tender(parsed, reference, overrides, settings_)
+    result = price_tender(parsed, reference, overrides, settings_, win=win.curve)
     result["anomalies"] = parsed["anomalies"]
     result["tender"] = {"project": parsed.get("project", {}), "lots": parsed.get("lots", {}),
                         "systems": parsed["systems"], "award": parsed.get("award")}
@@ -201,9 +209,14 @@ def update_settings(tender_id: str, body: dict) -> dict:
     _load(tender_id)
     allowed = {"factors", "allowances", "project_costs", "overhead_pct", "margin_pct", "risk_allowance_chf", "include_project_costs",
                "include_small_material", "include_supplier_contingency", "include_cad_ductwork", "locations",
-               "discount_pct", "cash_discount_pct"}
+               "discount_pct", "cash_discount_pct", "win_context"}
     if set(body) - allowed:
         raise HTTPException(400, f"Unknown settings: {sorted(set(body) - allowed)}")
+    if "win_context" in body:
+        try:
+            win.check_override(body["win_context"] or {})
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
     key = f"tenders/{tender_id}/settings.json"
     old = _get_json(key, {})
     new = {**old, **body}

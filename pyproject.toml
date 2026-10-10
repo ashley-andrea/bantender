@@ -13,8 +13,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Win-probability model (backend/app/winprob). Installed in the API image; without it the API runs on the placeholder.
 winprob = [
-    "numpy>=2.5.3",
+    "numpy>=2",
+    "pandas>=2",
+    "scikit-learn>=1.5",
 ]
 
 [dependency-groups]

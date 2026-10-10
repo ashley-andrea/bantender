@@ -1,6 +1,6 @@
 # Win-probability model: plan
 
-Status: training and testing pipeline implemented (steps 1-4, run with `make winprob`); integration (step 5) not yet done. Code is in `backend/app/winprob/`.
+Status: pipeline (steps 1-4, `make winprob`) and integration into the API (step 5) implemented; the UI for the "Offer options" step (step 7) is next. Code is in `backend/app/winprob/`.
 
 ## 1. Purpose
 
@@ -22,7 +22,7 @@ The UI uses the curve for a slider. The three bid scenarios (Aggressive / Target
   - explainability
   - integration into the pricing result and the API
 - **Not in scope: the real dataset.** It is generated separately and delivered as two CSV files following the data contract in §4. Until it arrives, tests use a small synthetic fixture generated inside the tests (§12).
-- **Split of work:** a teammate builds the dataset; this task is the training and testing pipeline and its outputs (steps 1-4). Integration into the API (step 5) comes later and `service.py` does not exist yet.
+- **Split of work:** a teammate builds the dataset; this task is the training and testing pipeline (steps 1-4) and its integration into the API (step 5, `service.py`). The UI is built separately against the contract in §10.4.
 - **Demo data:** until the real CSVs arrive, `demo_data.py` generates a synthetic history (used by `make winprob` and the tests). `synthetic.py` is the teammate's area; leave it untouched.
 - **Run:** `make winprob` trains, evaluates and prints metrics, feature relevance, the curve, the scenarios and the per-tender explanation. It uses `data/reference/v2/historical_bids.csv` when present, otherwise the demo history. Outputs go to `backend/benchmarks/results/winprob/` (`report.json`, `curve.csv`).
 
@@ -258,30 +258,46 @@ Extend `app/reference/models.py` with the matching pydantic model.
 
 ### 10.4 Output
 
-`price_tender` gets a new key `win_curve`. The existing `scenarios` key is unchanged.
+`price_tender` gets a new key `win_curve` (every pricing response: GET pricing, line edits, PATCH settings). The existing `scenarios` key is unchanged. Example for the full Oberglatt tender (values rounded):
 
 ```json
 {
-  "model": "ml",
-  "model_version": "logreg-3fa2c1d0",
-  "market_reference_chf": 1820000,
-  "market_reference_source": "ingestion",
-  "context": {"bkp_trade": "244", "building_type": "school", "...": "..."},
+  "model": "ml",                        // ml | placeholder | unavailable | error
+  "model_version": "logreg-ab608985",
+  "reason": null,                       // why the placeholder / nothing is used, else null
+  "baseline": 2325198,                  // our full cost (pricing engine, follows every edit)
+  "market_reference_chf": 2530000,
+  "market_reference_source": "demo_fixture",   // demo_fixture | estimator | target_margin_fallback
+  "context": {"bkp_trade": "244", "building_type": "school", "n_bidders": 6, "...": "..."},
+  "sources": {"bkp_trade": "tender", "competitive_intensity": "market_snapshot", "n_bidders": "demo_fixture", "...": "..."},
   "snapshot_date": "2026-07-01",
-  "points": [
-    {"margin_pct": 0.0, "offer": 1660000.0, "price_position": 0.912,
-     "win_probability": 0.71, "p_low": 0.64, "p_high": 0.77, "expected_profit": 0.0}
+  "parameters": {"margin_grid_pct": [0, 20, 0.1], "near_optimal_share": 0.9, "min_margin_pct": 2.0, "band": 0.8, "round_to_chf": 1000},
+  "points": [                           // 201 points, margin 0-20 % in 0.1 % steps, exact (unrounded) offers
+    {"margin_pct": 8.0, "offer": 2527389, "price_position": 0.999,
+     "win_probability": 0.168, "p_low": 0.133, "p_high": 0.211, "expected_profit": 34014}
   ],
-  "scenarios": [
-    {"name": "Aggressive", "margin_pct": 5.6, "offer": 1758000, "win_probability": 0.54, "expected_profit": 51000.0},
-    {"name": "Target", "margin_pct": 8.0, "offer": 1805000, "win_probability": 0.42, "expected_profit": 57000.0},
-    {"name": "Conservative", "margin_pct": 10.3, "offer": 1851000, "win_probability": 0.29, "expected_profit": 52000.0}
+  "scenarios": [                        // offers rounded up to round_to_chf
+    {"name": "Aggressive", "offer": 2453000, "margin_pct": 5.2, "win_probability": 0.240, "expected_profit": 30676},
+    {"name": "Target", "offer": 2528000, "margin_pct": 8.0, "win_probability": 0.168, "expected_profit": 34013},
+    {"name": "Conservative", "offer": 2619000, "margin_pct": 11.2, "win_probability": 0.105, "expected_profit": 30730}
   ],
-  "explanation": [{"feature": "price_position", "value": 1.03, "pts": -6.0}]
+  "current": {"offer": 2461000, "margin_pct": 5.5, "win_probability": 0.231, "p_low": 0.186, "p_high": 0.284, "expected_profit": 31424},
+  "explanation": [                      // at the Target offer, points vs the average tender, largest first ([] for the placeholder)
+    {"feature": "bkp_trade", "value": "244", "pts": 11.1},
+    {"feature": "price_position_x_sensitivity", "value": -0.001, "pts": -6.7}
+  ]
 }
 ```
 
-`GET /api/win-model` returns the model summary: model and version, number of rows, date range, the metrics from §6.2 (model vs placeholder), and the global feature relevance from §9.
+Input sources: `tender` (parser: trade, building type from the project name, award rule, number of lots) · `market_snapshot` (latest row of `market_snapshots.csv`) · `demo_fixture` (`tender_context.json`, stand-in for the ingestion pipeline; its values, including the client estimate of CHF 2.53 M, are demo data) · `estimator` (overrides).
+
+How the UI uses it:
+
+- **Slider:** read `points` client-side (no request while sliding).
+- **Apply an offer** (a scenario or a slider position): `PATCH /api/tenders/{id}/settings {"margin_pct": <margin_pct>}`. The selling price becomes that offer; the new response carries the updated `current`.
+- **Correct an input** (e.g. bidders, client estimate): `PATCH /api/tenders/{id}/settings {"win_context": {"n_bidders": 4}}`. Keys are the `TenderContext` fields; unknown or invalid values return 400. The current overrides are echoed in `settings.win_context`.
+
+`GET /api/win-model` returns the model summary: model and version, reason, rows, date range, win rates, held-out metrics (model vs placeholder), calibration, monotonicity, global feature relevance (§9), the latest market snapshot and the `win_model` parameters.
 
 ## 11. Fallback
 
@@ -341,7 +357,7 @@ The curve and scenarios are then computed the same way, `win_curve.model` is `"p
 | 2 | `model.py`: pipeline, `train`, `evaluate`, monotonicity check, Laplace band, `PlaceholderWinModel` |
 | 3 | `curve.py`: grid, curve, scenarios |
 | 4 | `explain.py`: global relevance and per-tender breakdown (OpenAI summary optional, off) |
-| 5 (later) | `service.py`, config, parameters, `tender_context.json` fixture, `win_curve` in `price_tender`, `GET /api/win-model` |
+| 5 | `service.py`, config, parameters, `tender_context.json` fixture, `win_curve` in `price_tender`, `GET /api/win-model` (tests: `test_winprob_service.py`) |
 | 6 | Once the real dataset is in `data/reference/v2/`: run `evaluate`, check the metrics and feature relevance, adjust nothing in the model structure unless a test fails |
 
 ## 15. Files

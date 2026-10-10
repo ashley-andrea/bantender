@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[3]
 REFERENCE = ROOT / "data" / "reference" / "v2"
 SAMPLE = ROOT / "data" / "samples" / "oberglatt"
 OUT = ROOT / "backend" / "benchmarks" / "results" / "winprob"
-BASELINE_CHF = 414_489.12  # cost baseline of the Oberglatt example
+BASELINE_CHF = 2_325_198.0  # cost baseline of the full Oberglatt tender at company defaults (the API computes it per tender)
 
 
 def main() -> None:

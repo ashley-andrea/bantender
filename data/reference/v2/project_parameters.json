@@ -60,5 +60,11 @@
       "strategic_appetite",
       "available_capacity"
     ]
+  },
+  "win_model": {
+    "margin_grid_pct": {"start": 0.0, "stop": 20.0, "step": 0.1},
+    "near_optimal_share": 0.9,
+    "min_margin_pct": 2.0,
+    "band": 0.8
   }
 }

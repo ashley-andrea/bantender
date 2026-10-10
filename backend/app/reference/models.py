@@ -71,6 +71,20 @@ class BidOptimization(BaseModel):
     model_inputs: list[str] = Field(default_factory=list)
 
 
+class MarginGrid(BaseModel):
+    start: float = 0.0
+    stop: float = 20.0
+    step: float = 0.1
+
+
+class WinModelParameters(BaseModel):
+    """Curve grid and scenario rules of the learned win-probability model (docs/win-probability-model.md §8)."""
+    margin_grid_pct: MarginGrid = Field(default_factory=MarginGrid)
+    near_optimal_share: float = 0.9
+    min_margin_pct: float = 2.0
+    band: float = 0.8
+
+
 class ProjectParameters(BaseModel):
     schema_version: str
     productivity_factors: dict[str, float]
@@ -78,6 +92,7 @@ class ProjectParameters(BaseModel):
     project_costs: ProjectCosts
     commercial: Commercial
     stretch_bid_optimization: BidOptimization
+    win_model: WinModelParameters = Field(default_factory=WinModelParameters)
 
 
 class ReferenceData(BaseModel):

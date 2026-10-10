@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     # Storage: "local" (server volume) now; "azure_blob" later (Azurite on our server, Azure Blob in production).
     storage: str = "local"
 
+    # Win-probability model: "ml" (learned from data/reference/<v>/historical_bids.csv) or "placeholder" (Equans formula).
+    win_model: str = "ml"
+    # Tender facts the parser does not read (client estimate, client type, bidders …): stand-in for the ingestion pipeline.
+    win_context_path: Path = ROOT / "data" / "samples" / "oberglatt" / "tender_context.json"
+
     # AI: off by default. Budget-capped when on.
     ai_provider: str = "off"  # off | openai | azure
     openai_model: str = "gpt-4.1-mini"

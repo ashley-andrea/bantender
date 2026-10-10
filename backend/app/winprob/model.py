@@ -67,12 +67,12 @@ class LogisticWinModel:
     def predict(self, offers: np.ndarray, ctx: TenderContext) -> np.ndarray:
         return self.pipeline.predict_proba(self.frame(offers, ctx)[FEATURES])[:, 1]
 
-    def predict_band(self, offers: np.ndarray, ctx: TenderContext) -> tuple[np.ndarray, np.ndarray]:
+    def predict_band(self, offers: np.ndarray, ctx: TenderContext, z: float = Z80) -> tuple[np.ndarray, np.ndarray]:
         x = self.pipeline.named_steps["features"].transform(self.frame(offers, ctx)[FEATURES])
         xi = np.hstack([x, np.ones((len(x), 1))])
         logit = xi[:, :-1] @ self._clf.coef_[0] + self._clf.intercept_[0]
         sd = np.sqrt(np.einsum("ij,jk,ik->i", xi, self.cov, xi))
-        return _sigmoid(logit - Z80 * sd), _sigmoid(logit + Z80 * sd)
+        return _sigmoid(logit - z * sd), _sigmoid(logit + z * sd)
 
     def weight(self, name: str) -> float:
         names = self.pipeline.named_steps["features"].get_feature_names_out()
@@ -84,6 +84,24 @@ class LogisticWinModel:
         sd = dict(zip(NUMERIC, scaler.scale_))
         w_pp, w_int = self.weight("num__price_position"), self.weight("num__price_position_x_sensitivity")
         return all(w_pp / sd["price_position"] + w_int * s / sd["price_position_x_sensitivity"] < 0 for s in self.sens_range)
+
+
+class PlaceholderWinModel:
+    """Fallback: the Equans linear formula, reference = our price at the target margin. No band (low = high = p)."""
+
+    name = "placeholder"
+    version = "equans-placeholder"
+
+    def __init__(self, params: ProjectParameters, baseline: float):
+        self.params = params
+        self.reference = baseline / (1 - params.commercial.target_margin_pct / 100)
+
+    def predict(self, offers: np.ndarray, ctx: TenderContext) -> np.ndarray:
+        return np.array([win_probability(float(o), self.reference, self.params) for o in np.atleast_1d(offers)])
+
+    def predict_band(self, offers: np.ndarray, ctx: TenderContext, z: float = Z80) -> tuple[np.ndarray, np.ndarray]:
+        p = self.predict(offers, ctx)
+        return p, p
 
 
 def history_version(history_csv: Path) -> str:

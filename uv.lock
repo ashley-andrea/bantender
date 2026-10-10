@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -837,6 +837,8 @@ dependencies = [
 [package.optional-dependencies]
 winprob = [
     { name = "numpy" },
+    { name = "pandas" },
+    { name = "scikit-learn" },
 ]
 
 [package.dev-dependencies]
@@ -851,11 +853,13 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.143.0" },
-    { name = "numpy", marker = "extra == 'winprob'", specifier = ">=2.5.3" },
+    { name = "numpy", marker = "extra == 'winprob'", specifier = ">=2" },
+    { name = "pandas", marker = "extra == 'winprob'", specifier = ">=2" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "pymupdf", specifier = ">=1.28.2" },
     { name = "python-multipart", specifier = ">=0.0.32" },
+    { name = "scikit-learn", marker = "extra == 'winprob'", specifier = ">=1.5" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]
 provides-extras = ["winprob"]

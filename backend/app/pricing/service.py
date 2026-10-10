@@ -7,6 +7,7 @@ no stale totals are ever stored.
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import asdict
 
 from app.matching.attributes import line_attributes, mismatch_pages
@@ -70,7 +71,9 @@ def _cost_input(line_id: str, d: dict, ov: dict) -> LineInput:
     )
 
 
-def price_tender(parsed: dict, ref: ReferenceData, overrides: dict | None = None, settings: dict | None = None) -> dict:
+def price_tender(parsed: dict, ref: ReferenceData, overrides: dict | None = None, settings: dict | None = None,
+                 win: Callable[[float, float, dict, dict], dict] | None = None) -> dict:
+    """`win(baseline, selling_price, parsed, settings)` adds the win-probability curve (app.winprob.service.WinService.curve)."""
     overrides, settings = overrides or {}, settings or {}
     params = effective_parameters(ref, settings)
 
@@ -114,6 +117,7 @@ def price_tender(parsed: dict, ref: ReferenceData, overrides: dict | None = None
     scenarios = bid_scenarios(project.baseline, params)
 
     return {
+        **({"win_curve": win(project.baseline, project.selling_price, parsed, settings)} if win else {}),
         "lines": rows,
         "project": asdict(project),
         "scenarios": [asdict(s) for s in scenarios],
@@ -128,7 +132,8 @@ def price_tender(parsed: dict, ref: ReferenceData, overrides: dict | None = None
                      "include_supplier_contingency": opts.include_supplier_contingency,
                      "include_cad_ductwork": settings.get("include_cad_ductwork", True),
                      "locations": locations, "location_options": location_options(params),
-                     "target_margin_pct": params.commercial.target_margin_pct, "round_to_chf": params.commercial.round_to_chf},
+                     "target_margin_pct": params.commercial.target_margin_pct, "round_to_chf": params.commercial.round_to_chf,
+                     "win_context": settings.get("win_context") or {}},
     }
 
 

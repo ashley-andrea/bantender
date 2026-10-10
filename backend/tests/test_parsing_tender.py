@@ -77,3 +77,26 @@ def test_docling_cross_check_flags_disagreements(tender):
     assert len(result["anomalies"]) == 1 and result["anomalies"][0]["code"] == "reader_disagreement"
     assert len(result["meta"]["figures"]) > 0
     assert parsed["anomalies"] == [a for a in parsed["anomalies"] if a["code"] != "reader_disagreement"]  # parse untouched
+
+
+def test_every_unit_in_the_unit_column_becomes_a_line(tender):
+    """Independent completeness check: word-level scan of each LV page's unit column vs extracted lines."""
+    import pymupdf
+
+    from app.parsing.normalize import normalize_unit
+
+    doc = pymupdf.open(TENDER_PDF)
+    per_page = Counter(l.page for l in tender.lines)
+    for info in (p for p in tender.pages if p.kind == "lv"):
+        ux, qx = (info.unit_x or 365) - 12, (info.qty_x or 405) - 15
+        words = doc[info.page - 1].get_text("words")
+        # Word level: a unit glued to description text in the text layer is still its own word in the unit column.
+        units = [w for w in words if 60 < w[1] < 785 and ux <= w[0] < qx and normalize_unit(w[4])]
+        assert len(units) == per_page[info.page], f"p.{info.page}: {len(units)} units, {per_page[info.page]} lines"
+
+
+def test_sub_items_get_their_own_titles(tender):
+    titles = {l.line_id: l.item_title for l in tender.lines}
+    assert titles["244.01-D-003"] == "Kanalrauchmelder"  # device layout: name on the quantity row
+    assert titles["244.01-C-004"] == "Sockelrohr V2A"  # attribute layout: first row of the paragraph
+    assert titles["244.01-C-020"] == "Montagerahmen für isolierte Kanäle"

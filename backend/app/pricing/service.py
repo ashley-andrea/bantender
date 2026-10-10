@@ -12,6 +12,7 @@ from dataclasses import asdict
 
 from app.matching.attributes import line_attributes, mismatch_pages
 from app.matching.ducts import derive_duct_lines
+from app.matching.groups import assign_groups
 from app.matching.matcher import Check, Decision, decide_all
 from app.matching.text import T, chf
 from app.reference.models import ProjectParameters, ReferenceData
@@ -105,6 +106,9 @@ def price_tender(parsed: dict, ref: ReferenceData, overrides: dict | None = None
             "evidence": line.get("evidence"), "pages": line.get("pages"),
             "attributes": line_attributes(line, d, flagged_pages) if source == "lv" else cad_attributes(line, d),
         })
+
+    assign_groups(rows, {line["line_id"]: line for line in parsed["lines"]},
+                  {pid: item.subcategory for pid, item in ref.catalog.items()})
 
     opts = BuildUpOptions(
         include_project_costs=settings.get("include_project_costs", True),

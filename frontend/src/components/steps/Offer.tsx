@@ -1,34 +1,16 @@
 import { Download } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { fmtChf, fmtPct } from '../../format'
-import { systemName, useI18n, type Key } from '../../i18n'
-import type { Offer, Parsed, Pricing } from '../../types'
+import { systemName, useI18n } from '../../i18n'
+import type { Offer, OfferChoice, Parsed } from '../../types'
 
-/** Reserved for the AI loop (bid optimisation); intentionally inert. */
-export function OfferOptions({ pricing }: { pricing: Pricing }) {
-  const { t } = useI18n()
-  const p = pricing.project
-  return (
-    <div className="h-full grid place-items-center">
-      <div className="w-full max-w-xl panel p-6">
-        <div className="text-[17px] font-semibold">{t('aiTitle')}</div>
-        <p className="mt-1 text-[13.5px] text-muted">{t('aiBody')}</p>
-        <div className="mt-5 grid grid-cols-3 gap-3">
-          {(['aiAggressive', 'currentOffer', 'aiConservative'] as Key[]).map((k) => (
-            <div key={k} className={`rounded-md p-3 ${k === 'currentOffer' ? 'bg-navy text-white' : 'border border-dashed border-hair text-faint'}`}>
-              <div className="text-[12px]">{t(k)}</div>
-              <div className="mt-1 text-[16px] font-semibold num">{k === 'currentOffer' ? fmtChf(p.selling_price) : '—'}</div>
-              <div className="text-[12px] num">{k === 'currentOffer' ? `${t('margin')} ${fmtPct(p.margin_pct)}` : ''}</div>
-            </div>
-          ))}
-        </div>
-        <button disabled className="mt-5 w-full rounded-md bg-canvas text-faint py-2.5 text-[13.5px] font-semibold cursor-not-allowed">{t('aiButton')}</button>
-      </div>
-    </div>
-  )
+const SCENARIO_LABEL: Record<string, { en: string; de: string }> = {
+  Aggressive: { en: 'Aggressive', de: 'Aggressiv' }, Target: { en: 'Target', de: 'Ziel' }, Conservative: { en: 'Conservative', de: 'Vorsichtig' },
+  Custom: { en: 'Own choice on the curve', de: 'Eigene Wahl auf der Kurve' },
 }
 
 interface ExportProps {
+  choice: OfferChoice | null
   offer: Offer
   parsed: Parsed
   page: number
@@ -38,7 +20,7 @@ interface ExportProps {
   busy: boolean
 }
 
-export function ExportPanel({ offer, parsed, page, url, onJump, onConditions, busy }: ExportProps) {
+export function ExportPanel({ choice, offer, parsed, page, url, onJump, onConditions, busy }: ExportProps) {
   const { t, lang } = useI18n()
   const c = offer.conditions
 
@@ -66,9 +48,15 @@ export function ExportPanel({ offer, parsed, page, url, onJump, onConditions, bu
   return (
     <div className="h-full min-h-0 flex flex-col panel overflow-hidden">
       <div className="p-4 border-b border-hair">
-        <a href={url} className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-green text-white py-2.5 text-[14px] font-semibold hover:brightness-110">
+        <a href={url} className="btn btn-green w-full py-2.5 text-[14px]">
           <Download className="size-4" /> {t('download')}
         </a>
+        {choice && (
+          <div className="mt-3 font-hand text-[15px] text-ink">
+            {t('chosenOffer')}: <b>{SCENARIO_LABEL[choice.scenario]?.[lang] ?? choice.scenario}</b>
+            {choice.win_probability != null && <span className="text-muted"> · {Math.round(choice.win_probability * 100)} % {t('winChanceShort')}</span>}
+          </div>
+        )}
         <table className="mt-3 w-full text-[13px] num">
           <tbody>
             <Row label={t('cGross')} value={c.brutto} />
@@ -81,7 +69,7 @@ export function ExportPanel({ offer, parsed, page, url, onJump, onConditions, bu
         </table>
       </div>
       <div className="px-4 pt-3 pb-1 flex items-baseline text-[12.5px]">
-        <span className="font-semibold">{t('filledPages')}</span>
+        <span className="title-hand">{t('filledPages')}</span>
         <span className="ml-auto text-muted num">{pageCount} {t('pages')} · {offer.fields.length} {t('fields')}</span>
       </div>
       <div className="flex-1 min-h-0 overflow-auto scroll-thin px-4 pb-3">

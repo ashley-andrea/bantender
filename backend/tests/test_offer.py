@@ -76,3 +76,10 @@ def test_every_dotted_price_cell_of_the_lv_is_filled(offer_and_pdf):
         for w in page.get_text("words"):
             if re.fullmatch(r"\.{8,}", w[4]) and w[0] > 440:  # unit-price and amount columns
                 assert any(pymupdf.Rect(w[:4]).intersects(r) for r in by_page.get(info["page"], [])), (info["page"], w[:2])
+
+
+def test_form_rounds_half_up_like_excel():
+    from app.offer.build import per_unit, r2
+
+    assert r2(2.675) == 2.68 and r2(1764.675) == 1764.68  # Python's round() gives 2.67 / 1764.67
+    assert per_unit(1406.37, 6) == 234.40  # 1406.37 / 6 = 234.395 exactly; binary floats say 234.3949…

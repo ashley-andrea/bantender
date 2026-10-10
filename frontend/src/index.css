@@ -1,23 +1,42 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter';
+@import '@fontsource/kalam/400.css';
+@import '@fontsource/kalam/700.css';
 
-/* Equans colours (navy, greens) on calm neutrals. Status colours have one meaning each. */
+/*
+ * Sketchbook on a company tool: paper background, pencil-drawn boxes, highlighter marks on the tender, a hand font
+ * for titles only. Body text stays Inter so tables and numbers read cleanly. Equans navy is the ink, Equans green the
+ * action colour. Each highlighter colour has one meaning (how a value was obtained).
+ */
 @theme {
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --color-canvas: #f4f6f7;
-  --color-surface: #ffffff;
-  --color-ink: #0f1f2b;
-  --color-muted: #5d6b75;
-  --color-faint: #98a3ab;
-  --color-hair: #e3e7ea;
-  --color-navy: #002439; /* Equans navy: top bar, item node, primary text on dark */
-  --color-green: #008163; /* Equans green: primary action, catalogue, filled fields */
-  --color-mint: #70bd95; /* Equans light green */
+  --font-hand: 'Kalam', 'Segoe Print', 'Bradley Hand', cursive;
+  --color-canvas: #f5f2ea;
+  --color-surface: #fffdf8;
+  --color-ink: #1c2933;
+  --color-muted: #5f6a72;
+  --color-faint: #9aa2a8;
+  --color-hair: #e6e1d5;
+  --color-navy: #002439;
+  --color-green: #008163;
+  --color-mint: #70bd95;
   --color-sel: #008163;
   --color-good: #2e9e6a;
   --color-bad: #d6453d;
-  --color-warn: #e39a12;
-  --radius-card: 8px;
+  --color-warn: #d99a0b;
+  --color-hl-read: #7fd3a0;
+  --color-hl-derived: #ffe14d;
+  --color-hl-assumed: #ff8fb0;
+  --color-hl-missing: #c7cdd2;
+  --radius-card: 10px;
+}
+
+:root {
+  /* Pencil rectangle: two strokes, the second lighter, like a box drawn twice. Used as a border image so it does not
+     scroll with the content of a scrolling panel. */
+  --sketch: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><g fill='none' stroke='%231c2933' stroke-linecap='round' stroke-linejoin='round'><path stroke-width='2.1' stroke-opacity='0.78' d='M6.5 5.6 C32 4.4 74 6.6 113.6 4.9 C115.5 34 114.1 78 115.3 114.4 C82 115.7 38 113.7 5.6 115.1 C4.3 80 6.1 38 6.5 5.6 Z'/><path stroke-width='1.1' stroke-opacity='0.32' d='M4.6 7.3 C42 5.4 82 8.2 115.2 6.1 C116.6 42 113.4 86 114.1 116.2 C70 114.1 30 116.9 6.9 113.9 C5.4 72 3.7 30 4.6 7.3'/></g></svg>");
+  --sketch-green: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><g fill='none' stroke='%23008163' stroke-linecap='round' stroke-linejoin='round'><path stroke-width='2.4' stroke-opacity='0.9' d='M6.5 5.6 C32 4.4 74 6.6 113.6 4.9 C115.5 34 114.1 78 115.3 114.4 C82 115.7 38 113.7 5.6 115.1 C4.3 80 6.1 38 6.5 5.6 Z'/></g></svg>");
+  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.3  0 0 0 0 0.27  0 0 0 0 0.2  0 0 0 0.05 0'/></filter><rect width='160' height='160' filter='url(%23g)'/></svg>");
 }
 
 html,
@@ -27,25 +46,120 @@ body,
 }
 
 body {
-  background: var(--color-canvas);
+  background-color: var(--color-canvas);
+  background-image: var(--paper-grain);
   color: var(--color-ink);
   font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
+}
+
+.font-hand {
+  font-family: var(--font-hand);
 }
 
 .num {
   font-variant-numeric: tabular-nums;
 }
 
+/* A card drawn in pencil. */
 .panel {
+  background-color: var(--color-surface);
+  background-clip: padding-box;
+  border: 7px solid transparent;
+  border-image: var(--sketch) 15 / 7px stretch;
+  border-radius: 12px;
+}
+
+.panel-green {
+  border-image: var(--sketch-green) 15 / 7px stretch;
+}
+
+/* Section title in the hand font with a light marker swash under it. */
+.title-hand {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.2px;
+  background: linear-gradient(transparent 62%, rgb(112 189 149 / 0.35) 62%, rgb(112 189 149 / 0.35) 88%, transparent 88%);
+  padding: 0 3px;
+  margin-left: -3px;
+  display: inline;
+}
+
+/* Buttons: ink outline drawn by hand, green fill for the main action. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 600;
+  border: 1.6px solid var(--color-ink);
+  border-radius: 14px 9px 12px 8px / 8px 12px 9px 14px;
+  box-shadow: 2px 2px 0 rgb(28 41 51 / 0.85);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.btn:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 rgb(28 41 51 / 0.85);
+}
+.btn:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 rgb(28 41 51 / 0.85);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  box-shadow: none;
+}
+.btn-green {
+  background: var(--color-green);
+  color: #fff;
+}
+.btn-paper {
   background: var(--color-surface);
-  border: 1px solid var(--color-hair);
-  border-radius: var(--radius-card);
+  color: var(--color-ink);
+}
+
+/* Table rows: the highlighted row's colour reaches past the text on both sides. */
+.tbl td:first-child,
+.tbl th:first-child {
+  padding-left: 10px;
+}
+.tbl td:last-child,
+.tbl th:last-child {
+  padding-right: 10px;
+}
+
+/* Highlighter strokes on the tender PDF: translucent, multiplied onto the text so it stays readable. */
+.hl {
+  position: absolute;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  border-radius: 3px 9px 4px 8px / 7px 3px 8px 4px;
+  transform: skewX(-4deg);
+  filter: url(#marker);
+  transition: opacity 160ms ease;
+}
+.hl-tag {
+  position: absolute;
+  white-space: nowrap;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+  padding: 4px 8px 3px;
+  background: var(--color-surface);
+  border: 1.4px solid var(--color-ink);
+  border-radius: 9px 5px 8px 4px / 4px 8px 5px 9px;
+  box-shadow: 1.5px 1.5px 0 rgb(28 41 51 / 0.7);
+  transform: rotate(-2deg);
+  pointer-events: none;
+  z-index: 5;
 }
 
 .scroll-thin {
   scrollbar-width: thin;
-  scrollbar-color: #cfd6db transparent;
+  scrollbar-color: #d5cfc0 transparent;
 }
 
 @keyframes rise {
@@ -58,35 +172,59 @@ body {
     transform: none;
   }
 }
-
 .rise {
-  animation: rise 200ms ease-out both;
+  animation: rise 220ms ease-out both;
 }
 
-/* Parameter sliders: filled part in Equans green, rest hairline. */
+@keyframes grow {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.grow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: grow 320ms cubic-bezier(0.3, 1.4, 0.5, 1) both;
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 400;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Parameter sliders: a pencil track with a green fill and a hand-drawn knob. */
 .range {
   appearance: none;
   width: 100%;
-  height: 3px;
+  height: 4px;
   border-radius: 999px;
-  background: linear-gradient(to right, var(--color-green) var(--p, 0%), var(--color-hair) var(--p, 0%));
+  background: linear-gradient(to right, var(--color-green) var(--p, 0%), #ddd6c6 var(--p, 0%));
   outline: none;
 }
 .range::-webkit-slider-thumb {
   appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  background: #fff;
-  border: 2px solid var(--color-green);
+  width: 15px;
+  height: 15px;
+  border-radius: 50% 45% 55% 48%;
+  background: var(--color-surface);
+  border: 2px solid var(--color-ink);
   cursor: grab;
 }
 .range::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  background: #fff;
-  border: 2px solid var(--color-green);
+  width: 15px;
+  height: 15px;
+  border-radius: 50% 45% 55% 48%;
+  background: var(--color-surface);
+  border: 2px solid var(--color-ink);
   cursor: grab;
 }
 .range:focus-visible::-webkit-slider-thumb {
@@ -101,12 +239,20 @@ body {
     transform: translateX(300%);
   }
 }
-
 @keyframes scan {
   from {
     transform: translateY(-100%);
   }
   to {
     transform: translateY(1200%);
+  }
+}
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+  50% {
+    transform: translateY(-3px) rotate(1deg);
   }
 }

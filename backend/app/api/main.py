@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from app.offer.build import build_offer
 from app.offer.pdf_fill import fill_offer
+from app.offer.workbook import build_workbook
 from app.parsing.pipeline import PARSER_VERSION, parse_tender, tender_to_dict
 from app.pricing.service import price_tender
 from app.reference import load_reference
@@ -155,6 +156,7 @@ def _pricing(tender_id: str) -> dict:
     result["tender"] = {"project": parsed.get("project", {}), "lots": parsed.get("lots", {}),
                         "systems": parsed["systems"], "award": parsed.get("award")}
     result["reference_version"] = reference.version
+    result["choice"] = _get_json(f"tenders/{tender_id}/choice.json", None)
     return result
 
 
@@ -243,6 +245,15 @@ def catalog_context(product_id: str) -> dict:
             "reference_version": reference.version}
 
 
+@app.get("/api/rules/{install_code}")
+def productivity_rule(install_code: str) -> dict:
+    """One productivity rule (productivity.csv), e.g. for a labour-only position that has no catalogue product."""
+    rule = reference.rules.get(install_code)
+    if not rule:
+        raise HTTPException(404, "Unknown installation rule")
+    return rule.model_dump()
+
+
 # ---- offer: the numbers for the tender's own form, and the filled PDF ---------------------------
 
 def _offer(tender_id: str) -> tuple[dict, dict, dict]:
@@ -266,3 +277,54 @@ def get_offer_pdf(tender_id: str, download: bool = False) -> Response:
     name = f"Offer_{(parsed['meta'].get('filename') or tender_id).removesuffix('.pdf')}.pdf"
     disposition = "attachment" if download else "inline"
     return Response(data, media_type="application/pdf", headers={"Content-Disposition": f'{disposition}; filename="{name}"'})
+
+
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+@app.get("/api/tenders/{tender_id}/pricing.xlsx")
+def get_pricing_workbook(tender_id: str) -> Response:
+    """The whole calculation as an Excel workbook with live formulas (parameters → positions → build-up → form)."""
+    parsed, pricing, offer = _offer(tender_id)
+    name = f"Pricing_{(parsed['meta'].get('filename') or tender_id).removesuffix('.pdf')}.xlsx"
+    return Response(build_workbook(parsed, pricing, offer, reference), media_type=XLSX,
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+class OfferChoice(BaseModel):
+    scenario: str  # Aggressive | Target | Conservative | Current | Custom
+    offer: float = Field(gt=0)
+    margin_pct: float
+    win_probability: float | None = Field(default=None, ge=0, le=1)
+
+
+@app.post("/api/tenders/{tender_id}/choice")
+def choose_offer(tender_id: str, body: OfferChoice) -> dict:
+    """The estimator picks the offer to submit: it sets the margin (so the export carries it) and is recorded
+    with its predicted chance, next to the tender and in the shared log of chosen offers (input for retraining)."""
+    _load(tender_id)
+    choice = {**body.model_dump(), "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "by": USER}
+    _put_json(f"tenders/{tender_id}/choice.json", choice)
+    log = _get_json("history/chosen_offers.json", [])
+    log.append({"tender_id": tender_id, **choice})
+    _put_json("history/chosen_offers.json", log)
+    key = f"tenders/{tender_id}/settings.json"
+    old = _get_json(key, {})
+    _put_json(key, {**old, "margin_pct": body.margin_pct})
+    _audit(tender_id, {"action": "offer_chosen", "after": choice})
+    return _pricing(tender_id)
+
+
+@app.delete("/api/tenders/{tender_id}/choice")
+def clear_choice(tender_id: str) -> dict:
+    """Withdraw the chosen offer (the shared log keeps the record, marked as withdrawn)."""
+    _load(tender_id)
+    key = f"tenders/{tender_id}/choice.json"
+    old = _get_json(key, None)
+    if old is not None:
+        _put_json(key, None)
+        log = _get_json("history/chosen_offers.json", [])
+        log.append({"tender_id": tender_id, "withdrawn": True, "at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+        _put_json("history/chosen_offers.json", log)
+        _audit(tender_id, {"action": "offer_withdrawn", "before": old})
+    return _pricing(tender_id)

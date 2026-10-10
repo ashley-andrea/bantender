@@ -1,4 +1,4 @@
-import { Loader2, RotateCcw } from 'lucide-react'
+import { ChevronDown, Loader2, RotateCcw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api } from '../../api'
 import { fmtChf, fmtNum, fmtPct } from '../../format'
@@ -23,10 +23,11 @@ interface Props {
   pricing: Pricing
   busy: boolean
   onSettings: (patch: Record<string, unknown>) => void
+  onChoose: (choice: { scenario: string; offer: number; margin_pct: number; win_probability: number | null }) => void
 }
 
-/** Step 4: offers from the win-probability model (backend `win_curve`): three options, the full curve with a slider, inputs, why. */
-export function OfferOptions({ pricing, busy, onSettings }: Props) {
+/** Step 4: three offers from the win-probability model, the curve to explore between them, and the choice. */
+export function OfferOptions({ pricing, busy, onSettings, onChoose }: Props) {
   const { t } = useI18n()
   const wc = pricing.win_curve
   const [summary, setSummary] = useState<WinModelSummary | null>(null)
@@ -38,24 +39,26 @@ export function OfferOptions({ pricing, busy, onSettings }: Props) {
     return (
       <div className="h-full grid place-items-center">
         <div className="panel p-6 max-w-md text-center">
-          <div className="text-[15px] font-semibold">{t('unavailable')}</div>
+          <div className="font-hand text-[18px] font-bold">{t('unavailable')}</div>
           {wc?.reason && <p className="mt-1 text-[12.5px] text-muted">{wc.reason}</p>}
         </div>
       </div>
     )
   }
-  return <Options key={wc.current.offer} wc={wc as Required<WinCurve>} pricing={pricing} summary={summary} busy={busy} onSettings={onSettings} />
+  return <Options key={wc.current.offer} wc={wc as Required<WinCurve>} pricing={pricing} summary={summary} busy={busy} onSettings={onSettings} onChoose={onChoose} />
 }
 
-function Options({ wc, pricing, summary, busy, onSettings }: { wc: Required<WinCurve>; pricing: Pricing; summary: WinModelSummary | null } & Omit<Props, 'pricing'>) {
+function Options({ wc, pricing, summary, busy, onSettings, onChoose }: { wc: Required<WinCurve>; pricing: Pricing; summary: WinModelSummary | null } & Omit<Props, 'pricing'>) {
   const { t } = useI18n()
   const step = wc.parameters.round_to_chf
-  const applyMargin = (margin: number) => onSettings({ margin_pct: Math.round(margin * 1e6) / 1e6 })
   const currentIdx = nearestIndex(wc.points, wc.current.offer)
   const [selected, setSelected] = useState(currentIdx) // remounted (key) when the current offer changes
   const sel = wc.points[selected]
   const selOffer = roundUp(sel.offer, step)
-  const isCurrent = (offer: number) => Math.abs(offer - wc.current.offer) < 0.5
+  const choice = pricing.choice
+  const chosenNow = (offer: number) => !!choice && Math.abs(pricing.project.selling_price - roundUp(offer, step)) < 0.5 && Math.abs(choice.offer - offer) < step
+  const choose = (scenario: string, offer: number, margin: number, p: number) =>
+    onChoose({ scenario, offer: roundUp(offer, step), margin_pct: Math.round(margin * 1e6) / 1e6, win_probability: p })
 
   const overrides = pricing.settings.win_context ?? {}
   const setInput = (key: keyof WinContext, value: string | number | null) => {
@@ -66,80 +69,90 @@ function Options({ wc, pricing, summary, busy, onSettings }: { wc: Required<WinC
   }
 
   return (
-    <div className={`h-full flex gap-3 ${busy ? 'opacity-90' : ''}`}>
-      <div className="flex-1 min-w-0 h-full overflow-auto scroll-thin flex flex-col gap-3">
-        <div className="panel px-5 py-4">
-          <div className="flex items-baseline gap-3">
-            <span className="text-[17px] font-semibold">{t('aiTitle')}</span>
-            {busy && <Loader2 className="size-4 animate-spin text-muted self-center" />}
-            {wc.model !== 'ml' && <span className="ml-auto rounded bg-canvas px-2 py-0.5 text-[12px] text-muted">{t('placeholderNote')}</span>}
-          </div>
-          <p className="mt-1 text-[13px] text-muted">{t('winBody').replace('{share}', pct(wc.parameters.near_optimal_share))}</p>
-          {wc.market_reference_source === 'target_margin_fallback' && <p className="mt-1 text-[12.5px] text-warn">{t('marketFallback')}</p>}
+    <div className={`h-full flex gap-4 ${busy ? 'opacity-90' : ''}`}>
+      <div className="flex-1 min-w-0 h-full overflow-auto scroll-thin flex flex-col gap-4 pr-1">
+        <div className="flex items-baseline gap-3 px-1">
+          <span className="title-hand text-[19px]">{t('aiTitle')}</span>
+          {busy && <Loader2 className="size-4 animate-spin text-muted self-center" />}
+          <span className="text-[13px] text-muted">{t('winShort')}</span>
+          {wc.model !== 'ml' && <span className="ml-auto font-hand text-[13px] text-warn">{t('placeholderNote')}</span>}
         </div>
 
-        <div className="grid grid-cols-4 gap-3">
-          <OptionCard dark label={t('winCurrent')} offer={wc.current.offer} margin={wc.current.margin_pct}
-            chance={wc.current.win_probability} profit={wc.current.expected_profit} />
+        <div className="grid grid-cols-3 gap-4">
           {wc.scenarios.map((s) => (
-            <OptionCard key={s.name} label={t(SCENARIO[s.name].label)} hint={t(SCENARIO[s.name].hint)} accent={s.name === 'Target'}
+            <OptionCard key={s.name} label={t(SCENARIO[s.name].label)} hint={t(SCENARIO[s.name].hint)} recommended={s.name === 'Target'}
               offer={s.offer} margin={s.margin_pct} chance={s.win_probability} profit={s.expected_profit}
-              inUse={isCurrent(s.offer)} busy={busy} onUse={() => applyMargin(s.margin_pct)} />
+              chosen={chosenNow(s.offer)} busy={busy} onChoose={() => choose(s.name, s.offer, s.margin_pct, s.win_probability)} />
           ))}
         </div>
 
-        <div className="panel p-4">
+        <div className="panel p-5">
+          <div className="flex items-baseline gap-2 mb-2">
+            <span className="title-hand">{t('explore')}</span>
+            <span className="ml-auto text-[12px] text-muted num">{t('winCurrent')}: CHF {fmtChf(wc.current.offer)} · {pct(wc.current.win_probability)}</span>
+          </div>
           <WinChart points={wc.points} scenarios={wc.scenarios} current={wc.current} selected={selected} onSelect={setSelected} />
           <div style={{ paddingLeft: CHART_MARGIN.l, paddingRight: CHART_MARGIN.r }}>
-            <div className="mt-1 text-[11.5px] font-semibold text-muted">{t('explore')}</div>
             <input type="range" aria-label={t('explore')} min={0} max={wc.points.length - 1} step={1} value={selected}
               style={{ '--p': `${(selected / (wc.points.length - 1)) * 100}%` } as React.CSSProperties}
               onChange={(e) => setSelected(Number(e.target.value))} className="range mt-2" />
-            <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-2 text-[13px]">
+            <div className="mt-4 flex flex-wrap items-center gap-x-8 gap-y-2 text-[13px]">
               <Stat label={t('offerPrice')} value={`CHF ${fmtChf(selOffer)}`} strong />
               <Stat label={t('margin')} value={fmtPct(Math.round(sel.margin_pct * 10) / 10)} />
               <Stat label={t('winChance')} value={pct(sel.win_probability)} sub={`${pct(sel.p_low)}–${pct(sel.p_high)}`} />
               <Stat label={t('expectedProfit')} value={fmtChf(sel.expected_profit)} />
-              <button disabled={busy || isCurrent(selOffer)} onClick={() => applyMargin(sel.margin_pct)}
-                className="ml-auto rounded-md bg-green px-4 py-2 text-[13px] font-semibold text-white hover:brightness-110 disabled:bg-canvas disabled:text-faint">
-                {isCurrent(selOffer) ? t('inUse') : t('useOffer')}
+              <button disabled={busy || chosenNow(sel.offer)} onClick={() => choose('Custom', sel.offer, sel.margin_pct, sel.win_probability)}
+                className="btn btn-green ml-auto px-4 py-2 text-[13px]">
+                {chosenNow(sel.offer) ? t('chosen') : t('chooseOffer')}
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="w-[360px] shrink-0 h-full overflow-auto scroll-thin flex flex-col gap-3">
-        <Inputs wc={wc} busy={busy} onSet={setInput} />
-        {wc.explanation.length > 0 && <Why wc={wc} />}
-        <ModelCard summary={summary} />
+      <div className="w-[340px] shrink-0 h-full overflow-auto scroll-thin flex flex-col gap-4">
+        <Fold title={t('inputsTitle')} open>
+          <Inputs wc={wc} busy={busy} onSet={setInput} />
+        </Fold>
+        {wc.explanation.length > 0 && <Fold title={t('whyTitle')}><Why wc={wc} /></Fold>}
+        {summary && <Fold title={t('modelTitle')}><ModelCard summary={summary} /></Fold>}
       </div>
     </div>
   )
 }
 
-function OptionCard({ label, hint, offer, margin, chance, profit, dark, accent, inUse, busy, onUse }: {
-  label: string; hint?: string; offer: number; margin: number; chance: number; profit: number
-  dark?: boolean; accent?: boolean; inUse?: boolean; busy?: boolean; onUse?: () => void
+function Fold({ title, open = false, children }: { title: string; open?: boolean; children: React.ReactNode }) {
+  const [on, setOn] = useState(open)
+  return (
+    <div className="panel p-4">
+      <button onClick={() => setOn((v) => !v)} className="w-full flex items-center text-left">
+        <span className="title-hand">{title}</span>
+        <ChevronDown className={`ml-auto size-4 text-muted transition-transform ${on ? 'rotate-180' : ''}`} />
+      </button>
+      {on && <div className="mt-2 rise">{children}</div>}
+    </div>
+  )
+}
+
+function OptionCard({ label, hint, offer, margin, chance, profit, recommended, chosen, busy, onChoose }: {
+  label: string; hint: string; offer: number; margin: number; chance: number; profit: number
+  recommended?: boolean; chosen?: boolean; busy?: boolean; onChoose: () => void
 }) {
   const { t } = useI18n()
-  const muted = dark ? 'text-white/65' : 'text-muted'
   return (
-    <div className={`rounded-[var(--radius-card)] p-4 flex flex-col ${dark ? 'bg-navy text-white' : `panel ${accent ? 'ring-2 ring-green/60' : ''}`}`}>
-      <div className="text-[13px] font-semibold">{label}</div>
-      <div className={`text-[11.5px] ${muted} min-h-4`}>{hint}</div>
-      <div className="mt-2 text-[20px] font-semibold">CHF {fmtChf(offer)}</div>
-      <div className={`text-[12px] ${muted} num`}>{t('margin')} {fmtPct(Math.round(margin * 10) / 10)}</div>
-      <div className="mt-3 grid grid-cols-2 gap-2 text-[12px]">
-        <div><div className={muted}>{t('winChance')}</div><div className="text-[16px] font-semibold">{pct(chance)}</div></div>
-        <div><div className={muted}>{t('expectedProfit')}</div><div className="text-[16px] font-semibold">{chfCompact(profit)}</div></div>
+    <div className={`panel ${recommended ? 'panel-green' : ''} p-5 flex flex-col relative`}>
+      {recommended && <span className="absolute -top-1 right-4 font-hand text-[13px] font-bold text-green rotate-[-3deg] bg-surface px-1.5">{t('recommended')}</span>}
+      <div className="font-hand text-[19px] font-bold leading-none">{label}</div>
+      <div className="mt-1 text-[12px] text-muted min-h-4">{hint}</div>
+      <div className="mt-4 text-[22px] font-semibold num">CHF {fmtChf(offer)}</div>
+      <div className="text-[12px] text-muted num">{t('margin')} {fmtPct(Math.round(margin * 10) / 10)}</div>
+      <div className="mt-4 grid grid-cols-2 gap-2 text-[12px]">
+        <div><div className="text-muted">{t('winChance')}</div><div className="text-[18px] font-semibold num">{pct(chance)}</div></div>
+        <div><div className="text-muted">{t('expectedProfit')}</div><div className="text-[18px] font-semibold num">{chfCompact(profit)}</div></div>
       </div>
-      {onUse && (
-        <button disabled={busy || inUse} onClick={onUse}
-          className="mt-3 rounded-md border border-green px-3 py-1.5 text-[12.5px] font-semibold text-green hover:bg-green/5 disabled:border-hair disabled:text-faint disabled:hover:bg-transparent">
-          {inUse ? t('inUse') : t('useOffer')}
-        </button>
-      )}
+      <button disabled={busy || chosen} onClick={onChoose} className={`btn mt-5 px-3 py-1.5 text-[13px] ${recommended ? 'btn-green' : 'btn-paper'}`}>
+        {chosen ? `✓ ${t('chosen')}` : t('chooseOffer')}
+      </button>
     </div>
   )
 }
@@ -181,9 +194,8 @@ function Inputs({ wc, busy, onSet }: { wc: Required<WinCurve>; busy: boolean; on
   const { t, lang } = useI18n()
   const label = (v: string | number) => WIN_VALUE_LABEL[String(v)]?.[lang] ?? String(v)
   return (
-    <div className="panel p-4">
-      <div className="text-[13px] font-semibold">{t('inputsTitle')}</div>
-      <p className="mt-0.5 text-[12px] text-muted">{t('inputsBody')}</p>
+    <div>
+      <p className="text-[12px] text-muted">{t('inputsBody')}</p>
       <div className="mt-2">
         {INPUTS.map(([key, kind]) => {
           const value = wc.context[key]
@@ -262,9 +274,8 @@ function Why({ wc }: { wc: Required<WinCurve> }) {
   }
 
   return (
-    <div className="panel p-4">
-      <div className="text-[13px] font-semibold">{t('whyTitle')}</div>
-      <p className="mt-0.5 text-[12px] text-muted">{t('whyBody')}</p>
+    <div>
+      <p className="text-[12px] text-muted">{t('whyBody')}</p>
       <table className="mt-2 w-full text-[12px]">
         <tbody>
           {rows.map((r) => (
@@ -303,8 +314,7 @@ function ModelCard({ summary }: { summary: WinModelSummary | null }) {
   const drivers = (summary.importance ?? []).filter((d) => d.importance > 0.001).slice(0, 6)
   const top = Math.max(...drivers.map((d) => d.importance), 1e-9)
   return (
-    <div className="panel p-4">
-      <div className="text-[13px] font-semibold">{t('modelTitle')}</div>
+    <div>
       {summary.model !== 'ml' ? (
         <p className="mt-0.5 text-[12px] text-muted">{t('placeholderNote')}{summary.reason ? `: ${summary.reason}` : ''}</p>
       ) : (

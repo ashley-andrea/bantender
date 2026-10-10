@@ -5,6 +5,7 @@ description = "Tender pricing assistant: tender PDF to traceable first price"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.143.0",
+    "openpyxl>=3.1.5",
     "pydantic>=2",
     "pydantic-settings>=2.15.0",
     "pymupdf>=1.28.2",

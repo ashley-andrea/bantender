@@ -1,16 +1,18 @@
 import { Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, prefetched, type EditField } from '../api'
-import { LEVEL_COLOR, fmtChf } from '../format'
-import { LangToggle, tx, useI18n, type Key } from '../i18n'
+import { LEVEL_COLOR, LEVEL_MARKER, fmtChf } from '../format'
+import { LangToggle, useI18n, type Key } from '../i18n'
 import { STEPS, type Step } from '../route'
+import { buildTree, graphOf, resolve, selectedLine, type ValueNode } from '../tree'
 import type { Offer, Parsed, PricedLine, Pricing, ReferenceParameters } from '../types'
 import { Col, Handle, useWidths } from './Columns'
 import { PdfPane, type Highlight } from './PdfPane'
-import { PositionsList } from './PositionsList'
-import { UploadView } from './Upload'
+import { PositionsList, visibleIds } from './PositionsList'
+import { BantenderLogo } from './Sketch'
+import { Landing } from './Landing'
 import { CataloguePanel } from './steps/Catalogue'
-import { ExtractionPanel } from './steps/Extraction'
+import { ExtractionPanel, findNode } from './steps/Extraction'
 import { ExportPanel } from './steps/Offer'
 import { OfferOptions } from './steps/OfferOptions'
 import { OfferBar, ParameterPanel, PriceDetail } from './steps/Pricing'
@@ -92,22 +94,37 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
     [tenderId],
   )
 
-  const lines = useMemo(() => {
-    if (!pricing) return []
+  // Positions as shown: parents (one position, or the variants of one item) with their children.
+  const tree = useMemo(() => (pricing ? buildTree(pricing.lines) : []), [pricing])
+  const entries = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return pricing.lines
-    return pricing.lines.filter((l) => [l.line_id, l.title_en, l.title_de, l.decision.product_id ?? ''].some((s) => s.toLowerCase().includes(q)))
-  }, [pricing, query])
+    if (!q) return tree
+    const hit = (l: PricedLine) => [l.line_id, l.title_en, l.title_de, l.decision.product_id ?? ''].some((x) => x.toLowerCase().includes(q))
+    return tree.filter((e) => e.members.some(hit) || e.children.some((c) => hit(c.line)))
+  }, [tree, query])
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const toggle = (id: string) => setExpanded((s) => {
+    const n = new Set(s)
+    if (n.has(id)) n.delete(id)
+    else n.add(id)
+    return n
+  })
 
-  // Until the estimator picks one, the first position is selected.
-  const selectedId = chosenId ?? pricing?.lines[0]?.line_id ?? null
-  const line = pricing?.lines.find((l) => l.line_id === selectedId) ?? null
+  // Nothing is selected (and nothing highlighted) until the estimator picks a position; the price step starts on the first.
+  const selectedId = chosenId ?? (step === 'price' ? tree[0]?.id ?? null : null)
+  const sel = useMemo(() => resolve(tree, selectedId), [tree, selectedId])
+  const line = selectedLine(sel)
+  const spec = useMemo(() => (sel ? graphOf(sel, lang) : null), [sel, lang])
 
-  const select = useCallback((l: PricedLine) => {
-    setChosenId(l.line_id)
+  const select = useCallback((id: string) => {
+    const s = resolve(tree, id)
+    if (!s) return
+    setChosenId(id)
     setActive(null)
-    setPage(l.page)
-  }, [])
+    // Opening a parent (or one of its children) shows the children under it.
+    if (s.entry.children.length) setExpanded((x) => (x.has(s.entry.id) ? x : new Set(x).add(s.entry.id)))
+    setPage((s.child?.line ?? s.entry.members[0]).page)
+  }, [tree])
 
   const edit = (field: EditField, v: number | null) => {
     if (!line || !tenderId) return
@@ -115,19 +132,21 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
     else apply(api.override(tenderId, line.line_id, field === 'unit_price' ? { unit_price: v, unit_price_source: 'quote' } : { [field]: v }))
   }
 
-  // The hovered value may live on another page (e.g. a section heading): follow it.
+  // The hovered value may live on another page (e.g. a section heading, another variant): follow it.
   const activate = (key: string) => {
     setActive(key)
-    const src = line?.attributes.find((x) => x.key === key)?.sources.find((s) => s.bbox)
+    const node = spec ? findNode(spec, key) : null
+    const src = node?.sources.find((s) => s.bbox)
     if (src && src.page !== page) setPage(src.page)
   }
 
-  // ↑/↓ walk the list.
+  // ↑/↓ walk the rows as shown.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!['ArrowDown', 'ArrowUp'].includes(e.key) || ['INPUT', 'SELECT'].includes((e.target as HTMLElement).tagName) || step === 'offers' || step === 'export') return
-      const i = lines.findIndex((l) => l.line_id === selectedId)
-      const next = lines[Math.max(0, Math.min(lines.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))]
+      const ids = visibleIds(entries, expanded)
+      const i = selectedId ? ids.indexOf(selectedId) : -1
+      const next = ids[Math.max(0, Math.min(ids.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))]
       if (next) {
         e.preventDefault()
         select(next)
@@ -135,23 +154,27 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [lines, selectedId, select, step])
+  }, [entries, expanded, selectedId, select, step])
 
-  // One box per printed row, coloured by how its value was obtained; the active value is labelled.
+  // Highlighter marks for every value of the selection on this page; the active one is labelled.
   const highlights: Highlight[] = useMemo(() => {
-    if (!line) return []
+    if (!spec) return []
+    const activeNode = findNode(spec, active)
+    const activeBoxes = new Set((activeNode?.sources ?? []).filter((s) => s.bbox).map((s) => s.bbox!.join(',')))
     const boxes = new Map<string, Highlight>()
-    for (const a of line.attributes) {
-      for (const s of a.sources) {
+    const all: ValueNode[] = [spec.top, ...spec.nodes.flatMap((n) => (n.values ? n.values : [n]))]
+    for (const n of all) {
+      for (const s of n.sources) {
         if (!s.bbox || s.page !== page) continue
         const k = s.bbox.join(',')
-        const strong = a.key === active
-        if (boxes.has(k) && !strong) continue
-        boxes.set(k, { bbox: s.bbox, color: LEVEL_COLOR[a.level], strong, label: strong ? tx(a.label, lang) : undefined })
+        const strong = activeBoxes.has(k)
+        const level = strong && activeNode ? activeNode.level : n.level
+        if (boxes.has(k) && !(strong && !boxes.get(k)!.strong)) continue
+        boxes.set(k, { bbox: s.bbox, color: LEVEL_MARKER[level], ink: LEVEL_COLOR[level], strong, label: strong && activeNode ? activeNode.label : undefined })
       }
     }
     return [...boxes.values()]
-  }, [line, page, active, lang])
+  }, [spec, page, active])
 
   const ready = Boolean(tenderId && parsed && pricing)
   const top = (
@@ -166,14 +189,7 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
     />
   )
 
-  if (!tenderId) {
-    return (
-      <div className="h-full flex flex-col">
-        {top}
-        <main className="flex-1 min-h-0 p-3"><UploadView onOpen={onOpen} /></main>
-      </div>
-    )
-  }
+  if (!tenderId) return <Landing onOpen={onOpen} />
   if (error) return <div className="h-full flex flex-col">{top}<Centered><p className="text-bad">{error}</p><button className="mt-4 text-green" onClick={onHome}>← {t('back')}</button></Centered></div>
   if (!parsed || !pricing) return <div className="h-full flex flex-col">{top}<Centered><Loader2 className="size-6 animate-spin text-muted" /></Centered></div>
 
@@ -182,7 +198,7 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
     <button className="mt-2 w-full flex items-center gap-2 px-1 text-left text-[12px] text-muted hover:text-ink"
       onClick={() => {
         const i = supplierLines.findIndex((l) => l.line_id === selectedId)
-        select(supplierLines[(i + 1) % supplierLines.length])
+        select(supplierLines[(i + 1) % supplierLines.length].line_id)
       }}>
       <span className="size-1.5 rounded-full bg-warn" /> {supplierLines.length} {t('awaitQuote')} →
     </button>
@@ -196,7 +212,7 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
         {/* Extraction, catalogue and price share one row of columns. The PDF stays mounted (no reload or
             re-animation between the first two steps); moving to the price step slides the PDF out to the left,
             the same positions list moves over and the parameters come in from the right. */}
-        {(step === 'extract' || step === 'catalog' || step === 'price') && line && (
+        {(step === 'extract' || step === 'catalog' || step === 'price') && (
           <div className="h-full flex flex-col">
             <div className="flex-1 min-h-0 flex">
               <Col width={step === 'price' ? 0 : widths.pdf} full={widths.pdf} align="end" animate={!dragging}>
@@ -205,15 +221,16 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
               </Col>
               <Handle visible={step !== 'price'} value={widths.pdf} min={360} max={960} onChange={(w) => setWidth('pdf', w)} onDrag={setDragging} animate={!dragging} />
               <Col width={listWidth} full={listWidth} animate={!dragging}>
-                <PositionsList lines={lines} systems={parsed.systems} stage={step} offer={offer} selected={selectedId} onSelect={select}
-                  query={query} onQuery={setQuery} extra={nextQuote} />
+                <PositionsList entries={entries} systems={parsed.systems} stage={step} offer={offer} selected={selectedId} onSelect={select}
+                  expanded={expanded} onToggle={toggle} query={query} onQuery={setQuery} extra={nextQuote} />
               </Col>
               <Handle value={listWidth} min={240} max={480} onChange={(w) => setWidth(step === 'price' ? 'priceList' : 'list', w)} onDrag={setDragging} animate={!dragging} />
               <div className="flex-1 min-w-[380px] h-full">
                 <div key={step} className="h-full rise">
-                  {step === 'extract' && <ExtractionPanel line={line} systems={parsed.systems} active={active} onActive={activate} onEdit={edit} busy={busy} />}
-                  {step === 'catalog' && <CataloguePanel line={line} systems={parsed.systems} active={active} onActive={activate} busy={busy} onQuote={(v) => edit('unit_price', v)} />}
-                  {step === 'price' && <PriceDetail line={line} systems={parsed.systems} offer={offer} settings={pricing.settings} onEdit={edit} busy={busy} />}
+                  {!sel && <PickHint />}
+                  {sel && step === 'extract' && <ExtractionPanel sel={sel} systems={parsed.systems} active={active} onActive={activate} onEdit={edit} busy={busy} />}
+                  {sel && step === 'catalog' && <CataloguePanel sel={sel} systems={parsed.systems} active={active} onActive={activate} busy={busy} onQuote={(v) => edit('unit_price', v)} />}
+                  {sel && step === 'price' && <PriceDetail sel={sel} systems={parsed.systems} offer={offer} settings={pricing.settings} onEdit={edit} busy={busy} />}
                 </div>
               </div>
               <Handle visible={step === 'price'} invert value={widths.params} min={280} max={480} onChange={(w) => setWidth('params', w)} onDrag={setDragging} animate={!dragging} />
@@ -224,20 +241,20 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
                 )}
               </Col>
             </div>
-            {step === 'price' && <div className="pt-3 rise"><OfferBar pricing={pricing} busy={busy} /></div>}
+            {step === 'price' && <div className="pt-3 rise"><OfferBar pricing={pricing} busy={busy} workbook={api.workbookUrl(tenderId)} /></div>}
           </div>
         )}
-        {step === 'offers' && <OfferOptions pricing={pricing} busy={busy} onSettings={(patch) => apply(api.settings(tenderId, patch))} />}
+        {step === 'offers' && <OfferOptions pricing={pricing} busy={busy} onSettings={(patch) => apply(api.settings(tenderId, patch))} onChoose={(c) => apply(api.choose(tenderId, c))} />}
         {step === 'export' && (offer ? (
           <div className="h-full flex">
             <div className="flex-1 min-w-[400px] h-full">
             <PdfPane url={api.offerPdfUrl(tenderId, false, version)} page={exportAt} pageCount={parsed.meta.pages} pageSize={parsed.meta.page_sizes[String(exportAt)]}
-              highlights={offer.fields.filter((f) => f.page === exportAt).map((f) => ({ bbox: f.bbox, color: '#008163' }))}
+              highlights={offer.fields.filter((f) => f.page === exportAt).map((f) => ({ bbox: f.bbox, color: LEVEL_MARKER.read }))}
               caption={parsed.meta.filename ?? ''} onPage={setExportPage} />
             </div>
             <Handle invert value={widths.export} min={320} max={560} onChange={(w) => setWidth('export', w)} onDrag={setDragging} animate={!dragging} />
             <Col width={widths.export} full={widths.export} animate={false}>
-            <ExportPanel offer={offer} parsed={parsed} page={exportAt} url={api.offerPdfUrl(tenderId, true, version)}
+            <ExportPanel offer={offer} parsed={parsed} choice={pricing.choice ?? null} page={exportAt} url={api.offerPdfUrl(tenderId, true, version)}
               onJump={setExportPage} onConditions={(patch) => apply(api.settings(tenderId, patch))} busy={busy} />
             </Col>
           </div>
@@ -265,19 +282,23 @@ function TopBar({ title, step, enabled, onStep, price, busy, onHome }: {
   const current = STEPS.indexOf(step)
 
   return (
-    <header className="h-14 shrink-0 bg-navy text-white px-4 flex items-center gap-5">
-      <button onClick={onHome} className="shrink-0" title={t('recent')}>
-        <img src="/equans-logo-white.png" alt="Equans" className="h-6" />
+    <header className="h-14 shrink-0 px-5 flex items-center gap-5 relative bg-surface/70">
+      <button onClick={onHome} className="shrink-0 text-ink" title={t('recent')}>
+        <BantenderLogo size={24} />
       </button>
-      <div className="text-[13px] text-white/75 truncate max-w-56">{title}</div>
+      <div className="text-[12.5px] text-muted truncate max-w-56">{title}</div>
       <nav className="flex-1 flex justify-center">
-        <ol className="flex items-center gap-2">
+        <ol className="flex items-center gap-3">
           {STEPS.map((s, i) => (
             <li key={s}>
               <button onClick={() => onStep(s)} disabled={!enabled && s !== 'extract'}
-                className={`relative px-6 h-14 text-[13px] font-medium disabled:cursor-default disabled:text-white/30 ${s === step ? 'text-white' : i < current ? 'text-white/80 hover:text-white' : 'text-white/55 hover:text-white/85'}`}>
-                <span className="num mr-1.5 text-white/50">{i + 1}</span>{t(STEP_LABEL[s])}
-                {s === step && <span className="absolute left-6 right-6 bottom-0 h-[3px] bg-mint" />}
+                className={`relative px-4 h-14 font-hand text-[16.5px] disabled:cursor-default disabled:text-faint/60 ${s === step ? 'text-ink font-bold' : i < current ? 'text-ink/80 hover:text-ink' : 'text-muted hover:text-ink'}`}>
+                <span className="num mr-1.5 text-faint text-[13px]">{i + 1}</span>{t(STEP_LABEL[s])}
+                {s === step && (
+                  <svg className="absolute left-2 right-2 bottom-2.5 w-[calc(100%-16px)] h-2.5" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden>
+                    <path d="M2 6 C 20 3, 45 8, 62 5 S 90 4, 98 6" stroke="#70bd95" strokeWidth="5" strokeLinecap="round" fill="none" opacity="0.85" />
+                  </svg>
+                )}
               </button>
             </li>
           ))}
@@ -285,14 +306,30 @@ function TopBar({ title, step, enabled, onStep, price, busy, onHome }: {
       </nav>
       {price != null && (
         <div className="flex items-baseline gap-2">
-          {busy && <Loader2 className="size-3.5 animate-spin text-white/60 self-center" />}
-          {delta !== 0 && <span className={`rise text-[12px] font-semibold num ${delta > 0 ? 'text-mint' : 'text-[#ff8a80]'}`}>{delta > 0 ? '+' : '−'}{fmtChf(Math.abs(delta))}</span>}
-          <span className="text-[11px] text-white/60">CHF</span>
+          {busy && <Loader2 className="size-3.5 animate-spin text-muted self-center" />}
+          {delta !== 0 && <span className={`rise text-[12px] font-semibold num ${delta > 0 ? 'text-good' : 'text-bad'}`}>{delta > 0 ? '+' : '−'}{fmtChf(Math.abs(delta))}</span>}
+          <span className="text-[11px] text-muted">CHF</span>
           <span className="text-[17px] font-semibold num">{fmtChf(price)}</span>
         </div>
       )}
-      <LangToggle dark />
+      <img src="/equans-logo.png" alt="Equans" className="h-4 opacity-80" />
+      <LangToggle />
+      <svg className="absolute left-0 right-0 bottom-0 w-full h-1.5" viewBox="0 0 1000 6" preserveAspectRatio="none" aria-hidden>
+        <path d="M0 3 C 150 1.5, 300 4.5, 500 3 S 850 1.8, 1000 3.2" stroke="#1c2933" strokeOpacity="0.55" strokeWidth="1.4" fill="none" />
+      </svg>
     </header>
+  )
+}
+
+function PickHint() {
+  const { t } = useI18n()
+  return (
+    <div className="h-full panel grid place-items-center">
+      <div className="text-center px-8">
+        <div className="font-hand text-[22px] text-muted">← {t('pickPosition')}</div>
+        <div className="mt-1 text-[12.5px] text-faint">{t('pickPositionHint')}</div>
+      </div>
+    </div>
   )
 }
 

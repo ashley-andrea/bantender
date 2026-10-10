@@ -366,7 +366,7 @@ function TopBar({ title, step, enabled, onStep, price, busy, onHome }: {
           {STEPS.map((s, i) => (
             <li key={s}>
               <button onClick={() => onStep(s)} disabled={!enabled && s !== 'extract'}
-                className={`relative w-[150px] h-14 text-center text-[14px] disabled:cursor-default disabled:text-faint/60 ${s === step ? 'text-ink font-semibold' : i < current ? 'text-ink/80 hover:text-ink' : 'text-muted hover:text-ink'}`}>
+                className={`relative w-[165px] h-14 text-center whitespace-nowrap text-[14px] disabled:cursor-default disabled:text-faint/60 ${s === step ? 'text-ink font-semibold' : i < current ? 'text-ink/80 hover:text-ink' : 'text-muted hover:text-ink'}`}>
                 <span className="num mr-1.5 text-faint text-[13px]">{i + 1}</span>{t(STEP_LABEL[s])}
                 {s === step && (
                   <svg className="absolute left-6 right-6 bottom-2.5 w-[calc(100%-48px)] h-2.5" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden>

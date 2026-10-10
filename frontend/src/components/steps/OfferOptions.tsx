@@ -57,11 +57,9 @@ function Options({ wc, pricing, busy, onChoose }: { wc: Required<WinCurve> } & P
         <div className="flex items-baseline gap-3">
           <span className="title-hand text-[16px]">{t('aiTitle')}</span>
           {busy && <Loader2 className="size-4 animate-spin text-muted self-center" />}
-          <span className="text-[12.5px] text-muted">{t('winShort')}</span>
           {wc.model !== 'ml' && <span className="ml-auto text-[12px] text-warn">{t('placeholderNote')}</span>}
         </div>
-        <div data-cite="win:current" className="mt-1 text-[12px] text-muted num">{t('winCurrent')}: CHF {fmtChf(wc.current.offer)} · {pct(wc.current.win_probability)}</div>
-        <div className="mt-4">
+        <div data-cite="win:current" className="mt-4">
           <WinChart points={wc.points} scenarios={wc.scenarios} current={wc.current} selected={selected} onSelect={setSelected} />
         </div>
         <div style={{ paddingLeft: CHART_MARGIN.l, paddingRight: CHART_MARGIN.r }}>
@@ -100,7 +98,7 @@ function OptionCard({ cite, label, hint, offer, margin, chance, profit, recommen
   const { t } = useI18n()
   return (
     <div data-cite={cite} className={`panel ${recommended ? 'panel-green' : ''} flex-1 min-h-[180px] p-5 flex flex-col relative`}>
-      {recommended && <span className="absolute -top-1 right-4 text-[11.5px] font-semibold text-green bg-surface px-1.5">{t('recommended')}</span>}
+      {recommended && <span className="hl-tag -top-3 right-4 text-green">{t('recommended')}</span>}
       <div className="flex items-baseline gap-3">
         <span className="text-[16px] font-semibold">{label}</span>
         <span className="ml-auto text-[20px] font-semibold num">CHF {fmtChf(offer)}</span>

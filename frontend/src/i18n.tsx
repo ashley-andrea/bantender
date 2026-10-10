@@ -20,7 +20,7 @@ const STRINGS = {
   step1: { en: 'Extraction', de: 'Erfassung' },
   step2: { en: 'Catalogue', de: 'Katalog' },
   step3: { en: 'Price', de: 'Preis' },
-  step4: { en: 'Offer options', de: 'Varianten' },
+  step4: { en: 'AI bid optimization', de: 'KI-Optimierung' },
   step5: { en: 'Export', de: 'Export' },
   back: { en: 'Back', de: 'Zurück' },
   // extraction
@@ -70,7 +70,7 @@ const STRINGS = {
   gCommercial: { en: 'Commercial', de: 'Kommerziell' },
   gLocations: { en: 'Mounting height by system', de: 'Montagehöhe je Anlage' },
   // offer options (AI, placeholder)
-  aiTitle: { en: 'Offer options', de: 'Angebotsvarianten' },
+  aiTitle: { en: 'AI bid optimization', de: 'KI-Angebotsoptimierung' },
   aiBody: {
     en: 'More aggressive and more conservative offers, each with its estimated chance of winning. Coming with the AI module.',
     de: 'Aggressivere und vorsichtigere Angebote, je mit geschätzter Zuschlagschance. Folgt mit dem KI-Modul.',

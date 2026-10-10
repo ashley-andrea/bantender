@@ -98,7 +98,7 @@ try {
   const xlsx = await ctx.request.get(`${base}/api/tenders/${id}/pricing.xlsx`)
   check(xlsx.ok() && (await xlsx.body()).subarray(0, 2).toString() === 'PK', 'Excel workbook downloads')
 
-  await page.click('nav button:has-text("Offer options")')
+  await page.click('nav button:has-text("AI bid optimization")')
   await page.waitForSelector('text=Choose this offer')
   await shot('5-offers')
   await page.locator('.panel-green button:has-text("Choose this offer")').first().click()

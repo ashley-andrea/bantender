@@ -68,6 +68,8 @@ class LVLine:
     flags: list[str] = field(default_factory=list)
     # Rows printed after the quantity row (e.g. an air-handling unit's data below its head row).
     trailing_text: list[str] = field(default_factory=list)
+    # Set when this quantity row names its own (sub-)item within the header's block, e.g. an accessory.
+    item_title: str | None = None
 
     @property
     def description(self) -> str:

@@ -91,7 +91,7 @@ def test_summary_counts_and_formulas_add_up(parsed, ref):
     s, rows = r["summary"], r["lines"]
     t = s["tender"]
     lv = [x for x in rows if x["source"] == "lv"]
-    assert t["lines"] == len(lv) == 251
+    assert t["lines"] == len(lv) == 254  # 251 + 3 rows whose unit was glued to the text
     assert t["to_price"] == t["lines"] - t["excluded"]
     assert t["priced"] + t["unpriced"] == t["to_price"]
     assert t["unpriced"] == t["needs_price"] + t["missing_info"]

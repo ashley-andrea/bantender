@@ -102,7 +102,7 @@ def _same_rect(a: tuple[float, float], b: tuple[float, float]) -> bool:
 # ---- decision ----------------------------------------------------------------------------------
 
 def title_of(line: dict) -> str:
-    return line["header"] or (line["local_text"][0] if line["local_text"] else "")
+    return line.get("item_title") or line["header"] or (line["local_text"][0] if line["local_text"] else "")
 
 
 def decide(line: dict, ref: ReferenceData, ahu_context: bool = False, extra_text: str = "", location: str = "default") -> Decision:
@@ -117,6 +117,16 @@ def decide(line: dict, ref: ReferenceData, ahu_context: bool = False, extra_text
                  quantity=line["quantity"], unit=line["unit"], location=location,
                  status="review_required", priced=False, confidence=None, band=None)
 
+    if rule is None and line.get("item_title") and line["header"]:
+        parent = classify(line["header"], line["description"], line["section"])
+        if parent is not None:
+            # A sub-item (accessory / option) inside a known item's block.
+            d.rule_key, d.title_en = "accessory", f"Accessory to {parent.en.lower()}"
+            d.reasons.append(T(f"Accessory or option within the '{parent.en}' item; no catalogue item. Enter a unit price or exclude it.",
+                               f"Zubehör oder Option zu «{parent.de}»; kein Katalogartikel. Einheitspreis eingeben oder ausschliessen."))
+            if line["quantity"] is None:
+                d.status = "insufficient_information"
+            return d
     if rule is None:
         d.reasons.append(T("Not recognised by the classification rules. Classify or price it manually.", "Von den Klassifizierungsregeln nicht erkannt. Bitte manuell zuordnen oder bepreisen."))
         return d
@@ -327,6 +337,9 @@ def decide_all(lines: list[dict], ref: ReferenceData, locations: dict[str, str] 
         if line["section"] != "A" or line["system"] != lines[i - 1]["system"]:
             in_ahu = False
         extra = ""
+        # "wie vorbeschrieben, jedoch …" (as described above, but …): sizes come from the line above in the same item.
+        if "wie vorbeschrieben" in fold(" ".join(line["local_text"])) and i and lines[i - 1]["header"] == line["header"]:
+            extra = lines[i - 1]["description"]
         if rule and rule.key == "ahu":
             in_ahu = True
             # The unit's data (airflow etc.) is listed below its head row: read ahead within the block.

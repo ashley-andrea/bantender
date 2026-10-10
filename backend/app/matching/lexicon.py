@@ -45,6 +45,17 @@ RULES: tuple[Rule, ...] = (
       sections="A", disposition="non_priceable", note="Included in the air-handling unit package.", note_de="Im Lüftungsgeräte-Paket enthalten."),
     R("ahu", "Air-handling unit", "Lüftungsgerät", (r"(zu|ab)?luftgerat|luftungsgerat|gerat komplett|monoblock",),
       sections="A", install_code="AHU_LARGE", size_mode="airflow", subcategory="Air-handling unit"),
+    # Accessories and options that a quantity row names within a parent item's block
+    R("colour_coating", "Colour coating (NCS)", "Farbbeschichtung nach NCS", (r"farbbeschichtung",), disposition="no_catalogue"),
+    R("mounting_frame", "Mounting frame for insulated ducts", "Montagerahmen", (r"montagerahmen",), disposition="no_catalogue"),
+    R("direction_arrows", "Direction arrows", "Farbpfeile", (r"farbpfeil",), disposition="no_catalogue"),
+    R("equipotential", "Equipotential bonding", "Potentialverbindung", (r"potentialverbindung|potentialausgleich$",), disposition="no_catalogue"),
+    R("install_kit", "Installation kit", "Einbausatz", (r"einbausatz",), disposition="no_catalogue"),
+    R("base_pipe", "Base pipe (stainless)", "Sockelrohr", (r"sockelrohr",), disposition="no_catalogue"),
+    R("kitchen_cassette", "Kitchen ceiling cassette / luminaire", "Küchendecken-Kassette / Leuchte", (r"kassette|led-dali|leuchte",), sections="A",
+      disposition="no_catalogue"),
+    R("ceiling_substructure", "Additional ceiling substructure", "Zusätzliche Deckenunterkonstruktion", (r"deckenunterkonstruktion",),
+      disposition="no_catalogue"),
     # Air terminals
     R("supply_valve", "Supply air disc valve", "Zuluft-Tellerventil", (r"zuluft\s*[-–]?\s*tellerventil",),
       install_code="DIFFUSER", size_mode="dn", subcategory="Supply valve"),

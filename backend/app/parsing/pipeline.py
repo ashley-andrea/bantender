@@ -19,7 +19,7 @@ from .normalize import parse_sizes, size_key
 from .pdf_layer import read_rows
 
 # Bump when parsing output changes: stored results with an older version are re-parsed on upload.
-PARSER_VERSION = "2026.10.10-6"
+PARSER_VERSION = "2026.10.10-8"
 
 
 def parse_tender(pdf_path: Path) -> tuple[ParsedTender, dict]:

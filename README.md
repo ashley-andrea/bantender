@@ -29,7 +29,9 @@ Built for the Equans case at the sprintd hackathon (October 2026).
 
 No OpenAI calls are made anywhere yet (`AI_PROVIDER=off`).
 
-Current result on the Oberglatt tender, before any estimator edits: indicative price CHF 1'758'000 at the 5.5 % target margin; 112 of 229 tender lines to price are priced (67 calculated, 45 provisional), 117 are unpriced (116 not in the 56-item catalogue, 1 without quantity); 22 lines are excluded; 77 further lines are derived from the CAD component lists.
+Current result on the Oberglatt tender, before any estimator edits: indicative price CHF 1'756'000 at the 5.5 % target margin. 254 tender lines; 22 excluded; of 232 to price, 110 are priced (67 calculated, 43 provisional) and 122 unpriced; 77 further lines are derived from the CAD component lists.
+
+Why lines are unpriced (checked line by line, not a parsing gap): 53 main item types the 56-item catalogue does not contain (grilles, swirl diffusers, rain caps, louvres, kitchen ceiling, fire-rated insulation, thermometers, smoke detectors, labels …), 39 accessories/options of main items (colour coatings, mounting frames, installation kits …), 23 sizes outside the catalogue range (e.g. silencers 1080×800, CAV DN80–160 where the catalogue has DN250 only), 6 duct leakage tests (a service), 1 line without quantity. Extraction completeness is checked independently: every unit in the LV's unit column has a matching extracted line.
 
 ## How the numbers are defined
 

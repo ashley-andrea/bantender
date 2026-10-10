@@ -36,17 +36,25 @@ export function Landing({ onOpen }: { onOpen: (id: string) => void }) {
     api.listTenders().then(setRecent).catch(() => setRecent([]))
   }, [])
 
-  // Both steps are scheduled once, at mount (a phase-dependent effect would cancel the second timer).
+  // The intro waits for any key or click, then settles and becomes ready.
   useEffect(() => {
     if (introPlayed) return
-    const a = setTimeout(() => setPhase('settled'), 2600)
-    const b = setTimeout(() => {
-      setPhase('ready')
-      introPlayed = true
-    }, 3500)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const start = () => {
+      window.removeEventListener('keydown', start)
+      window.removeEventListener('pointerdown', start)
+      setPhase('settled')
+      timer = setTimeout(() => {
+        setPhase('ready')
+        introPlayed = true
+      }, 900)
+    }
+    window.addEventListener('keydown', start)
+    window.addEventListener('pointerdown', start)
     return () => {
-      clearTimeout(a)
-      clearTimeout(b)
+      window.removeEventListener('keydown', start)
+      window.removeEventListener('pointerdown', start)
+      clearTimeout(timer)
     }
   }, [])
 
@@ -91,7 +99,7 @@ export function Landing({ onOpen }: { onOpen: (id: string) => void }) {
       onDragLeave={(e) => { if (e.currentTarget === e.target) setDrag(false) }}
       onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files[0]; if (f && !file) run(f) }}>
       {/* header strip: the wordmark lands here */}
-      <header className={`h-14 px-5 flex items-center justify-end gap-4 transition-opacity duration-500 ${intro ? 'opacity-0' : 'opacity-100'}`}>
+      <header className={`h-14 px-5 flex items-center justify-end gap-4 transition-opacity duration-500 ${intro ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         <LangToggle />
         <svg className="absolute left-0 right-0 top-[54px] w-full h-1.5" viewBox="0 0 1000 6" preserveAspectRatio="none" aria-hidden>
           <path d="M0 3 C 150 1.5, 300 4.5, 500 3 S 850 1.8, 1000 3.2" stroke="#1c2933" strokeOpacity="0.55" strokeWidth="1.4" fill="none" />

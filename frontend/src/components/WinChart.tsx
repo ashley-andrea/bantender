@@ -149,8 +149,8 @@ export function WinChart({ points, scenarios, current, selected, onSelect }: Pro
         )}
       </svg>
       {h && (
-        <div className="pointer-events-none absolute z-10 rounded-md bg-surface border border-hair shadow-sm px-2.5 py-2 text-[12px] num"
-          style={{ left: Math.min(x(h.offer) + 12, width - 190), top: P.top + 8 }}>
+        <div className="pointer-events-none absolute z-10 rounded-md bg-surface border border-hair px-2.5 py-2 text-[12px] num whitespace-nowrap"
+          style={x(h.offer) > width - 260 ? { right: width - x(h.offer) + 12, top: P.top + 8 } : { left: x(h.offer) + 12, top: P.top + 8 }}>
           <div className="font-semibold">CHF {fmtChf(h.offer)}</div>
           <div className="text-muted">{h.margin_pct.toFixed(1)} % {t('margin').toLowerCase()}</div>
           <div className="mt-1 flex items-center gap-1.5"><span className="inline-block size-2 rounded-full" style={{ background: GREEN }} />

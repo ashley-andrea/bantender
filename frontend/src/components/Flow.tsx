@@ -294,7 +294,7 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
               </Col>
               <Handle value={listWidth} min={240} max={480} onChange={(w) => setWidth(step === 'price' ? 'priceList' : 'list', w)} onDrag={setDragging} animate={!dragging} />
               <div className="flex-1 min-w-[380px] h-full">
-                <div key={step} className="h-full rise">
+                <div key={step} className="h-full step-in">
                   {!sel && <PickHint />}
                   {sel && step === 'extract' && <ExtractionPanel sel={sel} systems={parsed.systems} active={active} onActive={activate} onEdit={edit} busy={busy} />}
                   {sel && step === 'catalog' && <CataloguePanel sel={sel} systems={parsed.systems} active={active} onActive={activate} busy={busy} onQuote={(v) => edit('unit_price', v)} />}
@@ -310,12 +310,12 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
               </Col>
             </div>
             {/* Right padding leaves room for the assistant's button in the corner. */}
-            {step === 'price' && <div className="pt-3 pr-[130px] rise"><OfferBar pricing={pricing} busy={busy} workbook={api.workbookUrl(tenderId)} /></div>}
+            {step === 'price' && <div className="pt-3 pr-[130px] step-in"><OfferBar pricing={pricing} busy={busy} workbook={api.workbookUrl(tenderId)} /></div>}
           </div>
         )}
-        {step === 'offers' && <OfferOptions pricing={pricing} busy={busy} onChoose={(c) => apply(api.choose(tenderId, c))} />}
+        {step === 'offers' && <div key="offers" className="h-full step-in"><OfferOptions pricing={pricing} busy={busy} onChoose={(c) => apply(api.choose(tenderId, c))} /></div>}
         {step === 'export' && (offer ? (
-          <div className="h-full flex">
+          <div key="export" className="h-full flex step-in">
             <div className="flex-1 min-w-[400px] h-full">
             <PdfPane url={api.offerPdfUrl(tenderId, false, version)} page={exportAt} pageCount={parsed.meta.pages} pageSize={parsed.meta.page_sizes[String(exportAt)]}
               highlights={[...citeBoxes(cite, exportAt), ...offer.fields.filter((f) => f.page === exportAt).map((f) => ({ bbox: f.bbox, color: LEVEL_MARKER.read }))]}

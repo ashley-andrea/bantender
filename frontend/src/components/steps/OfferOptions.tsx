@@ -104,9 +104,10 @@ function OptionCard({ cite, label, hint, offer, margin, chance, profit, recommen
         <span className="ml-auto text-[20px] font-semibold num">CHF {fmtChf(offer)}</span>
       </div>
       <div className="text-[12px] text-muted">{hint}</div>
-      <div className="mt-3 mb-4 flex justify-between gap-3 text-[11.5px] whitespace-nowrap">
+      {/* Same three columns in every card: margin left, chance centred, profit right. */}
+      <div className="mt-3 mb-4 grid grid-cols-[1fr_1.3fr_1fr] gap-3 text-[11.5px] whitespace-nowrap">
         <div><div className="text-muted">{t('margin')}</div><div className="text-[15px] font-semibold num">{fmtPct(Math.round(margin * 10) / 10)}</div></div>
-        <div><div className="text-muted">{t('winChance')}</div><div className="text-[15px] font-semibold num">{pct(chance)}</div></div>
+        <div className="text-center"><div className="text-muted">{t('winChance')}</div><div className="text-[15px] font-semibold num">{pct(chance)}</div></div>
         <div className="text-right"><div className="text-muted">{t('expectedProfit')}</div><div className="text-[15px] font-semibold num">{chfCompact(profit)}</div></div>
       </div>
       <button disabled={busy || chosen} onClick={onChoose} className={`btn mt-auto px-3 py-1.5 text-[13px] ${recommended ? 'btn-green' : 'btn-paper'}`}>
@@ -119,8 +120,8 @@ function OptionCard({ cite, label, hint, offer, margin, chance, profit, recommen
 function Stat({ label, value, sub, strong }: { label: string; value: string; sub?: string; strong?: boolean }) {
   return (
     <div>
-      <div className="text-[11.5px] text-muted">{label}</div>
-      <div className={`num ${strong ? 'text-[16px] font-semibold text-navy' : 'font-semibold'}`}>
+      <div className="text-[11.5px] text-muted whitespace-nowrap">{label}</div>
+      <div className={`num whitespace-nowrap ${strong ? 'text-[16px] font-semibold text-navy' : 'font-semibold'}`}>
         {value} {sub && <span className="text-[11.5px] font-normal text-muted">({sub})</span>}
       </div>
     </div>

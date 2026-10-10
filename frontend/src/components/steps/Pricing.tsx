@@ -175,7 +175,7 @@ function Steps({ line, settings, m, raw, unitPrice, includesLabour }: {
 function Cell({ cite, label, children }: { cite: string; label: string; children: React.ReactNode }) {
   return (
     <div data-cite={cite}>
-      <div className="text-[11.5px] text-muted">{label}</div>
+      <div className="text-[11.5px] text-muted whitespace-nowrap">{label}</div>
       <div className="mt-0.5">{children}</div>
     </div>
   )
@@ -207,7 +207,7 @@ export function OfferBar({ pricing, busy, workbook }: { pricing: Pricing; busy: 
 function Part({ label, value, cite }: { label: string; value: number; cite: string }) {
   return (
     <div data-cite={cite}>
-      <div className="text-[11.5px] text-muted">{label}</div>
+      <div className="text-[11.5px] text-muted whitespace-nowrap">{label}</div>
       <div className="font-semibold">{fmtChf(value)}</div>
     </div>
   )

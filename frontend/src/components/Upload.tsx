@@ -101,10 +101,11 @@ export function UploadView({ onOpen }: { onOpen: (id: string) => void }) {
       <div className="panel p-8 flex flex-col">
         {!file ? (
           <>
-            <h1 className="text-[26px] font-semibold tracking-tight">{t('tagline')}</h1>
-            <p className="mt-2 text-muted text-[14.5px] max-w-lg">{t('subline')}</p>
+            <div className="flex-1 min-h-0 grid place-items-center">
+              <img src="/bartender.png" alt="" className="h-56 w-auto max-w-full object-contain mix-blend-multiply select-none" draggable={false} />
+            </div>
             {recent.length > 0 && (
-              <div className="mt-10">
+              <div className="mt-6">
                 <h2 className="text-[12.5px] font-semibold text-muted mb-2">{t('recent')}</h2>
                 <div className="divide-y divide-hair border-y border-hair">
                   {recent.map((r) => (

@@ -1,0 +1,127 @@
+product_id,category,subcategory,manufacturer,model,description,unit,list_price_chf,discount_pct,net_cost_chf,install_code,source_type,supplier_quote_required
+P-AIR-001,Air terminal,Supply valve,DemoVent,DV-Z-100,Supply air valve DN100,pc,85,12,74.8,DIFFUSER,catalog,false
+P-AIR-002,Air terminal,Supply valve,DemoVent,DV-Z-125,Supply air valve DN125,pc,98,12,86.24,DIFFUSER,catalog,false
+P-AIR-003,Air terminal,Exhaust valve,DemoVent,DV-A-100,Exhaust air valve DN100,pc,82,12,72.16,DIFFUSER,catalog,false
+P-FIR-001,Fire protection,Fire damper,DemoFire,FD-EI90-100,Fire damper EI90-S DN100 with actuator,pc,1750,15,1487.5,FIRE_DAMPER,catalog,false
+P-DAM-001,Damper,Manual damper,DemoDuct,MD-125,Manual balancing damper DN125,pc,145,10,130.5,DAMPER,catalog,false
+P-SIL-001,Silencer,Rectangular,DemoAcoustic,RS-400-300-1250,Rectangular silencer 400x300x1250 mm,pc,2600,0,2600.0,SILENCER,supplier_package,true
+P-VAV-001,Flow controller,VAV rectangular,DemoControl,VAV-500-300,VAV controller 500x300 mm with actuator,pc,4200,0,4200.0,VAV_CONTROLLER,supplier_package,true
+P-CAV-001,Flow controller,CAV circular,DemoControl,CAV-250,Constant volume controller DN250,pc,980,12,862.4,CAV_CONTROLLER,catalog,false
+P-SIL-002,Silencer,Compact,DemoAcoustic,CS-100-900,Compact silencer DN100 length 900 mm,pc,410,10,369.0,SILENCER,catalog,false
+P-SIL-003,Silencer,Rectangular,DemoAcoustic,RS-600-600-1750,Rectangular silencer 600x600x1750 mm,pc,5400,0,5400.0,SILENCER,supplier_package,true
+P-SIL-004,Silencer,Rectangular,DemoAcoustic,RS-540-400-1250,Rectangular silencer 540x400x1250 mm,pc,3600,0,3600.0,SILENCER,supplier_package,true
+P-VAV-002,Flow controller,VAV rectangular,DemoControl,VAV-300-200,VAV controller 300x200 mm,pc,3100,0,3100.0,VAV_CONTROLLER,supplier_package,true
+P-VAV-003,Flow controller,VAV circular,DemoControl,VAV-125,Variable volume controller DN125,pc,1450,12,1276.0,VAV_CONTROLLER,catalog,false
+P-VAV-004,Flow controller,VAV circular,DemoControl,VAV-160,Variable volume controller DN160,pc,1620,12,1425.6,VAV_CONTROLLER,catalog,false
+P-VAV-005,Flow controller,VAV circular,DemoControl,VAV-200,Variable volume controller DN200,pc,1880,12,1654.4,VAV_CONTROLLER,catalog,false
+P-INS-001,Insulation,Thermal 30 mm,DemoInsulation,MW-30,30 mm mineral wool duct insulation,m2,55,8,50.6,INSULATION_30,catalog,false
+P-INS-002,Insulation,Thermal 60 mm,DemoInsulation,MW-60,60 mm mineral wool duct insulation,m2,78,8,71.76,INSULATION_60,catalog,false
+P-INS-003,Insulation,Weatherproof 100 mm,DemoInsulation,MW-100-SS,100 mm external insulation with cladding,m2,245,0,245.0,INSULATION_EXT,supplier_package,true
+P-FIR-002,Fire protection,Rectangular seal,DemoFire,FS-R-300-200,EI30 rectangular fire seal 300x200 mm,pc,820,10,738.0,FIRE_SEAL_RECT,catalog,false
+P-FIR-003,Fire protection,Circular seal,DemoFire,FS-C-160,EI30 circular fire seal DN160,pc,510,10,459.0,FIRE_SEAL_ROUND,catalog,false
+P-SUP-001,Support,Angle set,DemoMount,CAS-50,Connection-angle set,pc,95,10,85.5,SUPPORT_SET,catalog,false
+P-FIR-004,Fire protection,Inspection cover,DemoFire,IC-400-200,Inspection cover 400x200 mm,pc,390,10,351.0,FIRE_ACCESS,catalog,false
+P-DCT-R-100,Ductwork,Circular duct,DemoDuct,SP-100,Circular galvanized duct DN100,m,22,10,19.8,DUCT_ROUND,catalog,false
+P-DCT-R-125,Ductwork,Circular duct,DemoDuct,SP-125,Circular galvanized duct DN125,m,28,10,25.2,DUCT_ROUND,catalog,false
+P-DCT-R-160,Ductwork,Circular duct,DemoDuct,SP-160,Circular galvanized duct DN160,m,37,10,33.3,DUCT_ROUND,catalog,false
+P-DCT-R-200,Ductwork,Circular duct,DemoDuct,SP-200,Circular galvanized duct DN200,m,49,10,44.1,DUCT_ROUND,catalog,false
+P-DCT-R-224,Ductwork,Circular duct,DemoDuct,SP-224,Circular galvanized duct DN224,m,56,10,50.4,DUCT_ROUND,catalog,false
+P-DCT-R-250,Ductwork,Circular duct,DemoDuct,SP-250,Circular galvanized duct DN250,m,68,10,61.2,DUCT_ROUND,catalog,false
+P-DCT-R-315,Ductwork,Circular duct,DemoDuct,SP-315,Circular galvanized duct DN315,m,92,10,82.8,DUCT_ROUND,catalog,false
+P-DCT-R-400,Ductwork,Circular duct,DemoDuct,SP-400,Circular galvanized duct DN400,m,128,10,115.2,DUCT_ROUND,catalog,false
+P-FTG-B-100-90,Ductwork,Circular bend,DemoDuct,B90-100,Circular bend 90° DN100,pc,48,10,43.2,DUCT_FITTING,catalog,false
+P-FTG-B-125-30,Ductwork,Circular bend,DemoDuct,B30-125,Circular bend 30° DN125,pc,45,10,40.5,DUCT_FITTING,catalog,false
+P-FTG-B-125-90,Ductwork,Circular bend,DemoDuct,B90-125,Circular bend 90° DN125,pc,58,10,52.2,DUCT_FITTING,catalog,false
+P-FTG-B-160-45,Ductwork,Circular bend,DemoDuct,B45-160,Circular bend 45° DN160,pc,72,10,64.8,DUCT_FITTING,catalog,false
+P-FTG-B-160-90,Ductwork,Circular bend,DemoDuct,B90-160,Circular bend 90° DN160,pc,84,10,75.6,DUCT_FITTING,catalog,false
+P-FTG-B-200-90,Ductwork,Circular bend,DemoDuct,B90-200,Circular bend 90° DN200,pc,112,10,100.8,DUCT_FITTING,catalog,false
+P-FTG-B-224-90,Ductwork,Circular bend,DemoDuct,B90-224,Circular bend 90° DN224,pc,126,10,113.4,DUCT_FITTING,catalog,false
+P-FTG-B-250-90,Ductwork,Circular bend,DemoDuct,B90-250,Circular bend 90° DN250,pc,145,10,130.5,DUCT_FITTING,catalog,false
+P-DCT-X-200x200,Ductwork,Rectangular duct,DemoDuct,RD-200x200,Rectangular galvanized duct 200x200 mm,m2,68,10,61.2,DUCT_RECT,catalog,false
+P-DCT-X-400x200,Ductwork,Rectangular duct,DemoDuct,RD-400x200,Rectangular galvanized duct 400x200 mm,m2,96,10,86.4,DUCT_RECT,catalog,false
+P-DCT-X-600x400,Ductwork,Rectangular duct,DemoDuct,RD-600x400,Rectangular galvanized duct 600x400 mm,m2,134,10,120.6,DUCT_RECT,catalog,false
+P-DCT-X-800x600,Ductwork,Rectangular duct,DemoDuct,RD-800x600,Rectangular galvanized duct 800x600 mm,m2,188,10,169.2,DUCT_RECT,catalog,false
+P-DCT-X-1000x800,Ductwork,Rectangular duct,DemoDuct,RD-1000x800,Rectangular galvanized duct 1000x800 mm,m2,245,10,220.5,DUCT_RECT,catalog,false
+P-AHU-1000,Equipment,Air-handling unit,DemoAHU,AHU-1000,Modular AHU approx. 1000 m3/h,pc,28000,0,28000.0,AHU_LARGE,supplier_package,true
+P-AHU-3500,Equipment,Air-handling unit,DemoAHU,AHU-3500,Modular AHU approx. 3500 m3/h,pc,62000,0,62000.0,AHU_LARGE,supplier_package,true
+P-AHU-6200,Equipment,Air-handling unit,DemoAHU,AHU-6200,Modular AHU approx. 6200 m3/h,pc,98000,0,98000.0,AHU_LARGE,supplier_package,true
+P-AHU-10500,Equipment,Air-handling unit,DemoAHU,AHU-10500,Modular AHU approx. 10500 m3/h,pc,185000,0,185000.0,AHU_LARGE,supplier_package,true
+P-FAN-500,Equipment,Fan,DemoFan,FAN-500,EC fan unit approx. 500 m3/h,pc,1900,0,1900.0,FAN,supplier_package,true
+P-FAN-1500,Equipment,Fan,DemoFan,FAN-1500,EC fan unit approx. 1500 m3/h,pc,4300,0,4300.0,FAN,supplier_package,true
+P-FAN-3500,Equipment,Fan,DemoFan,FAN-3500,EC fan unit approx. 3500 m3/h,pc,7800,0,7800.0,FAN,supplier_package,true
+P-FAN-6200,Equipment,Fan,DemoFan,FAN-6200,EC fan unit approx. 6200 m3/h,pc,12500,0,12500.0,FAN,supplier_package,true
+P-FAN-10500,Equipment,Fan,DemoFan,FAN-10500,EC fan unit approx. 10500 m3/h,pc,19800,0,19800.0,FAN,supplier_package,true
+P-CTL-001,Controls,Field device,DemoControls,CTL-001,Differential pressure transmitter,pc,680,10,612.0,CONTROL_POINT,catalog,false
+P-CTL-002,Controls,Field device,DemoControls,CTL-002,Temperature sensor,pc,420,10,378.0,CONTROL_POINT,catalog,false
+P-CTL-003,Controls,Field device,DemoControls,CTL-003,Actuator 24V,pc,520,10,468.0,CONTROL_POINT,catalog,false
+P-CTL-004,Controls,Field device,DemoControls,CTL-004,Volume flow transmitter,pc,740,10,666.0,CONTROL_POINT,catalog,false
+P-AIR-004,Air terminal,Exhaust valve,DemoVent,DV-A-125,Exhaust air valve DN125,pc,95,12,83.6,DIFFUSER,catalog,false
+P-AIR-005,Air terminal,Exhaust valve,DemoVent,DV-A-160,Exhaust air valve DN160,pc,118,12,103.84,DIFFUSER,catalog,false
+P-AIR-006,Air terminal,Supply valve,DemoVent,DV-Z-160,Supply air valve DN160,pc,122,12,107.36,DIFFUSER,catalog,false
+P-GRL-250x100,Air terminal,Grille,DemoVent,DG-250x100,Air grille with volume damper 250x100 mm,pc,92,12,80.96,GRILLE,catalog,false
+P-GRL-400x100,Air terminal,Grille,DemoVent,DG-400x100,Air grille with volume damper 400x100 mm,pc,118,12,103.84,GRILLE,catalog,false
+P-GRL-500x100,Air terminal,Grille,DemoVent,DG-500x100,Air grille with volume damper 500x100 mm,pc,134,12,117.92,GRILLE,catalog,false
+P-SWL-2x124,Air terminal,Swirl diffuser,DemoVent,SWL-2x124,"Swirl diffuser 600x600 mm, rear connection 2x124 mm",pc,420,12,369.6,SWIRL_DIFFUSER,catalog,false
+P-SWL-2x179,Air terminal,Swirl diffuser,DemoVent,SWL-2x179,"Swirl diffuser 625x625 mm, rear connection 2x179 mm",pc,480,12,422.4,SWIRL_DIFFUSER,catalog,false
+P-NOZ-001,Air terminal,Nozzle duct outlet,DemoVent,NDO-315-9000,"Nozzle duct outlet DN315, 1 end + 4 middle sections (9 m)",pc,6800,0,6800.0,NOZZLE_OUTLET,supplier_package,true
+P-TRF-001,Air terminal,Transfer unit,DemoAcoustic,TRF-490,Acoustic transfer air unit 175x490x240 mm,pc,310,10,279.0,GRILLE,catalog,false
+P-TRF-KIT,Air terminal,Transfer unit kit,DemoAcoustic,TRF-KIT-HV,"Installation kit for transfer unit, high airflow",pc,85,10,76.5,ACCESSORY_SMALL,catalog,false
+P-CPL-001,Air terminal,Ceiling panel,DemoVent,CPL-1000x500,Ceiling air panel with air-guide elements 996x496 mm,pc,340,10,306.0,GRILLE,catalog,false
+P-CPL-002,Air terminal,Perforated cladding,DemoVent,CPL-PERF-1000x500,Perforated decorative metal cladding 1000x500 mm,pc,120,10,108.0,ACCESSORY_SMALL,catalog,false
+P-LOU-1000x400,Outdoor air,Weather louvre,DemoMetal,WL-1000x400,Weather louvre 1000x400 mm,pc,780,10,702.0,LOUVRE,catalog,false
+P-LOU-1400x1000,Outdoor air,Weather louvre,DemoMetal,WL-1400x1000,Weather louvre 1400x1000 mm,pc,1650,10,1485.0,LOUVRE,catalog,false
+P-RHC-550x250,Outdoor air,Rain cap,DemoMetal,RC-550x250,Stainless rain cap 550x250 mm,pc,640,8,588.8,LOUVRE,catalog,false
+P-RHC-650x350,Outdoor air,Rain cap,DemoMetal,RC-650x350,Stainless rain cap 650x350 mm,pc,760,8,699.2,LOUVRE,catalog,false
+P-RHC-1000x700,Outdoor air,Rain cap,DemoMetal,RC-1000x700,Stainless rain cap 1000x700 mm,pc,1280,8,1177.6,LOUVRE,catalog,false
+P-RHC-1100x350,Outdoor air,Rain cap,DemoMetal,RC-1100x350,Stainless rain cap 1100x350 mm,pc,1180,8,1085.6,LOUVRE,catalog,false
+P-LHD-001,Outdoor air,Louvre hood,DemoMetal,SLH-1155,"Column louvre hood DN1155 stainless, 10000 m3/h",pc,14500,0,14500.0,LOUVRE_LARGE,supplier_package,true
+P-ACC-BASE,Outdoor air,Base pipe,DemoMetal,SR-1155-800,Stainless base pipe DN1155 length 800 mm with flanges,pc,2400,0,2400.0,LOUVRE,catalog,false
+P-ACC-NCS,Accessory,Colour coating,DemoMetal,NCS-COAT,"Colour coating to NCS, per element",pc,180,0,180.0,SERVICE,catalog,false
+P-SIL-005,Silencer,Compact,DemoAcoustic,CS-125-900,Compact silencer DN125 length 900 mm,pc,450,10,405.0,SILENCER,catalog,false
+P-SIL-006,Silencer,Compact,DemoAcoustic,CS-160-900,Compact silencer DN160 length 900 mm,pc,520,10,468.0,SILENCER,catalog,false
+P-SIL-007,Silencer,Compact,DemoAcoustic,CS-200-900,Compact silencer DN200 length 900 mm,pc,610,10,549.0,SILENCER,catalog,false
+P-SIL-008,Silencer,Rectangular,DemoAcoustic,RS-1080-800-1250,Rectangular silencer 1080x800x1250 mm,pc,7900,0,7900.0,SILENCER,supplier_package,true
+P-SIL-009,Silencer,Rectangular,DemoAcoustic,RS-1200-900-1750,Rectangular silencer 1200x900x1750 mm,pc,11200,0,11200.0,SILENCER,supplier_package,true
+P-CAV-002,Flow controller,CAV circular,DemoControl,CAV-80,Constant volume controller DN80,pc,640,12,563.2,CAV_CONTROLLER,catalog,false
+P-CAV-003,Flow controller,CAV circular,DemoControl,CAV-100,Constant volume controller DN100,pc,690,12,607.2,CAV_CONTROLLER,catalog,false
+P-CAV-004,Flow controller,CAV circular,DemoControl,CAV-125,Constant volume controller DN125,pc,740,12,651.2,CAV_CONTROLLER,catalog,false
+P-CAV-005,Flow controller,CAV circular,DemoControl,CAV-160,Constant volume controller DN160,pc,820,12,721.6,CAV_CONTROLLER,catalog,false
+P-CAV-006,Flow controller,CAV circular,DemoControl,CAV-200,Constant volume controller DN200,pc,900,12,792.0,CAV_CONTROLLER,catalog,false
+P-FIR-005,Fire protection,Rectangular seal,DemoFire,FS-R-400-350,EI30 rectangular fire seal 400x350 mm,pc,960,10,864.0,FIRE_SEAL_RECT,catalog,false
+P-FIR-006,Fire protection,Rectangular seal,DemoFire,FS-R-400-400,EI30 rectangular fire seal 400x400 mm,pc,1010,10,909.0,FIRE_SEAL_RECT,catalog,false
+P-FIR-007,Fire protection,Rectangular seal,DemoFire,FS-R-500-350,EI30 rectangular fire seal 500x350 mm,pc,1060,10,954.0,FIRE_SEAL_RECT,catalog,false
+P-FIR-008,Fire protection,Circular seal,DemoFire,FS-C-250,EI30 circular fire seal DN250,pc,640,10,576.0,FIRE_SEAL_ROUND,catalog,false
+P-FLX-100,Damper,Flexible connector,DemoDuct,FLX-100,Flexible duct connector DN100 with equipotential bonding,pc,64,10,57.6,ACCESSORY_SMALL,catalog,false
+P-CVR-001,Ductwork,Cleaning cover,DemoDuct,CC-400x200,"Duct cleaning cover 400x200 mm, airtight",pc,140,10,126.0,ACCESSORY_SMALL,catalog,false
+P-CVR-002,Ductwork,Cleaning cover,DemoDuct,CC-100,Cleaning cover DN100 for insulated pipes,pc,72,10,64.8,ACCESSORY_SMALL,catalog,false
+P-INS-004,Insulation,Fire-rated EI30,DemoInsulation,FI-EI30,Fire-rated duct insulation EI30,m2,128,8,117.76,FIRE_INSULATION,catalog,false
+P-INS-005,Insulation,Fire-rated EI60 60 mm,DemoInsulation,FI-EI60-60,Fire-rated duct insulation EI60 60 mm,m2,156,8,143.52,FIRE_INSULATION,catalog,false
+P-INS-006,Insulation,Fire-rated EI60 100 mm,DemoInsulation,FI-EI60-100,Fire-rated duct insulation EI60 100 mm,m2,189,8,173.88,FIRE_INSULATION,catalog,false
+P-INS-007,Insulation,Fire protection cladding,DemoInsulation,FC-EI30,Fire protection cladding EI30 (boards),m2,142,8,130.64,FIRE_INSULATION,catalog,false
+P-INS-008,Insulation,Thermal 100 mm,DemoInsulation,MW-100,100 mm mineral wool duct insulation,m2,96,8,88.32,INSULATION_60,catalog,false
+P-INS-009,Insulation,Penetration 15 mm,DemoInsulation,MW-15-AR,15 mm abrasion-resistant duct insulation at penetrations,m2,48,8,44.16,INSULATION_30,catalog,false
+P-CTL-005,Controls,Field device,DemoControls,CTL-005,Duct smoke detector with air-flow monitoring,pc,980,10,882.0,CONTROL_POINT,catalog,false
+P-CTL-006,Controls,Instrument,DemoControls,DT-100,Dial thermometer for duct mounting,pc,85,10,76.5,INSTRUMENT,catalog,false
+P-ACC-FRAME,Controls,Instrument accessory,DemoControls,MF-INS,Mounting frame for insulated ducts,pc,38,10,34.2,ACCESSORY_SMALL,catalog,false
+P-LBL-001,Labelling,Label plate,DemoSign,LBL-100x50,Engraved labelling plate 100x50 mm,pc,14,0,14.0,LABEL,catalog,false
+P-LBL-002,Labelling,Direction arrow,DemoSign,ARR-COL,Coloured direction arrow (airflow medium),pc,6,0,6.0,LABEL,catalog,false
+P-ACC-EQP,Labelling,Equipotential bonding,DemoDuct,EQP-16,Equipotential bonding connection 16 mm2,pc,22,0,22.0,ACCESSORY_SMALL,catalog,false
+P-KIT-EVS-L,Kitchen ceiling,Ventilated ceiling module,DemoKitchen,EVS-W-3600x1300,Kitchen ventilated ceiling module EVS-W 3600x1300x420 mm,pc,9800,0,9800.0,KITCHEN_MODULE,supplier_package,true
+P-KIT-EVS-S,Kitchen ceiling,Ventilated ceiling module,DemoKitchen,EVS-W-1600x1200,Kitchen ventilated ceiling module EVS-W 1600x1200x420 mm,pc,5200,0,5200.0,KITCHEN_MODULE,supplier_package,true
+P-KIT-CAS,Kitchen ceiling,Ceiling cassette,DemoKitchen,DFD-1000x500,Kitchen ceiling cassette alu 1000x500 mm,pc,120,0,120.0,KITCHEN_PART,catalog,false
+P-KIT-LMP,Kitchen ceiling,Luminaire cassette,DemoKitchen,LMP-LED,Kitchen ceiling luminaire cassette with LED,pc,520,0,520.0,KITCHEN_PART,catalog,false
+P-KIT-DQA,Kitchen ceiling,Supply-air element,DemoKitchen,DQA-1500x500,Kitchen supply-air element 1500x500 mm,pc,890,0,890.0,KITCHEN_PART,catalog,false
+P-KIT-LPR,Kitchen ceiling,Wall profile,DemoKitchen,LPR-ALU,L-profile wall connection incl. fixing,m,24,0,24.0,KITCHEN_LINEAR,catalog,false
+P-KIT-SUB,Kitchen ceiling,Substructure,DemoKitchen,SUB-ZN,"Additional ceiling substructure, galvanised",m2,85,0,85.0,KITCHEN_SUB,catalog,false
+P-RMS-FOOT,Mounting,Roof foot,DemoMount,RMF-V2A,"Flat-roof mounting foot, stainless",pc,48,10,43.2,ROOF_SUPPORT,catalog,false
+P-RMS-RAIL,Mounting,Roof rail,DemoMount,RMR-V2A,Mounting rail stainless,m,36,10,32.4,ROOF_RAIL,catalog,false
+P-DCT-G-250,Ductwork,Ground duct,DemoDuct,GD-PU-250,Pre-insulated PU ground duct DN250,m,140,8,128.8,PIPE_GROUND,catalog,false
+P-DCT-G-CLP,Ductwork,Ground duct clamp,DemoDuct,GD-RRD-250,Annular gap seal DN250 stainless with EPDM,pc,85,8,78.2,PIPE_GROUND_FIT,catalog,false
+P-DCT-G-SLV,Ductwork,Wall sealing sleeve,DemoDuct,GD-SLV-250,Wall sealing sleeve DN250 against pressing water,pc,260,8,239.2,PIPE_GROUND_FIT,catalog,false
+P-DCT-G-B45,Ductwork,Ground duct bend,DemoDuct,GD-B45-250,Pre-insulated PU ground duct bend 45° DN250,pc,180,8,165.6,PIPE_GROUND_FIT,catalog,false
+P-DCT-G-B90,Ductwork,Ground duct bend,DemoDuct,GD-B90-250,Pre-insulated PU ground duct bend 90° DN250,pc,195,8,179.4,PIPE_GROUND_FIT,catalog,false
+P-DCT-G-CON,Ductwork,Ground duct sleeve,DemoDuct,GD-CON-250,Connection sleeve DN250 for PU ground duct,pc,46,8,42.32,PIPE_GROUND_FIT,catalog,false
+P-SRV-LEAK,Service,Leakage test,DemoTest,LT-EUROVENT,"Duct leakage test (Eurovent 2/2) incl. report, per test section",pc,1450,0,1450.0,SERVICE,catalog,false
+P-SRV-STAT,Service,Structural calculation,DemoTest,STAT-001,Structural calculation for cast-in ducts,pc,650,0,650.0,SERVICE,catalog,false
+P-SRV-FRT,Service,Freight,DemoLogistics,FRT-001,"Freight, packaging and handling",pc,380,0,380.0,SERVICE,catalog,false
+P-SRV-FOIL,Service,Final cleaning,DemoService,FOIL-001,Remove protective foil and clean surfaces,m2,4.5,0,4.5,SERVICE,catalog,false

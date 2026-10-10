@@ -15,13 +15,10 @@ class Settings(BaseSettings):
 
     environment: str = "dev"
     data_dir: Path = ROOT / "data" / "runtime"
-    reference_dir: Path = ROOT / "data" / "reference" / "v1"
+    reference_dir: Path = ROOT / "data" / "reference" / "v2"
 
     # Storage: "local" (server volume) now; "azure_blob" later (Azurite on our server, Azure Blob in production).
     storage: str = "local"
-
-    # Parsing: PyMuPDF is the primary reader. Docling is an optional cross-check run in its own container.
-    docling_mode: str = "tables_accurate"
 
     # AI: off by default. Budget-capped when on.
     ai_provider: str = "off"  # off | openai | azure

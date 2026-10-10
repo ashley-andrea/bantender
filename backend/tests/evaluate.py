@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import re
 
-from .models import LVLine
-from .normalize import parse_sizes
+from app.parsing.models import LVLine
+from app.parsing.normalize import parse_sizes
 
 
 def expected_size(description: str) -> dict:

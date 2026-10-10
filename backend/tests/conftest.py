@@ -7,7 +7,7 @@ import pytest
 from app.reference import load_reference
 
 ROOT = Path(__file__).resolve().parents[2]
-REFERENCE_DIR = ROOT / "data" / "reference" / "v1"
+REFERENCE_DIR = ROOT / "data" / "reference" / "v2"  # v1 as provided + synthetic completions (v1 rows unchanged)
 SAMPLE_DIR = ROOT / "data" / "samples" / "oberglatt"
 TENDER_PDF = SAMPLE_DIR / "BKP_244_LV_Lueftung_260804.pdf"
 

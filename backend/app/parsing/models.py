@@ -5,6 +5,21 @@ from dataclasses import dataclass, field
 BBox = tuple[float, float, float, float]  # x0, y0, x1, y1 in PDF points
 
 
+class SrcText(str):
+    """A text row that remembers where it was printed (page and box), so every attribute can be traced."""
+
+    page: int
+    bbox: BBox
+
+    def __new__(cls, text: str, page: int, bbox: BBox):
+        obj = super().__new__(cls, text)
+        obj.page, obj.bbox = page, tuple(bbox)
+        return obj
+
+    def __reduce__(self):
+        return (SrcText, (str(self), self.page, self.bbox))
+
+
 @dataclass
 class Segment:
     """A run of text on one visual row, separated from its neighbours by a column gap."""

@@ -78,12 +78,6 @@ def _load(tender_id: str) -> dict:
     if parsed["meta"].get("parser_version") != PARSER_VERSION:
         # Parser improved since this tender was stored: re-parse the stored PDF (line ids are stable, overrides survive).
         parsed = _parse_and_store(tender_id, parsed["meta"].get("filename"))
-    check_key = f"tenders/{tender_id}/crosscheck.json"
-    if storage.exists(check_key):
-        check = json.loads(storage.get(check_key))
-        if check.get("parser_version") == parsed["meta"].get("parser_version"):
-            parsed["meta"].update(check["meta"])
-            parsed["anomalies"] += check["anomalies"]
     return parsed
 
 
@@ -96,7 +90,6 @@ def summary(tender_id: str) -> dict:
         "systems": parsed["systems"],
         "lines": len(parsed["lines"]),
         "anomalies": len(parsed["anomalies"]),
-        "readers": {k: parsed["meta"][k] for k in ("lv_reader", "component_reader")},
     }
 
 

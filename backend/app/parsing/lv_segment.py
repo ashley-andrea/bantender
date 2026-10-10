@@ -1,7 +1,6 @@
 """Deterministic segmentation of a Messerli-style LV into priceable lines.
 
-Works on visual rows (see pdf_layer / docling_layer), so different readers can be
-compared on the same logic.
+Works on visual rows from pdf_layer (text, box, bold) and the page's column positions.
 """
 
 from __future__ import annotations
@@ -9,7 +8,7 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 
-from .models import Anomaly, ComponentRow, LVLine, PageInfo, ParsedTender, Row, Segment
+from .models import Anomaly, ComponentRow, LVLine, PageInfo, ParsedTender, Row, Segment, SrcText
 from .normalize import normalize_unit, parse_number, parse_sizes
 from .tender_info import location_for, parse_award, parse_lots, parse_project
 
@@ -106,7 +105,7 @@ def segment(rows_by_page: dict[int, list[Row]], use_bold: bool = True) -> Parsed
     lines: list[LVLine] = []
     component_rows: list[ComponentRow] = []
     systems: dict[str, dict] = {}
-    counters: dict[tuple, int] = defaultdict(int)
+    per_page: dict[int, int] = defaultdict(int)
 
     system = system_name = None
     section, section_name = "", ""
@@ -182,6 +181,9 @@ def segment(rows_by_page: dict[int, list[Row]], use_bold: bool = True) -> Parsed
             text = row.text.strip()
             left, right = _split_row(row, info)
             left_text = " ".join(s.text for s in left).strip()
+            if left:
+                xs0, ys0, xs1, ys1 = zip(*(s.bbox for s in left))
+                left_text = SrcText(left_text, info.page, (min(xs0), min(ys0), max(xs1), max(ys1)))
             gap = None if last_row_y is None else row.y - last_row_y
             last_row_y = row.y
 
@@ -249,8 +251,9 @@ def segment(rows_by_page: dict[int, list[Row]], use_bold: bool = True) -> Parsed
                 item_title = left_text
             if left_text:
                 local.append(left_text)
-            counters[(system, section)] += 1
-            line_id = f"{system}-{section or 'X'}-{counters[(system, section)]:03d}"
+            # Stable id: system, section, page and the quantity row's position on that page.
+            per_page[info.page] += 1
+            line_id = f"{system}-{section or 'X'}-p{info.page}.{per_page[info.page]}"
             flags = []
             if quantity is None:
                 flags.append("quantity_missing")

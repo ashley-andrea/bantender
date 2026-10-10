@@ -14,9 +14,17 @@ def _priced(examples, ref):
     ]
 
 
-def test_reference_counts(ref):
-    assert len(ref.catalog) == 56
-    assert len(ref.rules) == 22
+def test_reference_v2_extends_v1_unchanged(ref):
+    """v2 = the catalogue/rules as provided (v1, untouched) + synthetic completions for the rest of the tender."""
+    from app.reference import load_reference
+
+    from .conftest import ROOT
+
+    v1 = load_reference(ROOT / "data" / "reference" / "v1")
+    assert len(v1.catalog) == 56 and len(v1.rules) == 22
+    assert all(ref.catalog[pid] == item for pid, item in v1.catalog.items())
+    assert all(ref.rules[code] == rule for code, rule in v1.rules.items())
+    assert {i.install_code for i in ref.catalog.values()} <= set(ref.rules)
 
 
 def test_golden_positions(examples, ref, golden):

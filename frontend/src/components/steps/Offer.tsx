@@ -100,7 +100,8 @@ export function ExportPanel({ offer, parsed, page, url, onJump, onConditions, bu
           </div>
         ))}
       </div>
-      <div className="px-4 py-3 border-t border-hair text-[12px] text-muted">
+      {/* Right padding leaves room for the assistant's button in the corner. */}
+      <div className="pl-4 pr-20 py-3 border-t border-hair text-[12px] text-muted">
         <span className="font-semibold text-ink">{t('notFilled')}: </span>{t('notFilledBody')}
       </div>
     </div>

@@ -1,4 +1,4 @@
-import type { CatalogContext, Offer, Parsed, Pricing, ReferenceParameters, TenderSummary, WinModelSummary } from './types'
+import type { AssistantAnswer, AssistantStatus, AssistantView, CatalogContext, ChatTurn, Offer, Parsed, Pricing, ReferenceParameters, TenderSummary, WinModelSummary } from './types'
 
 export type EditField = 'quantity' | 'unit_price' | 'hours_per_unit'
 
@@ -36,6 +36,9 @@ export const api = {
     form.append('file', file)
     return fetch('/api/tenders', { method: 'POST', body: form }).then((r) => json<TenderSummary>(r))
   },
+  assistant: () => fetch('/api/assistant').then((r) => json<AssistantStatus>(r)),
+  ask: (id: string, body: { question: string; history: ChatTurn[]; lang: string; view: AssistantView }) =>
+    send<AssistantAnswer>(`/api/tenders/${id}/assistant`, 'POST', body),
   pdfUrl: (id: string) => `/api/tenders/${id}/pdf`,
   offerPdfUrl: (id: string, download = false, v = 0) => `/api/tenders/${id}/offer.pdf?download=${download}&v=${v}`,
 }

@@ -327,3 +327,42 @@ export interface ReferenceParameters {
   project_costs: Record<string, number>
   commercial: { overhead_pct: number; target_margin_pct: number; round_to_chf: number }
 }
+
+// ---- assistant ----------------------------------------------------------------------------------
+
+export interface AssistantStatus {
+  enabled: boolean
+  model: string | null
+}
+
+/** A quote that was found, word for word, in its source; tender quotes carry their boxes on the page. */
+export interface Citation {
+  n: number
+  kind: 'tender' | 'bid' | 'position' | 'data'
+  source: string
+  label: string
+  quote: string
+  page: number | null
+  line_id: string | null
+  bboxes: BBox[]
+}
+
+export interface AssistantAnswer {
+  status: 'answered' | 'not_found' | 'chat'
+  message: string
+  statements: { text: string; refs: number[] }[]
+  citations: Citation[]
+  unverified: number // statements removed because their quotes were not found in the cited source
+  searches: string[]
+}
+
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface AssistantView {
+  step: string
+  page: number | null
+  position: string | null
+}

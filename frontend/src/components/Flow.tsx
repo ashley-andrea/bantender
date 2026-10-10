@@ -4,7 +4,8 @@ import { api, prefetched, type EditField } from '../api'
 import { LEVEL_COLOR, fmtChf } from '../format'
 import { LangToggle, tx, useI18n, type Key } from '../i18n'
 import { STEPS, type Step } from '../route'
-import type { Offer, Parsed, PricedLine, Pricing, ReferenceParameters } from '../types'
+import type { Citation, Offer, Parsed, PricedLine, Pricing, ReferenceParameters } from '../types'
+import { Assistant } from './Assistant'
 import { Col, Handle, useWidths } from './Columns'
 import { PdfPane, type Highlight } from './PdfPane'
 import { PositionsList } from './PositionsList'
@@ -14,6 +15,14 @@ import { ExtractionPanel } from './steps/Extraction'
 import { ExportPanel } from './steps/Offer'
 import { OfferOptions } from './steps/OfferOptions'
 import { OfferBar, ParameterPanel, PriceDetail } from './steps/Pricing'
+
+const CITE_COLOR = '#002439' // navy: what the assistant quoted, apart from the value colours
+
+/** Outlines for the quote the assistant cited, when it is on this page. */
+function citeBoxes(cite: Citation | null, page: number): Highlight[] {
+  if (cite?.page !== page) return []
+  return cite.bboxes.map((bbox, i) => ({ bbox, color: CITE_COLOR, strong: true, label: i === 0 ? `[${cite.n}]` : undefined }))
+}
 
 const STEP_LABEL: Record<Step, Key> = { extract: 'step1', catalog: 'step2', price: 'step3', offers: 'step4', export: 'step5' }
 
@@ -39,6 +48,7 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
   const [exportPage, setExportPage] = useState<number | null>(null)
   const [query, setQuery] = useState('')
   const [defaults, setDefaults] = useState<ReferenceParameters | null>(null)
+  const [cite, setCite] = useState<Citation | null>(null)
   const [widths, setWidth] = useWidths({
     pdf: Math.min(900, Math.max(420, Math.round(window.innerWidth * 0.36))), list: 290, priceList: 360, params: 330, export: 380,
   })
@@ -55,6 +65,7 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
     setPricing(null)
     setOffer(null)
     setChosenId(null)
+    setCite(null)
     setError(null)
     if (!tenderId) return
     const show = (p: Parsed, pr: Pricing) => {
@@ -106,8 +117,25 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
   const select = useCallback((l: PricedLine) => {
     setChosenId(l.line_id)
     setActive(null)
+    setCite(null)
     setPage(l.page)
   }, [])
+
+  // A source the assistant cited: the tender page with the quote outlined, the position, or the price step.
+  const showCitation = (c: Citation) => {
+    if (c.kind === 'tender' && c.page) {
+      setCite(c)
+      if (step === 'export') setExportPage(c.page)
+      else {
+        setPage(c.page)
+        if (step !== 'extract' && step !== 'catalog') onStep('extract')
+      }
+    } else if (c.kind === 'position' && c.line_id) {
+      const l = pricing?.lines.find((x) => x.line_id === c.line_id)
+      if (l) select(l)
+      if (step === 'offers' || step === 'export') onStep('price')
+    } else if (c.kind === 'bid') onStep('price')
+  }
 
   const edit = (field: EditField, v: number | null) => {
     if (!line || !tenderId) return
@@ -139,7 +167,7 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
 
   // One box per printed row, coloured by how its value was obtained; the active value is labelled.
   const highlights: Highlight[] = useMemo(() => {
-    if (!line) return []
+    if (!line) return citeBoxes(cite, page)
     const boxes = new Map<string, Highlight>()
     for (const a of line.attributes) {
       for (const s of a.sources) {
@@ -150,8 +178,9 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
         boxes.set(k, { bbox: s.bbox, color: LEVEL_COLOR[a.level], strong, label: strong ? tx(a.label, lang) : undefined })
       }
     }
-    return [...boxes.values()]
-  }, [line, page, active, lang])
+    // The cited quote comes first, so the page scrolls to it.
+    return [...citeBoxes(cite, page), ...boxes.values()]
+  }, [line, page, active, lang, cite])
 
   const ready = Boolean(tenderId && parsed && pricing)
   const top = (
@@ -224,7 +253,8 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
                 )}
               </Col>
             </div>
-            {step === 'price' && <div className="pt-3 rise"><OfferBar pricing={pricing} busy={busy} /></div>}
+            {/* Right padding leaves room for the assistant's button in the corner. */}
+            {step === 'price' && <div className="pt-3 pr-[76px] rise"><OfferBar pricing={pricing} busy={busy} /></div>}
           </div>
         )}
         {step === 'offers' && <OfferOptions pricing={pricing} busy={busy} onSettings={(patch) => apply(api.settings(tenderId, patch))} />}
@@ -232,7 +262,7 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
           <div className="h-full flex">
             <div className="flex-1 min-w-[400px] h-full">
             <PdfPane url={api.offerPdfUrl(tenderId, false, version)} page={exportAt} pageCount={parsed.meta.pages} pageSize={parsed.meta.page_sizes[String(exportAt)]}
-              highlights={offer.fields.filter((f) => f.page === exportAt).map((f) => ({ bbox: f.bbox, color: '#008163' }))}
+              highlights={[...citeBoxes(cite, exportAt), ...offer.fields.filter((f) => f.page === exportAt).map((f) => ({ bbox: f.bbox, color: '#008163' }))]}
               caption={parsed.meta.filename ?? ''} onPage={setExportPage} />
             </div>
             <Handle invert value={widths.export} min={320} max={560} onChange={(w) => setWidth('export', w)} onDrag={setDragging} animate={!dragging} />
@@ -243,6 +273,8 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
           </div>
         ) : <Centered><Loader2 className="size-6 animate-spin text-muted" /></Centered>)}
       </main>
+      <Assistant key={tenderId} tenderId={tenderId} view={{ step, page: step === 'export' ? exportAt : page, position: selectedId }}
+        active={cite} onShow={showCitation} />
     </div>
   )
 }

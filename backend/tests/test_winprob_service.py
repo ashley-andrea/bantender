@@ -104,3 +104,23 @@ def test_api_routes_the_curve(tmp_path, monkeypatch):
         assert moved["project"]["selling_price"] == wc["scenarios"][1]["offer"]  # a scenario can be applied as the offer
     finally:
         get_settings.cache_clear()
+
+
+def test_shap_values_are_exact_and_follow_the_offer(service):
+    import math
+
+    c = service.curve(2_325_198.0, 2_461_000.0, PARSED, {})
+    shap = c["shap"]
+    from app.winprob.schema import FEATURES
+
+    assert set(shap["fixed"]) | {k.removeprefix("shap_") for k in shap["per_point"]} == set(FEATURES)
+    for pt in c["points"][::20]:
+        logit = shap["base"] + sum(shap["fixed"].values()) + sum(pt[k] for k in shap["per_point"])
+        assert 1 / (1 + math.exp(-logit)) == pytest.approx(pt["win_probability"], abs=1e-5)  # base + Σ SHAP = model
+    first, last = c["points"][0], c["points"][-1]
+    assert last["shap_price_position_x_sensitivity"] < first["shap_price_position_x_sensitivity"]  # dearer offer, lower
+
+
+def test_placeholder_has_no_shap(ref):
+    svc = WinService(REFERENCE_DIR, ref.parameters, CONTEXT, mode="placeholder")
+    assert svc.curve(1_000_000.0, 1_060_000.0, PARSED, {})["shap"] is None

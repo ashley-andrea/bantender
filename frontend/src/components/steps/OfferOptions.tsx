@@ -4,6 +4,7 @@ import { fmtChf, fmtPct } from '../../format'
 import { useI18n, type Key } from '../../i18n'
 import type { Pricing, WinCurve, WinScenario } from '../../types'
 import { CHART_MARGIN, chfCompact, nearestIndex, pct } from '../../winFormat'
+import { KeyDrivers } from '../KeyDrivers'
 import { WinChart } from '../WinChart'
 
 const SCENARIO: Record<WinScenario['name'], { label: Key; hint: Key }> = {
@@ -77,6 +78,7 @@ function Options({ wc, pricing, busy, onChoose }: { wc: Required<WinCurve> } & P
               {chosenNow(sel.offer) ? t('chosen') : t('chooseOffer')}
             </button>
           </div>
+          <KeyDrivers wc={wc} point={sel} />
         </div>
       </div>
 

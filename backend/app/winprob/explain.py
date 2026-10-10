@@ -43,3 +43,23 @@ def tender_breakdown(model: LogisticWinModel, ctx: TenderContext, offer: float) 
         for f, c in per_feature.items()
     ]
     return sorted(out, key=lambda d: -abs(d["pts"]))
+
+
+PRICE_FEATURES = ("price_position", "price_position_x_sensitivity")  # the only features that move with the offer
+
+
+def shap_values(model: LogisticWinModel, ctx: TenderContext, offers: np.ndarray) -> tuple[float, pd.DataFrame]:
+    """Exact SHAP values in log-odds, one row per offer and one column per model feature (one-hot columns summed).
+
+    For a linear model with the training set as background, SHAP_j = w_j · (x_j − mean_j) on the transformed
+    features. Additive: base + row sum = the model's logit at that offer.
+    """
+    pre = model.pipeline.named_steps["features"]
+    x = pre.transform(model.frame(offers, ctx)[FEATURES])
+    contrib = model._clf.coef_[0] * (x - model.x_mean)
+    base = float(model._clf.intercept_[0] + model._clf.coef_[0] @ model.x_mean)
+    cols: dict[str, np.ndarray] = {f: np.zeros(len(offers)) for f in FEATURES}
+    for j, name in enumerate(pre.get_feature_names_out()):
+        kind, col = name.split("__", 1)
+        cols[col if kind == "num" else next(f for f in CATEGORICAL if col.startswith(f + "_"))] += contrib[:, j]
+    return base, pd.DataFrame(cols)

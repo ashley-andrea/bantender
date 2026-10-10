@@ -243,6 +243,9 @@ export interface WinPoint {
   p_low: number
   p_high: number
   expected_profit: number
+  /** Exact SHAP values (log-odds) of the two price features at this offer; present when the learned model is in use. */
+  shap_price_position?: number
+  shap_price_position_x_sensitivity?: number
 }
 
 export interface WinScenario {
@@ -269,6 +272,8 @@ export interface WinCurve {
   scenarios?: WinScenario[]
   current?: { offer: number; margin_pct: number; win_probability: number; p_low: number; p_high: number; expected_profit: number }
   explanation?: { feature: string; value: string | number; pts: number }[]
+  /** Exact SHAP (log-odds): `fixed` per feature for this tender; the price features follow the offer (`per_point` keys on each point). */
+  shap?: { base: number; fixed: Record<string, number>; per_point: string[] } | null
 }
 
 export interface WinModelSummary {

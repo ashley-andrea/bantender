@@ -289,6 +289,8 @@ Extend `app/reference/models.py` with the matching pydantic model.
 }
 ```
 
+`shap` (learned model only, else `null`): exact SHAP values in log-odds, `{"base": -1.2, "fixed": {"bkp_trade": 0.55, …}, "per_point": ["shap_price_position", "shap_price_position_x_sensitivity"]}`. For a linear model with the training set as background, SHAP_j = w_j · (x_j − mean_j); one-hot columns are summed per feature. Only the two price features change with the offer, so their values are on each point under the `per_point` keys. `base + Σ fixed + Σ per-point = logit(win_probability)` at every point. The "Key drivers" chart shows each feature's share |SHAP| ÷ Σ|SHAP| at the slider position, the top 5 plus "Other factors".
+
 Input sources: `tender` (parser: trade, building type from the project name, award rule, number of lots) · `market_snapshot` (latest row of `market_snapshots.csv`) · `demo_fixture` (`tender_context.json`, stand-in for the ingestion pipeline; its values, including the client estimate of CHF 2.53 M, are demo data) · `estimator` (overrides).
 
 How the UI uses it:

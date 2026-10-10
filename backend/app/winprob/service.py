@@ -158,7 +158,7 @@ class WinService:
         import numpy as np
 
         from .curve import scenarios, win_curve
-        from .explain import tender_breakdown
+        from .explain import PRICE_FEATURES, shap_values, tender_breakdown
         from .model import PlaceholderWinModel
         from .schema import TenderContext
 
@@ -179,6 +179,13 @@ class WinService:
         lo_now, hi_now = (float(a[0]) for a in model.predict_band(np.array([selling_price]), ctx))
         target_offer = next(s["offer"] for s in picks if s["name"] == "Target")
         explanation = tender_breakdown(model, ctx, target_offer) if self.kind == "ml" else []
+        shap = None
+        if self.kind == "ml":  # exact SHAP (log-odds): fixed per tender, except the price features, which follow the offer
+            base, sv = shap_values(model, ctx, points["offer"].to_numpy())
+            fixed = {f: _clean(sv[f].iloc[0]) for f in sv.columns if f not in PRICE_FEATURES}
+            for f in PRICE_FEATURES:
+                points[f"shap_{f}"] = sv[f].to_numpy()
+            shap = {"base": base, "fixed": fixed, "per_point": [f"shap_{f}" for f in PRICE_FEATURES]}
 
         return {
             "model": self.kind,
@@ -198,6 +205,7 @@ class WinService:
                         "win_probability": p_now, "p_low": lo_now, "p_high": hi_now,
                         "expected_profit": p_now * (selling_price - baseline)},
             "explanation": [{k: _clean(v) for k, v in d.items()} for d in explanation],
+            "shap": shap,
         }
 
     # ---- model card --------------------------------------------------------------------------

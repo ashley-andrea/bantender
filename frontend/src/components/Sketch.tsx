@@ -16,13 +16,7 @@ export function SketchDefs() {
   )
 }
 
-/**
- * bantender wordmark. Placeholder until the real logo arrives: drop it in public/ and replace the text with an <img>.
- */
-export function BantenderLogo({ className = '', size = 22 }: { className?: string; size?: number }) {
-  return (
-    <span className={`font-bold tracking-tight leading-none select-none ${className}`} style={{ fontSize: size }}>
-      ban<span className="text-green">tender</span>
-    </span>
-  )
+/** The bantender logo (public/bantender-logo.png, cropped from bantender_logo_transparent.png). */
+export function BantenderLogo({ className = '', height = 26 }: { className?: string; height?: number }) {
+  return <img src="/bantender-logo.png" alt="bantender" draggable={false} className={`block w-auto select-none ${className}`} style={{ height }} />
 }

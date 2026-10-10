@@ -310,7 +310,7 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
               </Col>
             </div>
             {/* Right padding leaves room for the assistant's button in the corner. */}
-            {step === 'price' && <div className="pt-3 pr-[76px] rise"><OfferBar pricing={pricing} busy={busy} workbook={api.workbookUrl(tenderId)} /></div>}
+            {step === 'price' && <div className="pt-3 pr-[130px] rise"><OfferBar pricing={pricing} busy={busy} workbook={api.workbookUrl(tenderId)} /></div>}
           </div>
         )}
         {step === 'offers' && <OfferOptions pricing={pricing} busy={busy} onChoose={(c) => apply(api.choose(tenderId, c))} />}
@@ -357,7 +357,7 @@ function TopBar({ title, step, enabled, onStep, price, busy, onHome }: {
       {/* Three columns: the tabs sit in the middle one, so they never move whatever is on the left or right. */}
       <div className="min-w-0 flex items-center gap-5">
         <button onClick={onHome} className="shrink-0 text-ink" title={t('recent')}>
-          <BantenderLogo size={24} />
+          <BantenderLogo height={26} />
         </button>
         <div className="text-[12.5px] text-muted truncate">{title}</div>
       </div>

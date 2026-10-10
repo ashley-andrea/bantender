@@ -152,14 +152,14 @@ export function Assistant({ tenderId, view, active, onShow, avoid }: Props) {
     <>
       {open && (
         <section ref={panel} style={pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' } : undefined}
-          className="fixed right-5 bottom-24 z-50 w-[392px] max-w-[calc(100vw-40px)] h-[min(640px,calc(100vh-136px))] flex flex-col panel shadow-[0_12px_40px_rgb(0_36_57/0.18)] rise"
+          className="fixed right-6 bottom-[150px] z-50 w-[400px] max-w-[calc(100vw-40px)] h-[min(620px,calc(100vh-190px))] flex flex-col panel rise"
           aria-label={t('botName')}>
           <header onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}
             onDoubleClick={(e) => !(e.target as HTMLElement).closest('button') && setPos(null)} title={t('botDrag')}
             className="flex items-center gap-3 px-3 py-2.5 border-b border-hair shrink-0 cursor-grab active:cursor-grabbing select-none touch-none">
-            <Avatar className="size-9" />
+            <img src="/esteban-sticker.png" alt="" className="h-11 w-auto -my-1 select-none" draggable={false} />
             <div className="min-w-0 flex-1">
-              <div className="text-[13.5px] font-semibold leading-tight">{t('botName')}</div>
+              <div className="title-hand">{t('botName')}</div>
               <div className="text-[11.5px] text-muted truncate">{t('botSub')}</div>
             </div>
             {messages.length > 0 && (
@@ -180,7 +180,7 @@ export function Assistant({ tenderId, view, active, onShow, avoid }: Props) {
                 <div className="flex flex-wrap gap-1.5">
                   {SUGGESTIONS.map((k) => (
                     <button key={k} onClick={() => ask(t(k))} disabled={!enabled}
-                      className="text-left text-[12.5px] px-2.5 py-1.5 rounded-lg border border-hair hover:border-green hover:text-green disabled:opacity-50">
+                      className="btn btn-paper text-left text-[12.5px] px-2.5 py-1.5 font-medium">
                       {t(k)}
                     </button>
                   ))}
@@ -190,7 +190,7 @@ export function Assistant({ tenderId, view, active, onShow, avoid }: Props) {
             {messages.map((m, i) =>
               m.role === 'user' ? (
                 <div key={i} className="flex justify-end">
-                  <p className="max-w-[85%] rounded-xl rounded-br-sm bg-green text-white text-[13px] px-3 py-2 whitespace-pre-wrap">{m.text}</p>
+                  <p className="max-w-[85%] rounded-[14px_12px_3px_14px/12px_14px_3px_12px] bg-green text-white text-[13px] px-3 py-2 whitespace-pre-wrap">{m.text}</p>
                 </div>
               ) : m.role === 'error' ? (
                 <p key={i} className="text-[12.5px] text-bad">{m.text}</p>
@@ -214,31 +214,34 @@ export function Assistant({ tenderId, view, active, onShow, avoid }: Props) {
                   ask(draft)
                 }
               }}
-              className="flex-1 resize-none max-h-28 field-sizing-content text-[13px] px-2.5 py-2 rounded-lg border border-hair outline-none focus:border-green disabled:bg-canvas" />
+              className="flex-1 resize-none max-h-28 field-sizing-content text-[13px] px-2.5 py-2 rounded-[10px_8px_10px_7px] border-[1.4px] border-ink/60 outline-none focus:border-green disabled:bg-canvas" />
             <button type="submit" disabled={!draft.trim() || busy || !enabled} title={t('botAsk')}
-              className="size-9 grid place-items-center rounded-lg bg-green text-white disabled:opacity-40">
+              className="btn btn-green size-9 shrink-0">
               <SendHorizontal className="size-4" />
             </button>
           </form>
         </section>
       )}
 
-      <div className="fixed right-5 bottom-5 z-50 flex items-center gap-3">
+      {/* Esteban: the sticker in the corner, laid over the page; a speech bubble the first time. */}
+      <div className="fixed right-5 bottom-3 z-50 flex items-end gap-1 pointer-events-none">
         {hint && !open && (
-          <div className="rise relative panel shadow-md pl-3 pr-7 py-2 text-[12.5px] max-w-56">
+          <div className="rise relative pointer-events-auto mb-16 mr-1 bg-surface border-[1.6px] border-ink rounded-[18px_14px_16px_12px/12px_16px_14px_18px] pl-3.5 pr-8 py-2 text-[13px] font-medium max-w-60">
             {t('botHint')}
-            <button className="absolute top-1 right-1 p-1 text-faint hover:text-ink" onClick={() => setHint(false)} aria-label={t('botClose')}>
+            <button className="absolute top-1.5 right-1.5 p-1 text-faint hover:text-ink" onClick={() => setHint(false)} aria-label={t('botClose')}>
               <X className="size-3" />
             </button>
+            <svg className="absolute -right-[15px] bottom-2" width="18" height="16" viewBox="0 0 18 16" aria-hidden>
+              <path d="M1 2 C 7 4, 12 8, 17 15 C 11 12, 6 11, 1 11" fill="#ffffff" stroke="#1c2933" strokeWidth="1.6" strokeLinejoin="round" />
+            </svg>
           </div>
         )}
         <button onClick={toggle} title={!open && busy ? t('botWorking') : !open && unread ? t('botReady') : t('botHint')} aria-expanded={open}
-          className="relative size-16 transition-transform hover:scale-105">
-          <span className={`block size-full rounded-full bg-white border-2 shadow-lg overflow-hidden ${open ? 'border-green' : 'border-white'}`}>
-            <Avatar className="size-full" />
-          </span>
+          className={`relative pointer-events-auto transition-transform duration-200 hover:-rotate-3 hover:scale-105 ${open ? '-rotate-2' : 'rotate-2'}`}>
+          <img src="/esteban-sticker.png" alt={t('botName')} draggable={false}
+            className="h-[128px] w-auto select-none drop-shadow-[0_3px_6px_rgb(0_36_57/0.22)]" />
           {!open && (busy || unread) && (
-            <span className="absolute top-0 right-0 grid place-items-center size-4" aria-label={busy ? t('botWorking') : t('botReady')}>
+            <span className="absolute top-2 right-3 grid place-items-center size-4" aria-label={busy ? t('botWorking') : t('botReady')}>
               {busy && <span className="absolute inset-0 rounded-full bg-warn opacity-60 animate-ping" />}
               <span className={`relative size-4 rounded-full border-2 border-white ${busy ? 'bg-warn' : 'bg-green'}`} />
             </span>
@@ -249,19 +252,11 @@ export function Assistant({ tenderId, view, active, onShow, avoid }: Props) {
   )
 }
 
-function Avatar({ className }: { className: string }) {
-  return (
-    <span className={`${className} shrink-0 rounded-full overflow-hidden bg-white grid place-items-center`}>
-      <img src="/bartender.png" alt="" className="w-full h-full object-cover scale-[2.1] origin-[70%_33%]" />
-    </span>
-  )
-}
-
 function Answer({ answer, active, onShow }: { answer: AssistantAnswer; active: Citation | null; onShow: (c: Citation) => void }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
   if (answer.status !== 'answered') {
-    return <p className="max-w-[92%] rounded-xl rounded-bl-sm bg-canvas text-[13px] px-3 py-2">{answer.message}</p>
+    return <p className="max-w-[92%] rounded-[12px_14px_14px_3px/14px_12px_12px_3px] border-[1.4px] border-ink/70 bg-surface text-[13px] px-3 py-2">{answer.message}</p>
   }
   const byN = new Map(answer.citations.map((c) => [c.n, c]))
   const isActive = (c: Citation) => active?.source === c.source && active.quote === c.quote
@@ -273,7 +268,7 @@ function Answer({ answer, active, onShow }: { answer: AssistantAnswer; active: C
   }
   return (
     <div className="max-w-[96%] space-y-2">
-      <div className="rounded-xl rounded-bl-sm bg-canvas text-[13px] leading-relaxed px-3 py-2 space-y-1.5">
+      <div className="rounded-[12px_14px_14px_3px/14px_12px_12px_3px] border-[1.4px] border-ink/70 bg-surface text-[13px] leading-relaxed px-3 py-2 space-y-1.5">
         {answer.statements.map((s, i) => (
           <p key={i}>
             {s.text}
@@ -287,7 +282,7 @@ function Answer({ answer, active, onShow }: { answer: AssistantAnswer; active: C
         ))}
       </div>
 
-      <div className="rounded-lg border border-hair overflow-hidden">
+      <div className="rounded-[10px_8px_10px_7px] border border-dashed border-ink/40 overflow-hidden">
         <button onClick={() => setOpen((o) => !o)} aria-expanded={open}
           className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-canvas">
           <ChevronRight className={`size-3.5 shrink-0 text-muted transition-transform ${open ? 'rotate-90' : ''}`} />

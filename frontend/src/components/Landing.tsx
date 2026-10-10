@@ -6,13 +6,15 @@ import { fmtNum } from '../format'
 import { LangToggle, useI18n, type Key } from '../i18n'
 import type { TenderSummary } from '../types'
 import './PdfPane' // sets up the PDF worker
-import { BantenderLogo } from './Sketch'
 
 // The intro plays once per page load; coming back to this screen later skips it.
 let introPlayed = false
 
 type Phase = 'intro' | 'settled' | 'ready'
-const RATIO = 480 / 580 // bartender.png width / height
+const RATIO = 500 / 580 // bartender.png width / height
+const LOGO_H = 46 // both logos, same height
+const LOGO_GAP = 26 // from the centre line to each logo
+const LOGO_TOP = 'calc(69vh - 8px)' // under the centred bartender (see imgStyle)
 
 /**
  * Home: the bartender and "bantender × Equans" in the middle; then the wordmark moves to the top left, the bartender
@@ -78,8 +80,9 @@ export function Landing({ onOpen }: { onOpen: (id: string) => void }) {
   const ease = 'all 900ms cubic-bezier(0.65, 0, 0.35, 1)'
   // Bartender: medium in the middle, then smaller in the bottom-right corner.
   const imgH = intro ? 38 : 25 // vh
+  // Intro: bartender and the two logos form one group centred on the page (image + 30px gap + 46px logos).
   const imgStyle: React.CSSProperties = intro
-    ? { height: `${imgH}vh`, left: `calc(50vw - ${(imgH * RATIO) / 2}vh)`, top: '17vh' }
+    ? { height: `${imgH}vh`, left: `calc(50vw - ${(imgH * RATIO) / 2}vh)`, top: `calc(${50 - imgH / 2}vh - 38px)` }
     : { height: `${imgH}vh`, left: `calc(100vw - ${imgH * RATIO}vh - 40px)`, top: `calc(100vh - ${imgH}vh - 28px)` }
 
   return (
@@ -98,23 +101,20 @@ export function Landing({ onOpen }: { onOpen: (id: string) => void }) {
       <img src="/bartender.png" alt="" draggable={false} className="fixed z-10 w-auto mix-blend-multiply select-none pointer-events-none"
         style={{ ...imgStyle, transition: ease }} />
 
-      {/* bantender × Equans, under the bartender; the wordmark then flies to the top left */}
-      <div className="fixed z-20 text-ink" style={{
+      {/* bantender × Equans under the bartender, same height and line, the pair centred; then the bantender logo
+          flies to the top left and Equans fades out. */}
+      <img src="/bantender-logo.png" alt="bantender" draggable={false} className="fixed z-20 w-auto select-none" style={{
         transition: ease,
         ...(intro
-          ? { left: '50vw', top: 'calc(17vh + 38vh + 22px)', transform: 'translateX(calc(-100% - 18px))', fontSize: 0 }
-          : { left: '20px', top: '13px', transform: 'translateX(0)', fontSize: 0 }),
-      }}>
-        <span className="inline-block" style={{ transition: ease, transform: intro ? 'scale(1.9)' : 'scale(1)', transformOrigin: intro ? 'right center' : 'left center' }}>
-          <BantenderLogo size={24} />
-        </span>
-      </div>
-      <div className="fixed z-20 flex items-center gap-4" style={{
-        left: '50vw', top: 'calc(17vh + 38vh + 22px)', transition: 'opacity 500ms ease', opacity: intro ? 1 : 0, transform: 'translateX(-14px)',
-      }}>
-        <span className="text-[22px] text-muted">×</span>
-        <img src="/equans-logo.png" alt="Equans" className="h-[34px]" />
-      </div>
+          ? { left: '50vw', top: LOGO_TOP, height: LOGO_H, transform: `translateX(calc(-100% - ${LOGO_GAP}px))` }
+          : { left: '20px', top: '15px', height: 26, transform: 'translateX(0)' }),
+      }} />
+      <span className="fixed z-20 text-[24px] leading-none text-muted" style={{
+        left: '50vw', top: `calc(${LOGO_TOP} + ${LOGO_H / 2 - 12}px)`, transform: 'translateX(-50%)', transition: 'opacity 500ms ease', opacity: intro ? 1 : 0,
+      }}>×</span>
+      <img src="/equans-logo.png" alt="Equans" className="fixed z-20 w-auto" style={{
+        left: `calc(50vw + ${LOGO_GAP}px)`, top: LOGO_TOP, height: LOGO_H, transition: 'opacity 500ms ease', opacity: intro ? 1 : 0,
+      }} />
 
       {/* speech bubble */}
       {bubble && (

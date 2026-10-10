@@ -11,6 +11,7 @@ export interface Highlight {
   color: string
   strong?: boolean
   label?: string
+  cite?: boolean // the quote the assistant cited (the assistant's window moves off it)
 }
 
 interface Props {
@@ -82,6 +83,7 @@ export function PdfPane({ url, page, pageCount, pageSize, highlights, caption, o
             return (
               <div
                 key={i}
+                data-cite-box={h.cite || undefined}
                 className="absolute pointer-events-none rounded-[2px] transition-all duration-200"
                 style={{
                   left: (x0 - 4) * scale,

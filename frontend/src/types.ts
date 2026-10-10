@@ -1,3 +1,5 @@
+import type { Step } from './route'
+
 export type BBox = [number, number, number, number]
 export type Text = string | { en: string; de: string }
 
@@ -345,6 +347,8 @@ export interface Citation {
   page: number | null
   line_id: string | null
   bboxes: BBox[]
+  step: Step | null // where the tool shows the quoted figure: the step, and the element there (data-cite)
+  anchor: string | null
 }
 
 export interface AssistantAnswer {

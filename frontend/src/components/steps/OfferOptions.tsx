@@ -79,10 +79,10 @@ function Options({ wc, pricing, summary, busy, onSettings }: { wc: Required<WinC
         </div>
 
         <div className="grid grid-cols-4 gap-3">
-          <OptionCard dark label={t('winCurrent')} offer={wc.current.offer} margin={wc.current.margin_pct}
+          <OptionCard cite="win:current" dark label={t('winCurrent')} offer={wc.current.offer} margin={wc.current.margin_pct}
             chance={wc.current.win_probability} profit={wc.current.expected_profit} />
           {wc.scenarios.map((s) => (
-            <OptionCard key={s.name} label={t(SCENARIO[s.name].label)} hint={t(SCENARIO[s.name].hint)} accent={s.name === 'Target'}
+            <OptionCard key={s.name} cite={`win:${s.name}`} label={t(SCENARIO[s.name].label)} hint={t(SCENARIO[s.name].hint)} accent={s.name === 'Target'}
               offer={s.offer} margin={s.margin_pct} chance={s.win_probability} profit={s.expected_profit}
               inUse={isCurrent(s.offer)} busy={busy} onUse={() => applyMargin(s.margin_pct)} />
           ))}
@@ -118,14 +118,14 @@ function Options({ wc, pricing, summary, busy, onSettings }: { wc: Required<WinC
   )
 }
 
-function OptionCard({ label, hint, offer, margin, chance, profit, dark, accent, inUse, busy, onUse }: {
-  label: string; hint?: string; offer: number; margin: number; chance: number; profit: number
+function OptionCard({ cite, label, hint, offer, margin, chance, profit, dark, accent, inUse, busy, onUse }: {
+  cite: string; label: string; hint?: string; offer: number; margin: number; chance: number; profit: number
   dark?: boolean; accent?: boolean; inUse?: boolean; busy?: boolean; onUse?: () => void
 }) {
   const { t } = useI18n()
   const muted = dark ? 'text-white/65' : 'text-muted'
   return (
-    <div className={`rounded-[var(--radius-card)] p-4 flex flex-col ${dark ? 'bg-navy text-white' : `panel ${accent ? 'ring-2 ring-green/60' : ''}`}`}>
+    <div data-cite={cite} className={`rounded-[var(--radius-card)] p-4 flex flex-col ${dark ? 'bg-navy text-white' : `panel ${accent ? 'ring-2 ring-green/60' : ''}`}`}>
       <div className="text-[13px] font-semibold">{label}</div>
       <div className={`text-[11.5px] ${muted} min-h-4`}>{hint}</div>
       <div className="mt-2 text-[20px] font-semibold">CHF {fmtChf(offer)}</div>
@@ -190,7 +190,7 @@ function Inputs({ wc, busy, onSet }: { wc: Required<WinCurve>; busy: boolean; on
           const source: WinSource = wc.sources[key] ?? 'default'
           const edited = source === 'estimator'
           return (
-            <div key={key} className="flex items-center gap-2 py-1 text-[12.5px] border-b border-hair/60 last:border-0">
+            <div key={key} data-cite={`input:${key}`} className="flex items-center gap-2 py-1 text-[12.5px] border-b border-hair/60 last:border-0">
               <span className="truncate">{WIN_FEATURE_LABEL[key]?.[lang] ?? humanize(key)}</span>
               <span className="ml-auto inline-flex items-center gap-1.5">
                 {'select' in kind ? (
@@ -268,7 +268,7 @@ function Why({ wc }: { wc: Required<WinCurve> }) {
       <table className="mt-2 w-full text-[12px]">
         <tbody>
           {rows.map((r) => (
-            <tr key={r.feature} className="border-b border-hair/60 last:border-0">
+            <tr key={r.feature} data-cite={`why:${r.feature}`} className="border-b border-hair/60 last:border-0">
               <td className="py-1 pr-2">
                 <div className="truncate max-w-[150px]">{WIN_FEATURE_LABEL[r.feature]?.[lang] ?? humanize(r.feature)}</div>
                 <div className="text-[11px] text-muted truncate max-w-[150px] num">{shown(r.feature, r.value)}</div>
@@ -303,7 +303,7 @@ function ModelCard({ summary }: { summary: WinModelSummary | null }) {
   const drivers = (summary.importance ?? []).filter((d) => d.importance > 0.001).slice(0, 6)
   const top = Math.max(...drivers.map((d) => d.importance), 1e-9)
   return (
-    <div className="panel p-4">
+    <div data-cite="model" className="panel p-4">
       <div className="text-[13px] font-semibold">{t('modelTitle')}</div>
       {summary.model !== 'ml' ? (
         <p className="mt-0.5 text-[12px] text-muted">{t('placeholderNote')}{summary.reason ? `: ${summary.reason}` : ''}</p>

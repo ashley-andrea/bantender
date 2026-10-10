@@ -21,7 +21,7 @@ const CITE_COLOR = '#002439' // navy: what the assistant quoted, apart from the 
 /** Outlines for the quote the assistant cited, when it is on this page. */
 function citeBoxes(cite: Citation | null, page: number): Highlight[] {
   if (cite?.page !== page) return []
-  return cite.bboxes.map((bbox, i) => ({ bbox, color: CITE_COLOR, strong: true, label: i === 0 ? `[${cite.n}]` : undefined }))
+  return cite.bboxes.map((bbox, i) => ({ bbox, color: CITE_COLOR, strong: true, cite: true, label: i === 0 ? `[${cite.n}]` : undefined }))
 }
 
 const STEP_LABEL: Record<Step, Key> = { extract: 'step1', catalog: 'step2', price: 'step3', offers: 'step4', export: 'step5' }
@@ -49,6 +49,8 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
   const [query, setQuery] = useState('')
   const [defaults, setDefaults] = useState<ReferenceParameters | null>(null)
   const [cite, setCite] = useState<Citation | null>(null)
+  const [citeShown, setCiteShown] = useState(0) // counts clicks: the same source clicked again scrolls back to it
+  const [citeRect, setCiteRect] = useState<DOMRect | null>(null) // where the cited element ended up: the assistant moves off it
   const [widths, setWidth] = useWidths({
     pdf: Math.min(900, Math.max(420, Math.round(window.innerWidth * 0.36))), list: 290, priceList: 360, params: 330, export: 380,
   })
@@ -121,8 +123,10 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
     setPage(l.page)
   }, [])
 
-  // A source the assistant cited: the tender page with the quote outlined, the position, or the price step.
+  // A source the assistant cited: the tender page with the quote outlined, the position, or the step and the
+  // element where the tool shows the quoted figure (outlined by the effect below).
   const showCitation = (c: Citation) => {
+    setCiteShown((n) => n + 1)
     if (c.kind === 'tender' && c.page) {
       setCite(c)
       if (step === 'export') setExportPage(c.page)
@@ -133,9 +137,41 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
     } else if (c.kind === 'position' && c.line_id) {
       const l = pricing?.lines.find((x) => x.line_id === c.line_id)
       if (l) select(l)
-      if (step === 'offers' || step === 'export') onStep('price')
-    } else if (c.kind === 'bid') onStep('price')
+      setCite(c) // after select, which clears it: the field the quote is from gets outlined
+      const to = c.step ?? (step === 'offers' || step === 'export' ? 'price' : null)
+      if (to && to !== step) onStep(to)
+    } else if (c.step) {
+      setCite(c)
+      if (c.step !== step) onStep(c.step)
+    }
   }
+
+  // The cited element may only appear once its step has rendered: look for it a little while, then scroll to it and
+  // outline it until another source or position is shown. Tender quotes are outlined (and scrolled to) by the PDF pane.
+  useEffect(() => {
+    const anchor = cite?.anchor
+    const selector = anchor ? `[data-cite="${CSS.escape(anchor)}"]` : cite?.kind === 'tender' ? '[data-cite-box]' : null
+    if (!selector) return
+    let el: Element | null = null
+    let tries = 0
+    let settled = 0
+    const id = setInterval(() => {
+      el = document.querySelector(selector)
+      if (!el && ++tries <= 40) return
+      clearInterval(id)
+      if (!el) return
+      if (anchor) {
+        el.setAttribute('data-cited', '')
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+      settled = window.setTimeout(() => el && setCiteRect(el.getBoundingClientRect()), 600) // once the scrolling is done
+    }, 50)
+    return () => {
+      clearInterval(id)
+      clearTimeout(settled)
+      el?.removeAttribute('data-cited')
+    }
+  }, [cite, citeShown])
 
   const edit = (field: EditField, v: number | null) => {
     if (!line || !tenderId) return
@@ -274,7 +310,7 @@ export function Flow({ tenderId, step, onStep, onOpen, onHome }: Props) {
         ) : <Centered><Loader2 className="size-6 animate-spin text-muted" /></Centered>)}
       </main>
       <Assistant key={tenderId} tenderId={tenderId} view={{ step, page: step === 'export' ? exportAt : page, position: selectedId }}
-        active={cite} onShow={showCitation} />
+        active={cite} onShow={showCitation} avoid={citeRect} />
     </div>
   )
 }

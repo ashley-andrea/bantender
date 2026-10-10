@@ -51,12 +51,12 @@ export function ExportPanel({ offer, parsed, page, url, onJump, onConditions, bu
       if (f.kind === 'system_summary' || f.kind === 'system_total') summary.add(f.page)
     }
     const pages = [...count.keys()].sort((a, b) => a - b)
-    const out: { label: string; pages: { page: number; n: number; summary: boolean }[] }[] = []
+    const out: { label: string; code?: string; pages: { page: number; n: number; summary: boolean }[] }[] = []
     for (const p of pages) {
       const sys = Object.entries(parsed.systems).find(([, s]) => s.first_page <= p && p <= s.last_page)
       const label = sys ? `${sys[0]} ${systemName(sys[1], lang)}`
         : p === c.page ? t('pConditions') : t('pSummary')
-      if (!out.length || out[out.length - 1].label !== label) out.push({ label, pages: [] })
+      if (!out.length || out[out.length - 1].label !== label) out.push({ label, code: sys?.[0], pages: [] })
       out[out.length - 1].pages.push({ page: p, n: count.get(p) ?? 0, summary: summary.has(p) })
     }
     return out
@@ -71,12 +71,12 @@ export function ExportPanel({ offer, parsed, page, url, onJump, onConditions, bu
         </a>
         <table className="mt-3 w-full text-[13px] num">
           <tbody>
-            <Row label={t('cGross')} value={c.brutto} />
-            <PctRow label={t('discount')} pct={c.discount_pct} value={-c.discount} onCommit={(v) => onConditions({ discount_pct: v })} busy={busy} />
-            <PctRow label={t('cashDiscount')} pct={c.cash_discount_pct} value={-c.cash_discount} onCommit={(v) => onConditions({ cash_discount_pct: v })} busy={busy} />
-            <Row label={`${t('cDeductions')} ${fmtPct(c.deductions_pct)}`} value={-c.deductions} />
-            <Row label={`${t('cVat')} ${fmtPct(c.vat_pct)}`} value={c.vat} />
-            <Row label={t('cNet')} value={c.netto} strong />
+            <Row cite="cond:gross" label={t('cGross')} value={c.brutto} />
+            <PctRow cite="cond:discount" label={t('discount')} pct={c.discount_pct} value={-c.discount} onCommit={(v) => onConditions({ discount_pct: v })} busy={busy} />
+            <PctRow cite="cond:cash_discount" label={t('cashDiscount')} pct={c.cash_discount_pct} value={-c.cash_discount} onCommit={(v) => onConditions({ cash_discount_pct: v })} busy={busy} />
+            <Row cite="cond:deductions" label={`${t('cDeductions')} ${fmtPct(c.deductions_pct)}`} value={-c.deductions} />
+            <Row cite="cond:vat" label={`${t('cVat')} ${fmtPct(c.vat_pct)}`} value={c.vat} />
+            <Row cite="cond:net" label={t('cNet')} value={c.netto} strong />
           </tbody>
         </table>
       </div>
@@ -86,7 +86,7 @@ export function ExportPanel({ offer, parsed, page, url, onJump, onConditions, bu
       </div>
       <div className="flex-1 min-h-0 overflow-auto scroll-thin px-4 pb-3">
         {groups.map((g) => (
-          <div key={g.label} className="py-1.5 border-b border-hair/70 last:border-0">
+          <div key={g.label} data-cite={g.code && `system:${g.code}`} className="py-1.5 border-b border-hair/70 last:border-0">
             <div className="text-[12.5px]">{g.label}</div>
             <div className="mt-1 flex flex-wrap gap-1">
               {g.pages.map((p) => (
@@ -108,16 +108,16 @@ export function ExportPanel({ offer, parsed, page, url, onJump, onConditions, bu
   )
 }
 
-function Row({ label, value, strong }: { label: string; value: number; strong?: boolean }) {
+function Row({ cite, label, value, strong }: { cite: string; label: string; value: number; strong?: boolean }) {
   return (
-    <tr className={strong ? 'font-semibold border-t border-hair' : ''}>
+    <tr data-cite={cite} className={strong ? 'font-semibold border-t border-hair' : ''}>
       <td className={`py-0.5 ${strong ? 'pt-1.5' : 'text-muted'}`}>{label}</td>
       <td className={`py-0.5 text-right ${strong ? 'pt-1.5' : ''}`}>{fmtChf(value, 2)}</td>
     </tr>
   )
 }
 
-function PctRow({ label, pct, value, onCommit, busy }: { label: string; pct: number; value: number; onCommit: (v: number) => void; busy: boolean }) {
+function PctRow({ cite, label, pct, value, onCommit, busy }: { cite: string; label: string; pct: number; value: number; onCommit: (v: number) => void; busy: boolean }) {
   const [v, setV] = useState(String(pct))
   useEffect(() => setV(String(pct)), [pct])
   const commit = () => {
@@ -126,7 +126,7 @@ function PctRow({ label, pct, value, onCommit, busy }: { label: string; pct: num
     else setV(String(pct))
   }
   return (
-    <tr>
+    <tr data-cite={cite}>
       <td className="py-0.5 text-muted">
         {label}
         <input value={v} disabled={busy} onChange={(e) => setV(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && commit()}

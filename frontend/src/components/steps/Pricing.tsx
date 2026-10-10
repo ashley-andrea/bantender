@@ -24,28 +24,32 @@ export function PriceDetail({ line, systems, offer, settings, onEdit, busy }: {
     <div className="h-full min-h-0 overflow-auto scroll-thin panel p-5">
       <LineHeader line={line} systems={systems} />
       {ctx && (
-        <div className="mt-5">
+        <div data-cite="pos:product" className="mt-5">
           <div className="text-[12.5px] font-semibold">{t('catalogueRef')} <span className="font-normal text-muted">· {ctx.item.product_id}</span></div>
           <FamilyTable ctx={ctx} className="mt-1" />
         </div>
       )}
       <div className="mt-5 grid grid-cols-4 gap-4 text-[13px] rounded-md bg-canvas px-4 py-3">
-        <Cell label={t('quantity')}>
+        <Cell cite="pos:quantity" label={t('quantity')}>
           {line.source === 'lv' ? (
             <InlineNumber value={line.decision.quantity} suffix={unit} edited={line.decision.overridden.includes('quantity')} busy={busy}
               onSave={(v) => onEdit('quantity', v)} onReset={() => onEdit('quantity', null)} />
           ) : `${fmtNum(line.decision.quantity)} ${unit}`}
         </Cell>
-        <Cell label={t('hoursPerUnit')}>
+        <Cell cite="pos:hours" label={t('hoursPerUnit')}>
           {c && line.decision.install_code ? (
             <InlineNumber value={c.base_hours} suffix="h" edited={line.decision.overridden.includes('hours_per_unit')} busy={busy}
               onSave={(v) => onEdit('hours_per_unit', v)} onReset={() => onEdit('hours_per_unit', null)} />
           ) : '—'}
         </Cell>
-        <Cell label={t('unitPrice')}><span className="num font-semibold">{o?.kind === 'priced' ? fmtChf(o.unit_price, 2) : o?.kind === 'included' ? t('included') : '—'}</span></Cell>
-        <Cell label={t('amount')}><span className="num font-semibold text-green">{o?.kind === 'priced' ? fmtChf(o.amount, 2) : '—'}</span></Cell>
+        <Cell cite="pos:unit_price" label={t('unitPrice')}><span className="num font-semibold">{o?.kind === 'priced' ? fmtChf(o.unit_price, 2) : o?.kind === 'included' ? t('included') : '—'}</span></Cell>
+        <Cell cite="pos:amount" label={t('amount')}><span className="num font-semibold text-green">{o?.kind === 'priced' ? fmtChf(o.amount, 2) : '—'}</span></Cell>
       </div>
-
+      {c && (
+        <p data-cite="pos:direct" className="mt-2 px-4 text-[12px] text-muted num">
+          {t('directCost')}: <span className="font-semibold text-ink">CHF {fmtChf(c.direct_cost, 2)}</span>
+        </p>
+      )}
 
       {c && o?.kind === 'priced' && o.raw != null && (o.quantity ?? 0) > 0 && (
         <Steps line={line} settings={settings} m={m} raw={o.raw / o.quantity!} unitPrice={o.unit_price!} includesLabour={!!o.includes_labour} />
@@ -68,9 +72,9 @@ function Steps({ line, settings, m, raw, unitPrice, includesLabour }: {
   const hours = c.adjusted_hours / q
   const allowance = raw - material - (includesLabour ? labour : 0)
   const supplier = c.price_source === 'supplier_package'
-  const rows: { label: string; value: number; sign?: string }[] = []
+  const rows: { label: string; value: number; sign?: string; cite?: string }[] = []
   if (c.net_unit_cost > 0) {
-    rows.push({ label: t('stepNet'), value: c.net_unit_cost })
+    rows.push({ label: t('stepNet'), value: c.net_unit_cost, cite: 'pos:net' })
     rows.push({ label: `${PARAM_LABELS.material_waste_pct[lang]} ${fmtPct(settings.allowances.material_waste_pct)}`, value: material - c.net_unit_cost, sign: '+' })
   }
   if (allowance > 0.005) {
@@ -81,12 +85,12 @@ function Steps({ line, settings, m, raw, unitPrice, includesLabour }: {
     rows.push({ label: `${t('labour')} ${fmtNum(Math.round(hours * 10) / 10)} h × CHF ${fmtNum(c.hourly_rate)}`, value: labour, sign: '+' })
   }
   return (
-    <div className="mt-6">
+    <div data-cite="pos:steps" className="mt-6">
       <div className="text-[12.5px] font-semibold">{t('stepsTitle')} <span className="font-normal text-muted">/ {fmtUnit(line.decision.unit, lang)}</span></div>
       <table className="mt-1 w-full text-[13px] num">
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i} className="border-b border-hair/70">
+            <tr key={i} data-cite={r.cite} className="border-b border-hair/70">
               <td className="py-1 text-muted">{r.label}</td>
               <td className="py-1 text-right">{r.sign ? `${r.sign} ` : ''}{fmtChf(r.value, 2)}</td>
             </tr>
@@ -110,9 +114,9 @@ function Steps({ line, settings, m, raw, unitPrice, includesLabour }: {
   )
 }
 
-function Cell({ label, children }: { label: string; children: React.ReactNode }) {
+function Cell({ cite, label, children }: { cite: string; label: string; children: React.ReactNode }) {
   return (
-    <div>
+    <div data-cite={cite}>
       <div className="text-[11.5px] text-muted">{label}</div>
       <div className="mt-0.5">{children}</div>
     </div>
@@ -125,12 +129,12 @@ export function OfferBar({ pricing, busy }: { pricing: Pricing; busy: boolean })
   const p = pricing.project
   return (
     <div className="panel px-5 py-3 flex items-center gap-8 text-[13px] num">
-      <Part label={t('directCost')} value={p.direct} />
+      <Part cite="direct-cost" label={t('directCost')} value={p.direct} />
       <span className="text-faint">+</span>
-      <Part label={t('overheadRisk')} value={p.baseline - p.direct} />
+      <Part cite="overhead-risk" label={t('overheadRisk')} value={p.baseline - p.direct} />
       <span className="text-faint">+</span>
-      <Part label={`${t('margin')} ${fmtPct(p.margin_pct)}`} value={p.selling_price - p.baseline} />
-      <div className="ml-auto flex items-baseline gap-3">
+      <Part cite="margin" label={`${t('margin')} ${fmtPct(p.margin_pct)}`} value={p.selling_price - p.baseline} />
+      <div data-cite="offer-price" className="ml-auto flex items-baseline gap-3">
         {busy && <Loader2 className="size-4 animate-spin text-muted self-center" />}
         <span className="text-muted">{t('offerPrice')}</span>
         <span className="text-[24px] font-semibold text-navy">CHF {fmtChf(p.selling_price)}</span>
@@ -139,9 +143,9 @@ export function OfferBar({ pricing, busy }: { pricing: Pricing; busy: boolean })
   )
 }
 
-function Part({ label, value }: { label: string; value: number }) {
+function Part({ label, value, cite }: { label: string; value: number; cite: string }) {
   return (
-    <div>
+    <div data-cite={cite}>
       <div className="text-[11.5px] text-muted">{label}</div>
       <div className="font-semibold">{fmtChf(value)}</div>
     </div>
@@ -235,7 +239,7 @@ export function ParameterPanel({ settings, systems, defaults, onChange, busy }: 
             const b = baseValue(s.path)
             const changed = b !== undefined && Math.abs(v - b) > 1e-9
             return (
-              <Slider key={key} label={PARAM_LABELS[key]?.[lang] ?? humanize(key)} value={v} spec={s} changed={changed} busy={busy}
+              <Slider key={key} cite={`param:${key}`} label={PARAM_LABELS[key]?.[lang] ?? humanize(key)} value={v} spec={s} changed={changed} busy={busy}
                 onInput={(x) => setLocal(s.path, x)} onCommit={(x) => x !== read(settings, s.path) && commit(s.path, x)}
                 onUndo={b !== undefined ? () => { setLocal(s.path, b); commit(s.path, b) } : undefined} />
             )
@@ -246,7 +250,7 @@ export function ParameterPanel({ settings, systems, defaults, onChange, busy }: 
         <div className="mt-3">
           <div className="text-[11.5px] font-semibold text-muted">{t('gLocations')}</div>
           {Object.entries(settings.locations).map(([sys, loc]) => (
-            <div key={sys} className="flex items-center gap-2 py-1 text-[12.5px]">
+            <div key={sys} data-cite={`location:${sys}`} className="flex items-center gap-2 py-1 text-[12.5px]">
               <span className="truncate">{sys} {systemName(systems[sys], lang)}</span>
               <span className="ml-auto inline-flex items-center gap-1.5">
                 {loc !== detected(sys) && (
@@ -276,13 +280,13 @@ function UndoButton({ onClick, disabled }: { onClick: () => void; disabled: bool
   )
 }
 
-function Slider({ label, value, spec, changed, busy, onInput, onCommit, onUndo }: {
-  label: string; value: number; spec: ParamSpec; changed: boolean; busy: boolean
+function Slider({ cite, label, value, spec, changed, busy, onInput, onCommit, onUndo }: {
+  cite: string; label: string; value: number; spec: ParamSpec; changed: boolean; busy: boolean
   onInput: (v: number) => void; onCommit: (v: number) => void; onUndo?: () => void
 }) {
   const max = Math.max(spec.max, value)
   return (
-    <div className="py-1">
+    <div data-cite={cite} className="py-1">
       <div className="flex items-center gap-1.5 text-[12.5px]">
         <span>{label}</span>
         <span className="ml-auto inline-flex items-center gap-1.5">

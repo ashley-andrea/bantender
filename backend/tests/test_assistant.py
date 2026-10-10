@@ -179,6 +179,42 @@ def test_offer_form_win_and_guide_are_quotable(offer_toolbox):
     assert "guide" in guide
 
 
+def test_offer_citations_point_to_where_the_tool_shows_them(offer_toolbox, priced):
+    pricing, _ = priced
+    summary, form, guide = offer_toolbox.bid_summary(), offer_toolbox.bid_offer_form(), offer_toolbox.tool_guide()
+    price_line = summary.splitlines()[1]
+    margin = next(l for l in summary.splitlines() if l.startswith("Settings in use:")).split(", ")[0]
+    system = next(l for l in form.splitlines() if l.startswith("System "))
+    net = form.splitlines()[-1].split(" = ")[-1]
+    raw = {"status": "answered", "message": "", "claims": [
+        claim("Offer price.", "bid", price_line),
+        claim("Margin setting.", "bid", margin),
+        claim("A system total.", "form", system[:40]),
+        claim("Net.", "form", net),
+        claim("Supplier quotes.", "guide", "type the quoted net price and save it"),
+        claim("Status.", "bid", "Tender positions:"),
+    ]}
+    out = ground(raw, offer_toolbox.sources, "en")
+    where = [(c["step"], c["anchor"]) for c in out["citations"]]
+    code = system.split()[1].rstrip(":")
+    assert where == [("price", "offer-price"), ("price", "param:margin_pct"), ("export", f"system:{code}"),
+                     ("export", "cond:net"), ("catalog", None), ("price", None)]
+
+
+def test_position_citations_point_to_their_own_field(offer_toolbox, priced):
+    pricing, _ = priced
+    line = next(l for l in pricing["lines"] if l.get("cost"))
+    text = offer_toolbox.bid_positions(line["line_id"])
+    sid = f"pos:{line['line_id']}"
+    pick = lambda start: next(l for l in text.splitlines() if l.startswith(start))  # noqa: E731
+    raw = {"status": "answered", "message": "", "claims": [
+        claim("Title.", sid, pick("Title:")), claim("Quantity.", sid, pick("Tender quantity:")),
+        claim("Direct cost.", sid, pick("Direct cost:")),
+    ]}
+    out = ground(raw, offer_toolbox.sources, "en")
+    assert [(c["step"], c["anchor"]) for c in out["citations"]] == [(None, "pos:title"), ("price", "pos:quantity"), ("price", "pos:direct")]
+
+
 def test_long_sources_give_the_auditor_the_lines_around_the_quote(offer_toolbox):
     text = offer_toolbox.bid_summary()
     last = text.splitlines()[-1]

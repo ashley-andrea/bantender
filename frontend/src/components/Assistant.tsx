@@ -9,6 +9,33 @@ interface Props {
   view: AssistantView
   active: Citation | null
   onShow: (c: Citation) => void
+  avoid: DOMRect | null // the element a source was shown in: the window moves off it
+}
+
+type Point = { x: number; y: number }
+const EDGE = 8 // px the window keeps from the screen edges
+const GAP = 16 // px between the window and the element it moves off
+
+/** A window position kept on screen. */
+function clamp(x: number, y: number, w: number, h: number): Point {
+  return { x: Math.min(Math.max(EDGE, x), window.innerWidth - w - EDGE), y: Math.min(Math.max(EDGE, y), window.innerHeight - h - EDGE) }
+}
+
+const overlaps = (a: DOMRect, b: DOMRect) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+
+/** Where the window goes so it does not cover `target`: beside it (left, right), else above or below, else the side with more room. */
+function offTarget(box: DOMRect, target: DOMRect): Point {
+  const fits = ({ x, y }: Point) => x >= EDGE && y >= EDGE && x + box.width <= window.innerWidth - EDGE && y + box.height <= window.innerHeight - EDGE
+  const options: Point[] = [
+    { x: target.left - GAP - box.width, y: box.top },
+    { x: target.right + GAP, y: box.top },
+    { x: box.left, y: target.top - GAP - box.height },
+    { x: box.left, y: target.bottom + GAP },
+  ]
+  const fit = options.find(fits)
+  if (fit) return fit
+  const left = target.left > window.innerWidth - target.right
+  return clamp(left ? target.left - GAP - box.width : target.right + GAP, box.top, box.width, box.height)
 }
 
 type Message = { role: 'user'; text: string } | { role: 'assistant'; answer: AssistantAnswer } | { role: 'error'; text: string }
@@ -16,7 +43,7 @@ type Message = { role: 'user'; text: string } | { role: 'assistant'; answer: Ass
 const HINT_KEY = 'bartender-hint-seen'
 const SUGGESTIONS: Key[] = ['botQ5', 'botQ6', 'botQ1', 'botQ3']
 const KIND_ICON = { tender: FileText, bid: Calculator, position: ListTree, data: Database }
-const ACTION: Partial<Record<Citation['kind'], Key>> = { tender: 'botShowPdf', position: 'botOpenPosition', bid: 'botOpenPrice' }
+const ACTION: Partial<Record<Citation['kind'], Key>> = { tender: 'botShowPdf', position: 'botOpenPosition' }
 
 function hintSeen() {
   try {
@@ -33,7 +60,7 @@ function asText(a: AssistantAnswer) {
 
 /** Esteban, the bartender: a button in the lower right; a small chat window that leaves the page usable beside it.
  *  While the window is closed, a dot on the button shows he is working (pulsing amber) or has an answer (green). */
-export function Assistant({ tenderId, view, active, onShow }: Props) {
+export function Assistant({ tenderId, view, active, onShow, avoid }: Props) {
   const { t, lang } = useI18n()
   const [open, setOpen] = useState(false)
   const [hint, setHint] = useState(!hintSeen())
@@ -43,6 +70,9 @@ export function Assistant({ tenderId, view, active, onShow }: Props) {
   const [busy, setBusy] = useState(false)
   const [unread, setUnread] = useState(false) // an answer arrived; shown on the button only while the window is closed
   const scroller = useRef<HTMLDivElement>(null)
+  const panel = useRef<HTMLElement>(null)
+  const [pos, setPos] = useState<Point | null>(null) // null: the corner above the button; set by dragging the header
+  const drag = useRef<Point | null>(null) // pointer offset inside the window while dragging
   const input = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -56,6 +86,36 @@ export function Assistant({ tenderId, view, active, onShow }: Props) {
   useEffect(() => {
     if (open) input.current?.focus()
   }, [open])
+
+  // A source shown under the window: move the window beside it.
+  useEffect(() => {
+    const box = panel.current?.getBoundingClientRect()
+    if (avoid && box && overlaps(box, avoid)) setPos(offTarget(box, avoid))
+  }, [avoid])
+
+  // Keep a moved window on screen when the browser window shrinks.
+  useEffect(() => {
+    const onResize = () => {
+      const box = panel.current?.getBoundingClientRect()
+      if (box) setPos((p) => p && clamp(p.x, p.y, box.width, box.height))
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  const startDrag = (e: React.PointerEvent<HTMLElement>) => {
+    const box = panel.current?.getBoundingClientRect()
+    if (!box || e.button !== 0 || (e.target as HTMLElement).closest('button')) return
+    drag.current = { x: e.clientX - box.left, y: e.clientY - box.top }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+  const moveDrag = (e: React.PointerEvent<HTMLElement>) => {
+    const box = panel.current?.getBoundingClientRect()
+    if (drag.current && box) setPos(clamp(e.clientX - drag.current.x, e.clientY - drag.current.y, box.width, box.height))
+  }
+  const endDrag = () => {
+    drag.current = null
+  }
 
   const toggle = () => {
     setOpen((o) => !o)
@@ -91,9 +151,12 @@ export function Assistant({ tenderId, view, active, onShow }: Props) {
   return (
     <>
       {open && (
-        <section className="fixed right-5 bottom-24 z-50 w-[392px] max-w-[calc(100vw-40px)] h-[min(640px,calc(100vh-136px))] flex flex-col panel shadow-[0_12px_40px_rgb(0_36_57/0.18)] rise"
+        <section ref={panel} style={pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' } : undefined}
+          className="fixed right-5 bottom-24 z-50 w-[392px] max-w-[calc(100vw-40px)] h-[min(640px,calc(100vh-136px))] flex flex-col panel shadow-[0_12px_40px_rgb(0_36_57/0.18)] rise"
           aria-label={t('botName')}>
-          <header className="flex items-center gap-3 px-3 py-2.5 border-b border-hair shrink-0">
+          <header onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}
+            onDoubleClick={(e) => !(e.target as HTMLElement).closest('button') && setPos(null)} title={t('botDrag')}
+            className="flex items-center gap-3 px-3 py-2.5 border-b border-hair shrink-0 cursor-grab active:cursor-grabbing select-none touch-none">
             <Avatar className="size-9" />
             <div className="min-w-0 flex-1">
               <div className="text-[13.5px] font-semibold leading-tight">{t('botName')}</div>
@@ -263,7 +326,7 @@ function sourceSummary(citations: Citation[], t: (k: Key) => string) {
 function SourceItem({ c, active, onShow }: { c: Citation; active: boolean; onShow: (c: Citation) => void }) {
   const { t } = useI18n()
   const Icon = KIND_ICON[c.kind]
-  const action = ACTION[c.kind]
+  const action = ACTION[c.kind] ?? (c.step ? 'botShowThere' : undefined)
   return (
     <li className={`px-2.5 py-2 ${active ? 'bg-navy/5' : ''}`}>
       <div className="flex items-center gap-2 text-[11.5px]">

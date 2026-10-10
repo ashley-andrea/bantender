@@ -63,6 +63,23 @@ body {
   animation: rise 200ms ease-out both;
 }
 
+/* What the assistant cited (data-cite target): outlined in navy, with a short pulse when it is shown. */
+[data-cited] {
+  outline: 2px solid var(--color-navy);
+  outline-offset: 3px;
+  border-radius: 6px;
+  animation: cite 900ms ease-out 2;
+}
+
+@keyframes cite {
+  from {
+    box-shadow: 0 0 0 0 rgb(0 36 57 / 0.35);
+  }
+  to {
+    box-shadow: 0 0 0 10px rgb(0 36 57 / 0);
+  }
+}
+
 /* Parameter sliders: filled part in Equans green, rest hairline. */
 .range {
   appearance: none;

@@ -39,6 +39,35 @@ def _txt(v) -> str:
 def _chf(x: float, decimals: int = 0) -> str:
     return f"CHF {x:,.{decimals}f}"
 
+
+Where = str | list[tuple[str, str]] | None  # "step#anchor", or (key, "step#anchor") pairs picked by the quote (grounding.target)
+
+
+def _rows(rows: list[str | tuple[str, Where]]) -> tuple[str, dict[int, list[tuple[str, str]]]]:
+    """Source text from rows, with the place in the tool where each row is shown."""
+    lines, anchors = [], {}
+    for row in rows:
+        text, where = (row, None) if isinstance(row, str) else row
+        if where:
+            anchors[len(lines)] = [("", where)] if isinstance(where, str) else where
+        lines += text.splitlines() or [""]
+    return "\n".join(lines), anchors
+
+
+# Project cost build-up step -> where the tool shows it (the offer bar or the parameter that sets it).
+TRACE_ANCHOR = {
+    "Line material": "price#direct-cost", "Line labour": "price#direct-cost",
+    "Transport / equipment": "price#param:transport_equipment_pct", "Small material": "price#param:small_material_pct",
+    "Supplier contingency": "price#param:supplier_package_contingency_pct", "Engineering": "price#param:engineering_hours",
+    "Commissioning": "price#param:commissioning_hours", "Hygiene inspection": "price#param:hygiene_inspection_chf",
+    "Documentation": "price#param:documentation_chf", "Risk / opportunities": "price#param:risk_allowance_chf",
+    "Overhead": "price#overhead-risk", "Cost baseline": "price#overhead-risk", "Selling price": "price#offer-price",
+}
+CONDITION_ANCHORS = [("net incl", "export#cond:net"), ("cash discount", "export#cond:cash_discount"),
+                     ("discount", "export#cond:discount"), ("deductions", "export#cond:deductions"),
+                     ("VAT", "export#cond:vat"), ("gross", "export#cond:gross")]
+GUIDE_STEPS = {"1.": "extract", "2.": "catalog", "3.": "price", "4.": "offers", "5.": "export"}
+
 DEFINITIONS = [
     _fn("search_tender", "Search the tender document (German, ~200 pages). Returns the best matching passages with their page source id. "
         "Search in German with the tender's own terms; search again with other words if the passages do not answer the question.",
@@ -145,9 +174,11 @@ class Toolbox:
     def bid_summary(self) -> str:
         p = self.pricing
         project, summary = p["project"], p.get("summary", {})
-        lines = [f"Offer price (selling price): CHF {project['selling_price']:,.0f}",
-                 f"Direct cost: CHF {project['direct']:,.0f}", f"Margin: {project['margin_pct']:.2f} %"]
-        lines += [f"{t['label']}: {t['formula']} = CHF {t['value']:,.0f}" for t in project.get("trace", [])]
+        lines: list[str | tuple[str, Where]] = [
+            (f"Offer price (selling price): CHF {project['selling_price']:,.0f}", "price#offer-price"),
+            (f"Direct cost: CHF {project['direct']:,.0f}", "price#direct-cost"),
+            (f"Margin: {project['margin_pct']:.2f} %", "price#margin")]
+        lines += [(f"{t['label']}: {t['formula']} = CHF {t['value']:,.0f}", TRACE_ANCHOR.get(t["label"])) for t in project.get("trace", [])]
         if t := summary.get("tender"):
             lines.append(f"Tender positions: {t['lines']} lines, {t['excluded']} excluded (out of scope or not priceable), "
                          f"{t['to_price']} to price, {t['priced']} priced ({t['coverage_pct']} % coverage), {t['calculated']} calculated "
@@ -162,19 +193,24 @@ class Toolbox:
         for system, chf in sorted(summary.get("by_system", {}).items()):
             lines.append(f"System {system}: direct line cost {_chf(chf)}")
         if s := p.get("settings"):
-            lines.append(f"Settings in use: margin {s['margin_pct']:g} %, overhead {s['overhead_pct']:g} %, risk allowance "
-                         f"{_chf(s['risk_allowance_chf'])}, rounded up to {_chf(s['round_to_chf'])}, discount {s['discount_pct']:g} %, "
-                         f"cash discount {s['cash_discount_pct']:g} %")
+            lines.append((f"Settings in use: margin {s['margin_pct']:g} %, overhead {s['overhead_pct']:g} %, risk allowance "
+                          f"{_chf(s['risk_allowance_chf'])}, rounded up to {_chf(s['round_to_chf'])}, discount {s['discount_pct']:g} %, "
+                          f"cash discount {s['cash_discount_pct']:g} %",
+                          [("cash discount", "export#cond:cash_discount"), ("discount", "export#cond:discount"),
+                           ("rounded", "price#offer-price"), ("risk", "price#param:risk_allowance_chf"),
+                           ("overhead", "price#param:overhead_pct"), ("margin", "price#param:margin_pct")]))
             lines.append("Included: " + ", ".join(f"{k.removeprefix('include_').replace('_', ' ')} {'yes' if s[k] else 'no'}"
                                                   for k in ("include_project_costs", "include_small_material",
                                                             "include_supplier_contingency", "include_cad_ductwork")))
-            lines.append("Productivity factors: " + ", ".join(f"{k} {v:g}" for k, v in s["factors"].items()))
-            lines.append("Mounting height by system: " + ", ".join(f"{k} {v}" for k, v in s["locations"].items()))
+            lines.append(("Productivity factors: " + ", ".join(f"{k} {v:g}" for k, v in s["factors"].items()),
+                          [(k, f"price#param:{k}") for k in s["factors"]]))
+            lines.append(("Mounting height by system: " + ", ".join(f"{k} {v}" for k, v in s["locations"].items()),
+                          [(k, f"price#location:{k}") for k in s["locations"]]))
         tender = p.get("tender", {})
         if tender.get("award"):
             lines.append(f"Award: {json.dumps(tender['award'], ensure_ascii=False)}")
-        text = "\n".join(lines)
-        self.sources["bid"] = Source("bid", "bid", "Our offer (current calculation)", text)
+        text, anchors = _rows(lines)
+        self.sources["bid"] = Source("bid", "bid", "Our offer (current calculation)", text, step="price", anchors=anchors)
         return f"[source: bid]\n{text}"
 
     def bid_positions(self, query: str, status: str | None = None, system: str | None = None) -> str:
@@ -198,7 +234,7 @@ class Toolbox:
         total = sum((l.get("cost") or {}).get("direct_cost") or 0 for l in hits)
         header = f"{len(hits)} positions with {where}; together direct cost {_chf(total)}; highest direct cost first"
         sid = f"q{sum(s.id.startswith('q') for s in self.sources.values()) + 1}"
-        self.sources[sid] = Source(sid, "bid", "Our offer: positions", header)
+        self.sources[sid] = Source(sid, "bid", "Our offer: positions", header, step="price")
         out = [f"[source: {sid}]\n{header}", *(self._position(l) for l in hits[:MAX_POSITIONS])]
         if len(hits) > MAX_POSITIONS:
             out.append(f"… {len(hits) - MAX_POSITIONS} more positions match; narrow the query.")
@@ -206,52 +242,58 @@ class Toolbox:
 
     def _position(self, line: dict, detailed: bool = False) -> str:
         cost, d = line.get("cost") or {}, line["decision"]
-        text = "\n".join(filter(None, [
-            f"Position {line['line_id']} (tender page {line['page']}, system {line['system']}, section {line['section']} {line['section_name']})",
-            f"Title: {line['title_de']} / {line['title_en']}",
-            f"Tender quantity: {line['tender_quantity']} {line['tender_unit']}",
-            f"Status: {line['status_key']}",
-            f"Catalogue product: {d.get('product_id') or 'none'}",
-            cost and f"Net unit cost: CHF {cost.get('net_unit_cost') or 0:,.2f} ({cost.get('price_source')})",
-            cost and f"Direct cost: CHF {cost.get('direct_cost') or 0:,.2f}",
+        text, anchors = _rows([row for row in [
+            (f"Position {line['line_id']} (tender page {line['page']}, system {line['system']}, section {line['section']} {line['section_name']})",
+             "#pos:title"),
+            (f"Title: {line['title_de']} / {line['title_en']}", "#pos:title"),
+            (f"Tender quantity: {line['tender_quantity']} {line['tender_unit']}", "price#pos:quantity"),
+            (f"Status: {line['status_key']}", "#pos:title"),
+            (f"Catalogue product: {d.get('product_id') or 'none'}", "price#pos:product"),
+            cost and (f"Net unit cost: CHF {cost.get('net_unit_cost') or 0:,.2f} ({cost.get('price_source')})", "price#pos:net"),
+            cost and (f"Direct cost: CHF {cost.get('direct_cost') or 0:,.2f}", "price#pos:direct"),
             *(self._why(line) if detailed else []),
-        ]))
+        ] if row])
         sid = f"pos:{line['line_id']}"
-        self.sources[sid] = Source(sid, "position", f"Position {line['line_id']}", text, page=line["page"], line_id=line["line_id"])
+        self.sources[sid] = Source(sid, "position", f"Position {line['line_id']}", text, page=line["page"], line_id=line["line_id"],
+                                   anchors=anchors)
         return f"[source: {sid}]\n{text}"
 
-    def _why(self, line: dict) -> list[str]:
-        """The calculation and the reasons behind one position, as the tool decided them."""
+    def _why(self, line: dict) -> list[tuple[str, Where]]:
+        """The calculation and the reasons behind one position, as the tool decided them (with where the tool shows them)."""
         cost, d = line.get("cost") or {}, line["decision"]
-        out = [f"Calculation: {t['label']}: {t['formula']} = " + (f"{t['value']:,.2f} h" if t["label"] == "Installation hours" else _chf(t["value"], 2))
-               for t in cost.get("trace", [])]
+        out: list[tuple[str, Where]] = [
+            (f"Calculation: {t['label']}: {t['formula']} = " + (f"{t['value']:,.2f} h" if t["label"] == "Installation hours" else _chf(t["value"], 2)),
+             "price#pos:hours" if t["label"] == "Installation hours" else "price#pos:steps")
+            for t in cost.get("trace", [])]
         if d.get("install_code"):
-            out.append(f"Installation rule: {d['install_code']}; mounting height of the system: {d.get('location')}")
+            out.append((f"Installation rule: {d['install_code']}; mounting height of the system: {d.get('location')}", "price#pos:hours"))
         if d.get("band"):
-            out.append(f"Match confidence: {d['band']}")
-        out += [f"Why: {_txt(r)}" for r in d.get("reasons", [])]
-        out += [f"Assumption: {_txt(a)}" for a in d.get("assumptions", [])]
-        out += [f"Other catalogue option: {a['product_id']} {a['description']} at CHF {a['net_cost_chf']:,.2f} ({a['reason']})"
+            out.append((f"Match confidence: {d['band']}", "catalog"))
+        out += [(f"Why: {_txt(r)}", "catalog") for r in d.get("reasons", [])]
+        out += [(f"Assumption: {_txt(a)}", "extract") for a in d.get("assumptions", [])]
+        out += [(f"Other catalogue option: {a['product_id']} {a['description']} at CHF {a['net_cost_chf']:,.2f} ({a['reason']})", "catalog")
                 for a in d.get("alternatives", [])[:3]]
         if d.get("overridden"):
-            out.append(f"Changed by the estimator: {', '.join(d['overridden'])}" + (f" (note: {d['override_note']})" if d.get("override_note") else ""))
+            out.append((f"Changed by the estimator: {', '.join(d['overridden'])}" + (f" (note: {d['override_note']})" if d.get("override_note") else ""),
+                        "price#pos:quantity"))
         form = (self.offer or {}).get("lines", {}).get(line["line_id"])
         if line.get("source") == "cad":
-            out.append(f"On the offer form: CAD ductwork is not a tender position; its material goes to section B and its "
-                       f"installation to section E of system {line['system']}")
+            out.append((f"On the offer form: CAD ductwork is not a tender position; its material goes to section B and its "
+                        f"installation to section E of system {line['system']}", f"export#system:{line['system']}"))
         elif form and form["kind"] == "priced":
-            out.append(f"On the offer form: unit price CHF {form['unit_price']:,.2f}, amount CHF {form['amount']:,.2f}")
-            out.append("On the offer form the unit price includes installation" if form.get("includes_labour") else
-                       f"On the offer form the installation of this position goes to section E of system {line['system']}")
+            out.append((f"On the offer form: unit price CHF {form['unit_price']:,.2f}, amount CHF {form['amount']:,.2f}",
+                        [("amount", "price#pos:amount"), ("", "price#pos:unit_price")]))
+            out.append(("On the offer form the unit price includes installation", "price#pos:unit_price") if form.get("includes_labour") else
+                       (f"On the offer form the installation of this position goes to section E of system {line['system']}", "price#pos:steps"))
         elif form and form["kind"] == "included":
-            out.append("On the offer form: incl. (included in another position)")
+            out.append(("On the offer form: incl. (included in another position)", "price#pos:unit_price"))
         return out
 
     def bid_offer_form(self) -> str:
         o = self.offer
         if o is None:
             return "The offer form is not available."
-        lines = [
+        lines: list[str | tuple[str, Where]] = [
             f"Factor m = offer price ÷ direct cost = {_chf(o['selling_price'])} ÷ {_chf(self.pricing['project']['direct'])} = {o['factor']:.4f}",
             "Every cost component on the form is multiplied by the same factor m (SIA 118 Art. 39), so overhead, risk and margin "
             "are spread evenly over all unit prices and the form adds up to the offer price.",
@@ -262,16 +304,17 @@ class Toolbox:
         ]
         for code, s in o["systems"].items():
             sections = ", ".join(f"{k} {_chf(v, 2)}" for k, v in s["sections"].items())
-            lines.append(f"System {code}: total {_chf(s['total'], 2)} ({sections}); share of direct cost {100 * s.get('share', 0):.1f} %; "
-                         f"installation hours {s['labour_hours']:,.1f}")
+            lines.append((f"System {code}: total {_chf(s['total'], 2)} ({sections}); share of direct cost {100 * s.get('share', 0):.1f} %; "
+                          f"installation hours {s['labour_hours']:,.1f}", f"export#system:{code}"))
         lines += [f"Lot {k}: {_chf(v, 2)}" for k, v in o["lots"].items()]
-        lines.append(f"Gross total of the form: {_chf(o['brutto'], 2)} (rounding difference to the offer price: {_chf(o['rounding_difference'], 2)})")
+        lines.append((f"Gross total of the form: {_chf(o['brutto'], 2)} (rounding difference to the offer price: {_chf(o['rounding_difference'], 2)})",
+                      "export#cond:gross"))
         c = o["conditions"]
-        lines.append(f"Conditions: gross {_chf(c['brutto'], 2)} − discount {c['discount_pct']:g} % {_chf(c['discount'], 2)} − cash discount "
-                     f"{c['cash_discount_pct']:g} % {_chf(c['cash_discount'], 2)} − deductions {c['deductions_pct']:g} % {_chf(c['deductions'], 2)} "
-                     f"+ VAT {c['vat_pct']:g} % {_chf(c['vat'], 2)} = net incl. VAT {_chf(c['netto'], 2)}")
-        text = "\n".join(lines)
-        self.sources["form"] = Source("form", "bid", "Our offer: the offer form", text)
+        lines.append((f"Conditions: gross {_chf(c['brutto'], 2)} − discount {c['discount_pct']:g} % {_chf(c['discount'], 2)} − cash discount "
+                      f"{c['cash_discount_pct']:g} % {_chf(c['cash_discount'], 2)} − deductions {c['deductions_pct']:g} % {_chf(c['deductions'], 2)} "
+                      f"+ VAT {c['vat_pct']:g} % {_chf(c['vat'], 2)} = net incl. VAT {_chf(c['netto'], 2)}", CONDITION_ANCHORS))
+        text, anchors = _rows(lines)
+        self.sources["form"] = Source("form", "bid", "Our offer: the offer form", text, step="export", anchors=anchors)
         return f"[source: form]\n{text}"
 
     def win_probability(self) -> str:
@@ -279,24 +322,26 @@ class Toolbox:
         if not w or w.get("model") in ("unavailable", "error"):
             return f"No win probability for this tender: {(w or {}).get('reason') or 'model not available'}."
         cur = w["current"]
-        lines = [
-            f"Model: {'learned from our past bids' if w['model'] == 'ml' else 'fixed placeholder formula'} ({w.get('model_version')})",
-            f"Current offer {_chf(cur['offer'])} at margin {cur['margin_pct']:.1f} %: chance of winning {100 * cur['win_probability']:.0f} % "
-            f"(range {100 * cur['p_low']:.0f}–{100 * cur['p_high']:.0f} %), expected profit {_chf(cur['expected_profit'])}",
-            "Expected profit = chance of winning × (offer − cost baseline)",
-            f"Cost baseline {_chf(w['baseline'])}; market reference {_chf(w['market_reference_chf'])} (source: {w['market_reference_source']})",
+        lines: list[str | tuple[str, Where]] = [
+            (f"Model: {'learned from our past bids' if w['model'] == 'ml' else 'fixed placeholder formula'} ({w.get('model_version')})", "offers#model"),
+            (f"Current offer {_chf(cur['offer'])} at margin {cur['margin_pct']:.1f} %: chance of winning {100 * cur['win_probability']:.0f} % "
+             f"(range {100 * cur['p_low']:.0f}–{100 * cur['p_high']:.0f} %), expected profit {_chf(cur['expected_profit'])}", "offers#win:current"),
+            ("Expected profit = chance of winning × (offer − cost baseline)", "offers#win:current"),
+            (f"Cost baseline {_chf(w['baseline'])}; market reference {_chf(w['market_reference_chf'])} (source: {w['market_reference_source']})",
+             [("market reference", "offers#input:market_reference_chf")]),
         ]
-        lines += [f"{s['name']} offer {_chf(s['offer'])} at margin {s['margin_pct']:.1f} %: chance {100 * s['win_probability']:.0f} %, "
-                  f"expected profit {_chf(s['expected_profit'])}" for s in w.get("scenarios", [])]
-        lines += [f"At the Target offer, {e['feature']} = {e['value']} changes the chance by {e['pts']:+.1f} points vs an average past tender"
-                  for e in w.get("explanation", [])]
-        lines += [f"Tender input {k} = {v} (from {w['sources'].get(k, 'default')})" for k, v in w.get("context", {}).items()]
-        text = "\n".join(lines)
-        self.sources["win"] = Source("win", "bid", "Our offer: chance of winning", text)
+        lines += [(f"{s['name']} offer {_chf(s['offer'])} at margin {s['margin_pct']:.1f} %: chance {100 * s['win_probability']:.0f} %, "
+                   f"expected profit {_chf(s['expected_profit'])}", f"offers#win:{s['name']}") for s in w.get("scenarios", [])]
+        lines += [(f"At the Target offer, {e['feature']} = {e['value']} changes the chance by {e['pts']:+.1f} points vs an average past tender",
+                   f"offers#why:{e['feature']}") for e in w.get("explanation", [])]
+        lines += [(f"Tender input {k} = {v} (from {w['sources'].get(k, 'default')})", f"offers#input:{k}") for k, v in w.get("context", {}).items()]
+        text, anchors = _rows(lines)
+        self.sources["win"] = Source("win", "bid", "Our offer: chance of winning", text, step="offers", anchors=anchors)
         return f"[source: win]\n{text}"
 
     def tool_guide(self) -> str:
-        self.sources["guide"] = Source("guide", "data", "Guide (how the tool works)", GUIDE)
+        text, anchors = _rows([(line, GUIDE_STEPS.get(line[:2])) for line in GUIDE.splitlines()])
+        self.sources["guide"] = Source("guide", "data", "Guide (how the tool works)", text, anchors=anchors)
         return f"[source: guide]\n{GUIDE}"
 
     # ---- company data -------------------------------------------------------------------------

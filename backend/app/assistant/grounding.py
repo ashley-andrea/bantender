@@ -26,6 +26,10 @@ class Source:
     page: int | None = None
     boxes: list[TextBox] = field(default_factory=list)  # tender pages: the printed segments, for outlines
     line_id: str | None = None
+    # Where the source is shown in the tool: the step ("price"), and for single lines (by index in `text`) the element
+    # there, as (key, "step#anchor") pairs ("#anchor": on the step in view): the first pair whose key is in the quote wins; an empty key matches any quote.
+    step: str | None = None
+    anchors: dict[int, list[tuple[str, str]]] = field(default_factory=dict)
 
 
 def skeleton(text: str) -> str:
@@ -64,6 +68,30 @@ def find_quote(quote: str, source: Source) -> list[TextBox] | None:
     return None
 
 
+def quote_lines(text: str, quote: str) -> list[int]:
+    """Indexes of the lines of `text` that the quote spans (empty if it is not there)."""
+    starts, joined = [], ""
+    for line in text.splitlines():
+        starts.append(len(joined))
+        joined += skeleton(line)
+    q = skeleton(quote)
+    at = joined.find(q) if q else -1
+    if at < 0:
+        return []
+    return [i for i, s in enumerate(starts) if s < at + len(q) and (starts[i + 1] if i + 1 < len(starts) else len(joined)) > at]
+
+
+def target(source: Source, quote: str) -> tuple[str | None, str | None]:
+    """The step and the element of the tool where the quoted line is shown (anchor None: the step only)."""
+    q = skeleton(quote)
+    for i in quote_lines(source.text, quote):
+        for key, where in source.anchors.get(i, []):
+            if skeleton(key) in q:
+                step, _, anchor = where.partition("#")
+                return step or source.step, anchor or None
+    return source.step, None
+
+
 def context(source: Source, boxes: list[TextBox], quote: str = "") -> str:
     """The quote with the rows around it (tender pages), or the source itself (bid, positions, data results);
     for a long source, its first lines and the lines around the quote."""
@@ -71,14 +99,9 @@ def context(source: Source, boxes: list[TextBox], quote: str = "") -> str:
         if len(source.text) <= CONTEXT_CHARS:
             return source.text
         lines = source.text.splitlines()
-        starts, joined = [], ""
-        for line in lines:
-            starts.append(len(joined))
-            joined += skeleton(line)
-        at, q = joined.find(skeleton(quote)), skeleton(quote)
-        if at < 0:
+        hit = quote_lines(source.text, quote)
+        if not hit:
             return source.text[:CONTEXT_CHARS]
-        hit = [i for i, s in enumerate(starts) if s < at + len(q) and (starts[i + 1] if i + 1 < len(starts) else len(joined)) > at]
         lo, hi = max(0, hit[0] - CONTEXT_ROWS), hit[-1] + CONTEXT_ROWS + 1
         return "\n".join(lines[:2] + (["…"] if lo > 2 else []) + lines[max(lo, 2):hi])
     lo, hi = min(b.row for b in boxes) - CONTEXT_ROWS, max(b.row for b in boxes) + CONTEXT_ROWS
@@ -111,9 +134,10 @@ def ground(raw: dict, sources: dict[str, Source], lang: str) -> dict:
             key = (source.id, skeleton(quote))
             if key not in keys:
                 keys[key] = len(citations) + 1
+                step, anchor = target(source, quote)
                 citations.append({
                     "n": keys[key], "kind": source.kind, "source": source.id, "label": source.label, "quote": quote,
-                    "page": source.page, "line_id": source.line_id,
+                    "page": source.page, "line_id": source.line_id, "step": step, "anchor": anchor,
                     "bboxes": [list(b.bbox) for b in boxes], "context": context(source, boxes, quote),
                 })
             if keys[key] not in refs:

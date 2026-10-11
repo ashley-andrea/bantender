@@ -3,8 +3,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import type { BBox } from '../types'
 
-// Must be set in the module that renders react-pdf components.
-pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
+// Must be set in the module that renders react-pdf components. Legacy build: see vite.config.ts.
+pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/legacy/build/pdf.worker.min.mjs', import.meta.url).toString()
 
 export interface Highlight {
   bbox: BBox

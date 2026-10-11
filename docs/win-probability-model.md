@@ -2,6 +2,8 @@
 
 Status: pipeline (steps 1-4, `make winprob`) and integration into the API (step 5) implemented; the UI for the "Offer options" step (step 7) is next. Code is in `backend/app/winprob/`.
 
+**Change (2026-10-11):** the client's cost estimate is no longer used anywhere (data, training, prediction). Price position is our offer ÷ our own cost; where we are competitive is learned from the features, including the `trade_building` combination. Scenarios follow the priority rule in §8.2. On the synthetic data the model reaches test AUC 0.77 vs 0.79 for the hidden true probability (`benchmarks/ceiling_check.py`).
+
 ## 1. Purpose
 
 For a tender we are pricing, estimate the probability that the client accepts our offer, **as a function of the offer**. The estimate is learned from our historical bids.
@@ -58,7 +60,6 @@ About 2,000 rows covering about 3 years.
 | `canton` | Swiss canton code, e.g. `ZH`, `AG`, `BE` | feature (categorical) |
 | `client_type` | `municipality`, `canton`, `federal`, `private` | feature (categorical) |
 | `procedure` | `open`, `invited` | feature (categorical) |
-| `market_reference_chf` | float > 0, the client's cost estimate | gives `price_position`; `log(market_reference_chf)` is a feature |
 | `n_lots` | int ≥ 1 | feature (numeric) |
 | `price_weight_pct` | float 0–100, price points in the award rule | gives `price_sensitivity` |
 | `zero_at_ratio` | float > 1, the offer ratio at which price scores 0 points | gives `price_sensitivity` |
@@ -93,17 +94,18 @@ Derived features (computed the same way for training and prediction, in one func
 
 | Feature | Definition |
 | --- | --- |
-| `price_position` | `bid_price_chf / market_reference_chf` |
+| `price_position` | `bid_price_chf / baseline_cost_chf`: our offer ÷ our full cost (= 1 / (1 − margin)) |
 | `price_sensitivity` | `price_weight_pct / ((zero_at_ratio − 1) × 100)`: price points lost per 1 % above the lowest offer (e.g. 60 points, 0 at 150 % → 1.2). If the rule is missing: the training mean. |
 | `price_position_x_sensitivity` | `(price_position − 1) × price_sensitivity` |
-| `log_market_reference` | `log(market_reference_chf)` |
+| `log_project_cost` | `log(baseline_cost_chf)`: project size |
+| `trade_building` | `bkp_trade × building_type`, e.g. `244×school`: a combination category |
 | `log_n_bidders` | `log(n_bidders)` |
 | `prior_wins_capped` | `min(prior_wins_with_client, 3)` |
 
 Model inputs:
 
-- **Categorical:** `bkp_trade`, `building_type`, `canton`, `client_type`, `procedure`
-- **Numeric:** `price_position`, `price_position_x_sensitivity`, `price_sensitivity`, `log_market_reference`, `n_lots`, `log_n_bidders`, `competitive_intensity`, `strategic_appetite`, `available_capacity_pct`, `incumbent_present`, `prior_wins_capped`, `technical_score_expected`
+- **Categorical:** `bkp_trade`, `building_type`, `canton`, `client_type`, `procedure`, `trade_building`
+- **Numeric:** `price_position`, `price_position_x_sensitivity`, `price_sensitivity`, `log_project_cost`, `n_lots`, `log_n_bidders`, `competitive_intensity`, `strategic_appetite`, `available_capacity_pct`, `incumbent_present`, `prior_wins_capped`, `technical_score_expected`
 
 **Never inputs:** `bid_id`, `bid_date`, `margin_pct`, `baseline_cost_chf`, `bid_price_chf` (except through `price_position`), `won`.
 
@@ -172,11 +174,11 @@ It holds every feature input except the offer:
 | --- | --- |
 | `bkp_trade`, `price_weight_pct`, `zero_at_ratio`, `n_lots` | parser (`project.bkp`, `award`, `lots`) |
 | `building_type`, `canton`, `procedure` | parser where possible (project name words, postal code, procedure text); otherwise the fixture |
-| `market_reference_chf`, `client_type`, `n_bidders`, `incumbent_present`, `prior_wins_with_client`, `technical_score_expected` | ingestion; for the demo, `data/samples/oberglatt/tender_context.json` |
+| `client_type`, `n_bidders`, `incumbent_present`, `prior_wins_with_client`, `technical_score_expected` | ingestion; for the demo, `data/samples/oberglatt/tender_context.json` |
+| `baseline_cost_chf` | pricing engine (our full cost; follows every estimator edit, not overridable here) |
 | `competitive_intensity`, `strategic_appetite`, `available_capacity_pct` | latest market snapshot |
 
 - Any of these values can be overridden by estimator settings (`settings["win_context"]`).
-- **Market reference missing:** use our price at the target margin, `baseline / (1 − target_margin_pct / 100)`, and report `market_reference_source: "target_margin_fallback"`. Otherwise report `"ingestion"`.
 
 ### 7.2 Model interface
 
@@ -197,7 +199,7 @@ class WinModel(Protocol):
 - **Grid:** margin from 0 % to 20 % in 0.1 % steps (201 points).
 - **Each point:**
   - `offer = baseline / (1 − margin)`, exact (not rounded)
-  - `price_position = offer / market_reference`
+  - `price_position = offer / baseline_cost_chf`
   - `win_probability`, `p_low`, `p_high`
   - `expected_profit = win_probability × (offer − baseline)`
 
@@ -209,9 +211,11 @@ Computed from the curve, using only points with margin ≥ `min_margin_pct` (2 %
 
 | Scenario | Definition |
 | --- | --- |
-| **Target** | The point with the highest expected profit |
-| **Aggressive** | The lowest offer whose expected profit is ≥ `near_optimal_share` (90 %) of the Target's |
-| **Conservative** | The highest offer whose expected profit is ≥ 90 % of the Target's |
+| **Target** | Highest expected profit, (offer − cost) × p |
+| **Aggressive** | Best offer when winning weighs more: maximises (offer − cost) × p^w |
+| **Conservative** | Best offer when profit per job weighs more: maximises (offer − cost)^w × p |
+
+`w` = `priority_weight` (2). A scenario's `margin_pct` is computed from a price 0.5 CHF below its offer, so applying it (rounding up) gives exactly that offer. The UI shows profit if won (offer − cost) on the cards. Each option is the best offer for one attitude: "we need the work", "best on average", "we're busy or unsure about costs". Unlike a tolerance band around the peak, the outer options do not have equal expected profit.
 
 - Each scenario's offer is rounded up to `round_to_chf` with `engine.round_up`. Then its margin, probability and expected profit are recomputed at the rounded offer.
 - The output order is always Aggressive ≤ Target ≤ Conservative.
@@ -248,7 +252,7 @@ Add to `project_parameters.json`:
 ```json
 "win_model": {
   "margin_grid_pct": {"start": 0.0, "stop": 20.0, "step": 0.1},
-  "near_optimal_share": 0.9,
+  "priority_weight": 2.0,
   "min_margin_pct": 2.0,
   "band": 0.8
 }
@@ -263,25 +267,23 @@ Extend `app/reference/models.py` with the matching pydantic model.
 ```json
 {
   "model": "ml",                        // ml | placeholder | unavailable | error
-  "model_version": "logreg-ab608985",
+  "model_version": "logreg-24fa27f4",
   "reason": null,                       // why the placeholder / nothing is used, else null
   "baseline": 2325198,                  // our full cost (pricing engine, follows every edit)
-  "market_reference_chf": 2530000,
-  "market_reference_source": "demo_fixture",   // demo_fixture | estimator | target_margin_fallback
-  "context": {"bkp_trade": "244", "building_type": "school", "n_bidders": 6, "...": "..."},
-  "sources": {"bkp_trade": "tender", "competitive_intensity": "market_snapshot", "n_bidders": "demo_fixture", "...": "..."},
+  "context": {"bkp_trade": "244", "building_type": "school", "baseline_cost_chf": 2325198, "n_bidders": 6, "...": "..."},
+  "sources": {"bkp_trade": "tender", "baseline_cost_chf": "pricing", "competitive_intensity": "market_snapshot", "n_bidders": "demo_fixture", "...": "..."},
   "snapshot_date": "2026-07-01",
-  "parameters": {"margin_grid_pct": [0, 20, 0.1], "near_optimal_share": 0.9, "min_margin_pct": 2.0, "band": 0.8, "round_to_chf": 1000},
+  "parameters": {"margin_grid_pct": [0, 20, 0.1], "priority_weight": 2.0, "min_margin_pct": 2.0, "band": 0.8, "round_to_chf": 1000},
   "points": [                           // 201 points, margin 0-20 % in 0.1 % steps, exact (unrounded) offers
-    {"margin_pct": 8.0, "offer": 2527389, "price_position": 0.999,
-     "win_probability": 0.168, "p_low": 0.133, "p_high": 0.211, "expected_profit": 34014}
+    {"margin_pct": 7.7, "offer": 2519174, "price_position": 1.083,
+     "win_probability": 0.466, "p_low": 0.42, "p_high": 0.51, "expected_profit": 90350}
   ],
   "scenarios": [                        // offers rounded up to round_to_chf
-    {"name": "Aggressive", "offer": 2453000, "margin_pct": 5.2, "win_probability": 0.240, "expected_profit": 30676},
-    {"name": "Target", "offer": 2528000, "margin_pct": 8.0, "win_probability": 0.168, "expected_profit": 34013},
-    {"name": "Conservative", "offer": 2619000, "margin_pct": 11.2, "win_probability": 0.105, "expected_profit": 30730}
+    {"name": "Aggressive", "offer": 2458000, "margin_pct": 5.4, "win_probability": 0.613, "expected_profit": 81376},
+    {"name": "Target", "offer": 2520000, "margin_pct": 7.7, "win_probability": 0.466, "expected_profit": 90713},
+    {"name": "Conservative", "offer": 2610000, "margin_pct": 10.9, "win_probability": 0.268, "expected_profit": 76405}
   ],
-  "current": {"offer": 2461000, "margin_pct": 5.5, "win_probability": 0.231, "p_low": 0.186, "p_high": 0.284, "expected_profit": 31424},
+  "current": {"offer": 2461000, "margin_pct": 5.5, "win_probability": 0.61, "p_low": 0.56, "p_high": 0.65, "expected_profit": 82500},
   "explanation": [                      // at the Target offer, points vs the average tender, largest first ([] for the placeholder)
     {"feature": "bkp_trade", "value": "244", "pts": 11.1},
     {"feature": "price_position_x_sensitivity", "value": -0.001, "pts": -6.7}
@@ -291,13 +293,13 @@ Extend `app/reference/models.py` with the matching pydantic model.
 
 `shap` (learned model only, else `null`): exact SHAP values in log-odds, `{"base": -1.2, "fixed": {"bkp_trade": 0.55, …}, "per_point": ["shap_price_position", "shap_price_position_x_sensitivity"]}`. For a linear model with the training set as background, SHAP_j = w_j · (x_j − mean_j); one-hot columns are summed per feature. Only the two price features change with the offer, so their values are on each point under the `per_point` keys. `base + Σ fixed + Σ per-point = logit(win_probability)` at every point. The "Key drivers" chart shows each feature's share |SHAP| ÷ Σ|SHAP| at the slider position, the top 5 plus "Other factors".
 
-Input sources: `tender` (parser: trade, building type from the project name, award rule, number of lots) · `market_snapshot` (latest row of `market_snapshots.csv`) · `demo_fixture` (`tender_context.json`, stand-in for the ingestion pipeline; its values, including the client estimate of CHF 2.53 M, are demo data) · `estimator` (overrides).
+Input sources: `tender` (parser: trade, building type from the project name, award rule, number of lots) · `market_snapshot` (latest row of `market_snapshots.csv`) · `demo_fixture` (`tender_context.json`, stand-in for the ingestion pipeline; its values are demo data) · `pricing` (our cost) · `estimator` (overrides).
 
 How the UI uses it:
 
 - **Slider:** read `points` client-side (no request while sliding).
 - **Apply an offer** (a scenario or a slider position): `PATCH /api/tenders/{id}/settings {"margin_pct": <margin_pct>}`. The selling price becomes that offer; the new response carries the updated `current`.
-- **Correct an input** (e.g. bidders, client estimate): `PATCH /api/tenders/{id}/settings {"win_context": {"n_bidders": 4}}`. Keys are the `TenderContext` fields; unknown or invalid values return 400. The current overrides are echoed in `settings.win_context`.
+- **Correct an input** (e.g. number of bidders): `PATCH /api/tenders/{id}/settings {"win_context": {"n_bidders": 4}}`. Keys are the `TenderContext` fields; unknown or invalid values return 400. The current overrides are echoed in `settings.win_context`.
 
 `GET /api/win-model` returns the model summary: model and version, reason, rows, date range, win rates, held-out metrics (model vs placeholder), calibration, monotonicity, global feature relevance (§9), the latest market snapshot and the `win_model` parameters.
 

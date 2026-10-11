@@ -41,7 +41,7 @@ def main() -> None:
 
     params = load_reference(REFERENCE).parameters
     history = load_history(history_csv)
-    ctx = TenderContext.model_validate_json(args.context.read_text(encoding="utf-8"))
+    ctx = TenderContext.model_validate({**json.loads(args.context.read_text(encoding="utf-8")), "baseline_cost_chf": args.baseline})
 
     model, test, report = evaluate(history, params)
     report["importance"] = global_importance(model, test)

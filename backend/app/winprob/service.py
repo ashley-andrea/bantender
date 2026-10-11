@@ -107,11 +107,11 @@ class WinService:
         """Raise ValueError for unknown or invalid estimator inputs (used by PATCH settings)."""
         if self.kind == "unavailable":
             return
-        unknown = set(win_context) - self.context_fields()
+        unknown = set(win_context) - (self.context_fields() - {"baseline_cost_chf"})  # our cost comes from the pricing engine
         if unknown:
             raise ValueError(f"Unknown win_context fields: {sorted(unknown)}")
         from .schema import TenderContext
-        TenderContext.model_validate({**self._defaults(), **win_context})
+        TenderContext.model_validate({**self._defaults(), "baseline_cost_chf": 1.0, **win_context})
 
     def _defaults(self) -> dict:
         """Fixture + latest snapshot: the base a partial estimator override is validated against."""
@@ -164,16 +164,13 @@ class WinService:
 
         wm, cm = self.params.win_model, self.params.commercial
         values, sources = self.context(parsed, settings)
-        market_source = sources.get("market_reference_chf")
-        if "market_reference_chf" not in values:  # plan §7.1: no client estimate → our price at the target margin
-            values["market_reference_chf"] = baseline / (1 - cm.target_margin_pct / 100)
-            market_source = sources["market_reference_chf"] = "target_margin_fallback"
+        values["baseline_cost_chf"], sources["baseline_cost_chf"] = baseline, "pricing"
         ctx = TenderContext.model_validate(values)
 
         model = self.model if self.kind == "ml" else PlaceholderWinModel(self.params, baseline)
         grid = (wm.margin_grid_pct.start, wm.margin_grid_pct.stop, wm.margin_grid_pct.step)
         points = win_curve(model, ctx, baseline, grid=grid, band=wm.band)
-        picks = scenarios(points, model, ctx, baseline, cm.round_to_chf, wm.min_margin_pct, wm.near_optimal_share)
+        picks = scenarios(points, model, ctx, baseline, cm.round_to_chf, wm.min_margin_pct, wm.priority_weight)
 
         p_now = float(model.predict(np.array([selling_price]), ctx)[0])
         lo_now, hi_now = (float(a[0]) for a in model.predict_band(np.array([selling_price]), ctx))
@@ -192,12 +189,10 @@ class WinService:
             "model_version": model.version,
             "reason": self.reason,
             "baseline": baseline,
-            "market_reference_chf": ctx.market_reference_chf,
-            "market_reference_source": market_source,
             "context": {k: _clean(v) for k, v in ctx.model_dump().items()},
             "sources": {k: sources.get(k, "default") for k in ctx.model_dump()},
             "snapshot_date": self.snapshot.get("snapshot_date"),
-            "parameters": {"margin_grid_pct": list(grid), "near_optimal_share": wm.near_optimal_share,
+            "parameters": {"margin_grid_pct": list(grid), "priority_weight": wm.priority_weight,
                            "min_margin_pct": wm.min_margin_pct, "band": wm.band, "round_to_chf": cm.round_to_chf},
             "points": [{k: _clean(v) for k, v in row.items()} for row in points.to_dict("records")],
             "scenarios": [{k: _clean(v) for k, v in s.items()} for s in picks],

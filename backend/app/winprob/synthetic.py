@@ -3,7 +3,7 @@
 Outcomes come from a known hidden formula (GROUND_TRUTH), so we can check what the model recovers.
 The model never reads GROUND_TRUTH. Deterministic for a seed.
 
-    make winprob-data   # = uv run --extra winprob python -m app.winprob.synthetic --summary
+    make winprob-data   # = uv run python -m app.winprob.synthetic --summary
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ OUT_DIR = Path(__file__).resolve().parents[3] / "data" / "reference" / "v2"
 
 BID_COLUMNS = [
     "bid_id", "bid_date", "bkp_trade", "building_type", "canton", "client_type", "procedure",
-    "market_reference_chf", "n_lots", "price_weight_pct", "zero_at_ratio", "n_bidders",
+    "n_lots", "price_weight_pct", "zero_at_ratio", "n_bidders",
     "competitive_intensity", "strategic_appetite", "available_capacity_pct", "incumbent_present",
     "prior_wins_with_client", "technical_score_expected", "baseline_cost_chf", "margin_pct",
     "bid_price_chf", "won",
@@ -45,7 +45,7 @@ CLIENT_BY_BUILDING = {
     "industrial": {"private": 90, "federal": 10},
     "public_building": {"municipality": 45, "canton": 35, "federal": 20},
 }
-# Median client cost estimate per building type (CHF); log-normal spread around it.
+# Median market value of the job per building type (CHF), log-normal spread around it. Hidden: not in the CSV.
 SIZE_MEDIAN = {"school": 1.2e6, "hospital": 2.5e6, "office": 1.0e6, "residential": 0.6e6, "industrial": 0.9e6, "public_building": 1.0e6}
 SIZE_LOG_SD = 0.8
 SIZE_RANGE = (120_000, 9_000_000)
@@ -55,10 +55,23 @@ PUBLIC_WEIGHTS, PUBLIC_ZERO = [30, 40, 50, 50, 60, 60, 70], [1.3, 1.5, 1.5, 2.0]
 PRIVATE_WEIGHTS, PRIVATE_ZERO = [60, 70, 80, 100], [1.3, 1.5]
 PRIVATE_NO_RULE_SHARE = 0.25
 
-# Hidden formula: logit p = b0 + Σ terms + noise. canton, n_lots and strategic_appetite have NO effect (distractors).
+# Our cost ÷ the job's market value: where we are competitive. Learnable from trade, building, canton and their
+# combinations; only a small part is unexplained. log(ratio) = log(base) + Σ effects + Normal(0, noise_sd).
+COMPETITIVENESS = {
+    "base": 0.93,
+    "trade": {"242": 0.015, "243": 0.0, "244": -0.025, "245": 0.005, "246": 0.025, "250": -0.005},
+    "building": {"school": -0.01, "hospital": 0.015, "office": 0.0, "residential": 0.005, "industrial": 0.005, "public_building": -0.005},
+    "canton": {"ZH": -0.015, "AG": -0.005, "BE": 0.0, "LU": 0.0, "SG": 0.0, "TG": 0.0, "BS": 0.005, "VD": 0.02, "GE": 0.025},
+    "combo": {("244", "school"): -0.02, ("250", "hospital"): 0.02, ("243", "residential"): -0.015},
+    "noise_sd": 0.02,
+    "range": (0.75, 1.10),
+}
+
+# Hidden formula: logit p = b0 + Σ terms + noise, with price position = our offer ÷ the job's market value.
+# n_lots and strategic_appetite have NO effect (distractors).
 GROUND_TRUTH = {
-    "b0": -1.40,
-    "b_price": -0.15,               # per 1 % of price position above 1.0, at price sensitivity 1.2 (scales linearly with it)
+    "b0": -0.85,
+    "b_price": -0.20,               # per 1 % of price position above 1.0, at price sensitivity 1.2 (scales linearly with it)
     "sensitivity_ref": 1.2,
     "sensitivity_if_no_rule": 2.0,  # tenders stating no award rule are price-driven (true value; the data shows a blank)
     "b_log_bidders": -0.70,
@@ -67,11 +80,12 @@ GROUND_TRUTH = {
     "b_prior_wins": 0.30,           # per prior win, capped at 3
     "b_tech": 0.35,                 # per point above 3
     "b_capacity": 0.40,             # per 50 points of free capacity above 50 %
-    "b_log_size": -0.15,            # per log unit of market reference above CHF 1 M
-    "b_trade": {"242": -0.35, "243": 0.0, "244": 0.50, "245": -0.30, "246": -0.55, "250": 0.10},
-    "b_building": {"school": 0.50, "hospital": -0.60, "office": 0.0, "residential": -0.40, "industrial": 0.20, "public_building": 0.30},
+    "b_log_size": -0.15,            # per log unit of market value above CHF 1 M
+    "b_trade": {"242": -0.25, "243": 0.0, "244": 0.30, "245": -0.20, "246": -0.35, "250": 0.10},
+    "b_building": {"school": 0.30, "hospital": -0.10, "office": 0.0, "residential": -0.25, "industrial": 0.15, "public_building": 0.20},
     "b_client": {"municipality": 0.0, "canton": -0.30, "federal": -0.50, "private": 0.40},
     "b_procedure": {"open": 0.0, "invited": 0.45},
+    "b_combo": {("244", "school"): 0.40, ("250", "hospital"): -0.40, ("245", "office"): 0.30},  # trade × building
     "noise_sd": 0.5,                # unobserved factors
 }
 
@@ -84,7 +98,6 @@ MARGIN_BEHAVIOUR = {
     "noise_sd": 2.0,
     "range_pct": (0.0, 15.0),
 }
-COST_EFFICIENCY = (0.92, 0.06, 0.75, 1.10)  # our cost ÷ client estimate: mean, sd, min, max
 
 
 def _choice(rng: np.random.Generator, weights: dict, size: int) -> np.ndarray:
@@ -106,12 +119,25 @@ def price_sensitivity(price_weight_pct: np.ndarray, zero_at_ratio: np.ndarray) -
     return np.asarray(price_weight_pct, dtype=float) / ((np.asarray(zero_at_ratio, dtype=float) - 1) * 100)
 
 
+def _combo(table: dict, trade: np.ndarray, building: np.ndarray) -> np.ndarray:
+    return np.array([table.get((str(t), str(b)), 0.0) for t, b in zip(trade, building)])
+
+
+def competitiveness(trade: np.ndarray, building: np.ndarray, canton: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """Our cost ÷ the job's market value, per bid."""
+    c = COMPETITIVENESS
+    log_ratio = (np.log(c["base"]) + _lookup(c["trade"], trade) + _lookup(c["building"], building) + _lookup(c["canton"], canton)
+                 + _combo(c["combo"], trade, building) + rng.normal(0, c["noise_sd"], len(trade)))
+    return np.clip(np.exp(log_ratio), *c["range"])
+
+
 def true_logit(cols: dict, gt: dict = GROUND_TRUTH) -> np.ndarray:
-    """The hidden formula without noise. `cols` maps column names to arrays (blank award rule = NaN)."""
+    """The hidden formula without noise. `cols` maps column names to arrays (blank award rule = NaN) and must carry
+    the hidden `_market_value` (generate() returns it; it is not written to the CSV)."""
     f = lambda name: np.asarray(cols[name], dtype=float)  # noqa: E731
     sens = price_sensitivity(cols["price_weight_pct"], cols["zero_at_ratio"])
     sens = np.where(np.isnan(sens), gt["sensitivity_if_no_rule"], sens)
-    pp = f("bid_price_chf") / f("market_reference_chf")
+    pp = f("bid_price_chf") / f("_market_value")
     return (
         gt["b0"]
         + gt["b_price"] * (pp - 1) * 100 * sens / gt["sensitivity_ref"]
@@ -121,11 +147,12 @@ def true_logit(cols: dict, gt: dict = GROUND_TRUTH) -> np.ndarray:
         + gt["b_prior_wins"] * np.minimum(f("prior_wins_with_client"), 3)
         + gt["b_tech"] * (f("technical_score_expected") - 3)
         + gt["b_capacity"] * (f("available_capacity_pct") - 50) / 50
-        + gt["b_log_size"] * np.log(f("market_reference_chf") / 1e6)
+        + gt["b_log_size"] * np.log(f("_market_value") / 1e6)
         + _lookup(gt["b_trade"], cols["bkp_trade"])
         + _lookup(gt["b_building"], cols["building_type"])
         + _lookup(gt["b_client"], cols["client_type"])
         + _lookup(gt["b_procedure"], cols["procedure"])
+        + _combo(gt["b_combo"], cols["bkp_trade"], cols["building_type"])
     )
 
 
@@ -174,8 +201,9 @@ def generate(n: int = N_ROWS, seed: int = SEED) -> tuple[dict[str, np.ndarray], 
     public = client != "private"
     procedure = np.where(rng.random(n) < np.where(public, 0.3, 0.6), "invited", "open")
 
+    canton = _choice(rng, CANTONS, n)
     lo, hi = SIZE_RANGE
-    market_ref = _round_up(np.clip(_lookup(SIZE_MEDIAN, building) * np.exp(rng.normal(0, SIZE_LOG_SD, n)), lo, hi), ROUND_TO_CHF)
+    market_value = np.clip(_lookup(SIZE_MEDIAN, building) * np.exp(rng.normal(0, SIZE_LOG_SD, n)), lo, hi)
 
     weight = np.where(public, rng.choice(PUBLIC_WEIGHTS, n), rng.choice(PRIVATE_WEIGHTS, n)).astype(float)
     zero = np.where(public, rng.choice(PUBLIC_ZERO, n), rng.choice(PRIVATE_ZERO, n))
@@ -186,7 +214,7 @@ def generate(n: int = N_ROWS, seed: int = SEED) -> tuple[dict[str, np.ndarray], 
     appetite = np.round(np.clip(snaps["strategic_appetite"][snap] + rng.normal(0, 0.6, n), 1, 5), 1)
     capacity = np.round(np.clip(snaps["available_capacity_pct"][snap] + rng.normal(0, 8, n), 0, 100))
 
-    open_lambda = np.maximum(0.5, 3 + 1.2 * (intensity - 3) + 0.5 * np.log(market_ref / 1e6))
+    open_lambda = np.maximum(0.5, 3 + 1.2 * (intensity - 3) + 0.5 * np.log(market_value / 1e6))
     n_bidders = np.where(procedure == "invited", rng.integers(3, 6, n), np.clip(2 + rng.poisson(open_lambda), 2, 12))
 
     m = MARGIN_BEHAVIOUR
@@ -195,8 +223,7 @@ def generate(n: int = N_ROWS, seed: int = SEED) -> tuple[dict[str, np.ndarray], 
         + m["per_intensity_point"] * (intensity - 3) + rng.normal(0, m["noise_sd"], n),
         *m["range_pct"],
     )
-    mean, sd, e_lo, e_hi = COST_EFFICIENCY
-    baseline = np.round(market_ref * np.clip(rng.normal(mean, sd, n), e_lo, e_hi), 2)
+    baseline = np.round(market_value * competitiveness(trade, building, canton, rng), 2)
     bid = _round_up(baseline / (1 - margin / 100), ROUND_TO_CHF)
 
     bids = {
@@ -204,10 +231,9 @@ def generate(n: int = N_ROWS, seed: int = SEED) -> tuple[dict[str, np.ndarray], 
         "bid_date": bid_date,
         "bkp_trade": trade,
         "building_type": building,
-        "canton": _choice(rng, CANTONS, n),
+        "canton": canton,
         "client_type": client,
         "procedure": procedure,
-        "market_reference_chf": market_ref.astype(int),
         "n_lots": rng.choice([1, 2, 3, 4], n, p=[0.60, 0.25, 0.10, 0.05]),
         "price_weight_pct": weight,
         "zero_at_ratio": zero,
@@ -221,6 +247,7 @@ def generate(n: int = N_ROWS, seed: int = SEED) -> tuple[dict[str, np.ndarray], 
         "baseline_cost_chf": baseline,
         "margin_pct": np.round(100 * (1 - baseline / bid), 2),
         "bid_price_chf": bid.astype(int),
+        "_market_value": market_value,  # hidden truth, never written to the CSV
     }
     logit = true_logit(bids) + rng.normal(0, GROUND_TRUTH["noise_sd"], n)
     bids["won"] = (rng.random(n) < 1 / (1 + np.exp(-logit))).astype(int)
@@ -242,22 +269,20 @@ def write_csv(cols: dict[str, np.ndarray], path: Path, columns: list[str]) -> No
 
 
 def summary(bids: dict[str, np.ndarray]) -> str:
-    """Sanity checks: win rate overall, by price position and by a few features; truth vs observed."""
+    """Sanity checks: win rate overall, by margin and by a few features; truth vs observed."""
     won = bids["won"]
     rate = lambda mask: f"{100 * won[mask].mean():5.1f} % (n={mask.sum()})" if mask.any() else "  —"  # noqa: E731
-    pp = bids["bid_price_chf"] / bids["market_reference_chf"]
+    margin = bids["margin_pct"]
     p_true = true_probability(bids)
     lines = [f"bids {len(won)}, {bids['bid_date'][0]} → {bids['bid_date'][-1]}, win rate {rate(won >= 0)}",
-             f"mean true probability (no noise) {100 * p_true.mean():.1f} %", "win rate by price position:"]
-    for lo, hi in [(0, 0.9), (0.9, 0.95), (0.95, 1.0), (1.0, 1.05), (1.05, 1.1), (1.1, 9)]:
-        lines.append(f"  {lo:.2f}–{hi:.2f}  {rate((pp >= lo) & (pp < hi))}")
+             f"mean true probability (no noise) {100 * p_true.mean():.1f} %", "win rate by margin:"]
+    for lo, hi in [(0, 2), (2, 4), (4, 6), (6, 8), (8, 10), (10, 99)]:
+        lines.append(f"  {lo:>2}–{hi:<2} %  {rate((margin >= lo) & (margin < hi))}")
     for col in ("bkp_trade", "building_type", "client_type", "procedure", "canton"):
         lines.append(f"win rate by {col}:")
         lines += [f"  {v:<16} {rate(bids[col] == v)}" for v in sorted(set(bids[col]))]
     q = np.percentile(bids["margin_pct"], [10, 50, 90])
     lines.append(f"margin % p10/p50/p90: {q[0]:.1f} / {q[1]:.1f} / {q[2]:.1f}")
-    q = np.percentile(pp, [10, 50, 90])
-    lines.append(f"price position p10/p50/p90: {q[0]:.3f} / {q[1]:.3f} / {q[2]:.3f}")
     lines.append(f"no award rule: {int(np.isnan(bids['price_weight_pct']).sum())} bids")
     return "\n".join(lines)
 

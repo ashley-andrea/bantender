@@ -220,7 +220,7 @@ export interface WinContext {
   canton: string
   client_type: string
   procedure: string
-  market_reference_chf: number
+  baseline_cost_chf: number
   n_lots: number
   price_weight_pct: number | null
   zero_at_ratio: number | null
@@ -233,7 +233,7 @@ export interface WinContext {
   technical_score_expected: number
 }
 
-export type WinSource = 'tender' | 'market_snapshot' | 'demo_fixture' | 'estimator' | 'target_margin_fallback' | 'default'
+export type WinSource = 'tender' | 'market_snapshot' | 'demo_fixture' | 'estimator' | 'pricing' | 'default'
 
 export interface WinPoint {
   margin_pct: number
@@ -262,12 +262,10 @@ export interface WinCurve {
   reason: string | null
   model_version?: string
   baseline?: number
-  market_reference_chf?: number
-  market_reference_source?: WinSource
   context?: WinContext
   sources?: Record<keyof WinContext, WinSource>
   snapshot_date?: string | null
-  parameters?: { margin_grid_pct: [number, number, number]; near_optimal_share: number; min_margin_pct: number; band: number; round_to_chf: number }
+  parameters?: { margin_grid_pct: [number, number, number]; priority_weight: number; min_margin_pct: number; band: number; round_to_chf: number }
   points?: WinPoint[]
   scenarios?: WinScenario[]
   current?: { offer: number; margin_pct: number; win_probability: number; p_low: number; p_high: number; expected_profit: number }

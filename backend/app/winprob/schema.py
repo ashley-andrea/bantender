@@ -8,12 +8,12 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel
 
-CATEGORICAL = ["bkp_trade", "building_type", "canton", "client_type", "procedure"]
+CATEGORICAL = ["bkp_trade", "building_type", "canton", "client_type", "procedure", "trade_building"]
 NUMERIC = [
     "price_position",
     "price_position_x_sensitivity",
     "price_sensitivity",
-    "log_market_reference",
+    "log_project_cost",
     "n_lots",
     "log_n_bidders",
     "competitive_intensity",
@@ -31,7 +31,6 @@ _RULES: dict[str, set | tuple] = {
     "building_type": {"school", "hospital", "office", "residential", "industrial", "public_building"},
     "client_type": {"municipality", "canton", "federal", "private"},
     "procedure": {"open", "invited"},
-    "market_reference_chf": (0, None),
     "n_lots": (1, None),
     "n_bidders": (1, None),
     "competitive_intensity": (1, 5),
@@ -49,14 +48,14 @@ SNAPSHOT_COLUMNS = ["snapshot_date", "competitive_intensity", "strategic_appetit
 
 
 class TenderContext(BaseModel):
-    """Every feature input of a new tender except the offer."""
+    """Every feature input of a new tender except the offer. `baseline_cost_chf` (our full cost) comes from the pricing engine."""
 
     bkp_trade: str
     building_type: str
     canton: str
     client_type: str
     procedure: str
-    market_reference_chf: float
+    baseline_cost_chf: float
     n_lots: int = 1
     price_weight_pct: float | None = None  # None = tender states no award rule
     zero_at_ratio: float | None = None
@@ -76,7 +75,7 @@ def _check(df: pd.DataFrame, rules: dict, name: str) -> None:
         else:
             lo, hi = rule
             bad = df[col].isna()
-            bad |= df[col] <= lo if col in ("market_reference_chf", "baseline_cost_chf", "bid_price_chf") else df[col] < lo
+            bad |= df[col] <= lo if col in ("baseline_cost_chf", "bid_price_chf") else df[col] < lo
             if hi is not None:
                 bad |= df[col] > hi
         if bad.any():
@@ -117,10 +116,11 @@ def raw_sensitivity(df: pd.DataFrame) -> pd.Series:
 def add_features(df: pd.DataFrame, default_sensitivity: float) -> pd.DataFrame:
     """Same code for training and prediction. Needs bid_price_chf plus the raw contract columns."""
     out = df.copy()
-    out["price_position"] = out["bid_price_chf"] / out["market_reference_chf"]
+    out["price_position"] = out["bid_price_chf"] / out["baseline_cost_chf"]  # our offer ÷ our cost (= 1 / (1 − margin))
     out["price_sensitivity"] = raw_sensitivity(out).fillna(default_sensitivity)
     out["price_position_x_sensitivity"] = (out["price_position"] - 1) * out["price_sensitivity"]
-    out["log_market_reference"] = np.log(out["market_reference_chf"])
+    out["log_project_cost"] = np.log(out["baseline_cost_chf"])
+    out["trade_building"] = out["bkp_trade"].astype(str) + "×" + out["building_type"].astype(str)
     out["log_n_bidders"] = np.log(out["n_bidders"])
     out["prior_wins_capped"] = out["prior_wins_with_client"].clip(upper=3)
     return out

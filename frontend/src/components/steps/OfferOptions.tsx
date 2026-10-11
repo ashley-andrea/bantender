@@ -70,7 +70,7 @@ function Options({ wc, pricing, busy, onChoose }: { wc: Required<WinCurve> } & P
             <Stat label={t('offerPrice')} value={`CHF ${fmtChf(selOffer)}`} strong />
             <Stat label={t('margin')} value={fmtPct(Math.round(sel.margin_pct * 10) / 10)} />
             <Stat label={t('winChance')} value={pct(sel.win_probability)} sub={`${pct(sel.p_low)}–${pct(sel.p_high)}`} />
-            <Stat label={t('expectedProfit')} value={fmtChf(sel.expected_profit)} />
+            <Stat label={t('profitIfWon')} value={fmtChf(selOffer - wc.baseline)} />
             <button disabled={busy || chosenNow(sel.offer)} onClick={() => choose('Custom', sel.offer, sel.margin_pct, sel.win_probability)}
               className="btn btn-green ml-auto px-4 py-2 text-[13px]">
               {chosenNow(sel.offer) ? t('chosen') : t('chooseOffer')}
@@ -83,7 +83,7 @@ function Options({ wc, pricing, busy, onChoose }: { wc: Required<WinCurve> } & P
       <div className="w-[360px] shrink-0 h-full overflow-auto scroll-thin flex flex-col gap-4">
         {scenarios.map((s) => (
           <OptionCard key={s.name} cite={`win:${s.name}`} label={t(SCENARIO[s.name].label)} hint={t(SCENARIO[s.name].hint)} recommended={s.name === 'Target'}
-            offer={s.offer} margin={s.margin_pct} chance={s.win_probability} profit={s.expected_profit}
+            offer={s.offer} margin={s.margin_pct} chance={s.win_probability} profit={s.offer - wc.baseline}
             chosen={chosenNow(s.offer)} busy={busy} onChoose={() => choose(s.name, s.offer, s.margin_pct, s.win_probability)} />
         ))}
       </div>
@@ -108,7 +108,7 @@ function OptionCard({ cite, label, hint, offer, margin, chance, profit, recommen
       <div className="mt-3 mb-4 grid grid-cols-[1fr_1.3fr_1fr] gap-3 text-[11.5px] whitespace-nowrap">
         <div><div className="text-muted">{t('margin')}</div><div className="text-[15px] font-semibold num">{fmtPct(Math.round(margin * 10) / 10)}</div></div>
         <div className="text-center"><div className="text-muted">{t('winChance')}</div><div className="text-[15px] font-semibold num">{pct(chance)}</div></div>
-        <div className="text-right"><div className="text-muted">{t('expectedProfit')}</div><div className="text-[15px] font-semibold num">{chfCompact(profit)}</div></div>
+        <div className="text-right"><div className="text-muted">{t('profitIfWon')}</div><div className="text-[15px] font-semibold num">{chfCompact(profit)}</div></div>
       </div>
       <button disabled={busy || chosen} onClick={onChoose} className={`btn mt-auto px-3 py-1.5 text-[13px] ${recommended ? 'btn-green' : 'btn-paper'}`}>
         {chosen ? `✓ ${t('chosen')}` : t('chooseOffer')}

@@ -49,7 +49,6 @@ def make_history(n: int = 1500, seed: int = 42) -> pd.DataFrame:
         "canton": rng.choice(CANTONS, n),
         "client_type": client,
         "procedure": rng.choice(["open", "invited"], n),
-        "market_reference_chf": market.round(0),
         "n_lots": rng.integers(1, 4, n),
         "price_weight_pct": np.where(no_rule, np.nan, price_weight),
         "zero_at_ratio": np.where(no_rule, np.nan, zero_at),

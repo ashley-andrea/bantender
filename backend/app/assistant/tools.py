@@ -327,8 +327,8 @@ class Toolbox:
             (f"Current offer {_chf(cur['offer'])} at margin {cur['margin_pct']:.1f} %: chance of winning {100 * cur['win_probability']:.0f} % "
              f"(range {100 * cur['p_low']:.0f}–{100 * cur['p_high']:.0f} %), expected profit {_chf(cur['expected_profit'])}", "offers#win:current"),
             ("Expected profit = chance of winning × (offer − cost baseline)", "offers#win:current"),
-            (f"Cost baseline {_chf(w['baseline'])}; market reference {_chf(w['market_reference_chf'])} (source: {w['market_reference_source']})",
-             [("market reference", "offers#input:market_reference_chf")]),
+            (f"Cost baseline {_chf(w['baseline'])} (from the price step); the chance depends on the offer relative to it",
+             "offers#win:current"),
         ]
         lines += [(f"{s['name']} offer {_chf(s['offer'])} at margin {s['margin_pct']:.1f} %: chance {100 * s['win_probability']:.0f} %, "
                    f"expected profit {_chf(s['expected_profit'])}", f"offers#win:{s['name']}") for s in w.get("scenarios", [])]

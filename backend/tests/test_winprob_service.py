@@ -38,7 +38,6 @@ def test_context_sources(service):
     assert values["building_type"] == "school" and sources["building_type"] == "tender"  # "SH" = Schulhaus
     assert (values["price_weight_pct"], values["n_lots"]) == (60.0, 2)
     assert sources["competitive_intensity"] == "market_snapshot"
-    assert sources["market_reference_chf"] == "demo_fixture"
     assert values["n_bidders"] == 3 and sources["n_bidders"] == "estimator"
 
 
@@ -55,13 +54,10 @@ def test_curve_block(service):
     assert c["explanation"] and json.dumps(c)  # JSON-safe
 
 
-def test_missing_client_estimate_uses_flagged_fallback(ref, tmp_path):
-    ctx = json.loads(CONTEXT.read_text())
-    ctx.pop("market_reference_chf")
-    (tmp_path / "ctx.json").write_text(json.dumps(ctx))
-    c = WinService(REFERENCE_DIR, ref.parameters, tmp_path / "ctx.json").curve(1_000_000.0, 1_060_000.0, PARSED, {})
-    assert c["market_reference_source"] == "target_margin_fallback"
-    assert c["market_reference_chf"] == pytest.approx(1_000_000 / (1 - ref.parameters.commercial.target_margin_pct / 100))
+def test_price_is_relative_to_our_cost(service):
+    c = service.curve(1_000_000.0, 1_060_000.0, PARSED, {})
+    assert c["context"]["baseline_cost_chf"] == 1_000_000.0 and c["sources"]["baseline_cost_chf"] == "pricing"
+    assert c["points"][0]["price_position"] == pytest.approx(1.0)  # margin 0 = offer at our cost
 
 
 @pytest.mark.parametrize("why", ["forced", "no_history"])
@@ -77,6 +73,8 @@ def test_override_validation(service):
     service.check_override({"n_bidders": 4})
     with pytest.raises(ValueError, match="Unknown"):
         service.check_override({"bidders": 4})
+    with pytest.raises(ValueError, match="Unknown"):
+        service.check_override({"baseline_cost_chf": 1})  # our cost comes from the pricing engine
 
 
 def test_pricing_result_carries_the_curve(ref, service):

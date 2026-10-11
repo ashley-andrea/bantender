@@ -6,7 +6,7 @@ const TOP = 5
 
 // Model features, named as an estimator knows them.
 const LABEL: Record<string, Record<Lang, string>> = {
-  price_position: { en: 'Price position', de: 'Preisposition' },
+  price_position: { en: 'Price position', de: 'Preisposition' }, // offer ÷ our cost
   price_position_x_sensitivity: { en: 'Price position × price weighting', de: 'Preisposition × Preisgewichtung' },
   price_sensitivity: { en: 'Price weighting', de: 'Preisgewichtung' },
   bkp_trade: { en: 'Trade', de: 'Gewerk' },
@@ -14,7 +14,8 @@ const LABEL: Record<string, Record<Lang, string>> = {
   canton: { en: 'Canton', de: 'Kanton' },
   client_type: { en: 'Client type', de: 'Bauherrentyp' },
   procedure: { en: 'Procedure', de: 'Verfahren' },
-  log_market_reference: { en: 'Project size', de: 'Projektgrösse' },
+  log_project_cost: { en: 'Project size', de: 'Projektgrösse' },
+  trade_building: { en: 'Trade × building type', de: 'Gewerk × Gebäudetyp' },
   n_lots: { en: 'Number of lots', de: 'Anzahl Lose' },
   log_n_bidders: { en: 'Number of bidders', de: 'Anzahl Anbieter' },
   competitive_intensity: { en: 'Competitive intensity', de: 'Wettbewerbsintensität' },

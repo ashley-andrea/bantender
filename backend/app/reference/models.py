@@ -80,7 +80,7 @@ class MarginGrid(BaseModel):
 class WinModelParameters(BaseModel):
     """Curve grid and scenario rules of the learned win-probability model (docs/win-probability-model.md §8)."""
     margin_grid_pct: MarginGrid = Field(default_factory=MarginGrid)
-    near_optimal_share: float = 0.9
+    priority_weight: float = 2.0  # Aggressive maximises (offer − cost) × p^w, Conservative (offer − cost)^w × p
     min_margin_pct: float = 2.0
     band: float = 0.8
 

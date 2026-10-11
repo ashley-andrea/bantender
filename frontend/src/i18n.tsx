@@ -87,6 +87,7 @@ const STRINGS = {
   winCurrent: { en: 'Current offer', de: 'Aktuelles Angebot' },
   winChance: { en: 'Chance of winning', de: 'Zuschlagschance' },
   expectedProfit: { en: 'Expected profit', de: 'Erwarteter Gewinn' },
+  profitIfWon: { en: 'Profit if won', de: 'Gewinn bei Zuschlag' },
   expectedProfitWhy: { en: 'chance × (offer − cost)', de: 'Chance × (Angebot − Kosten)' },
   explore: { en: 'Explore offers', de: 'Angebote erkunden' },
   band: { en: 'band', de: 'Band' },

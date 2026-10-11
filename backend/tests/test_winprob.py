@@ -29,7 +29,7 @@ def trained(history, ref):
 def ctx():
     return TenderContext(
         bkp_trade="244", building_type="school", canton="ZH", client_type="municipality", procedure="open",
-        market_reference_chf=460_000, price_weight_pct=60, zero_at_ratio=1.5, n_bidders=6,
+        baseline_cost_chf=BASELINE, price_weight_pct=60, zero_at_ratio=1.5, n_bidders=6,
         competitive_intensity=3.5, strategic_appetite=3, available_capacity_pct=60, technical_score_expected=3.5,
     )
 
@@ -87,4 +87,4 @@ def test_scenarios(trained, ctx):
 
 def test_tender_breakdown_covers_all_features(trained, ctx):
     rows = tender_breakdown(trained[0], ctx, 480_000)
-    assert len(rows) == 17 and isinstance(pd.DataFrame(rows), pd.DataFrame)
+    assert len(rows) == 18 and isinstance(pd.DataFrame(rows), pd.DataFrame)

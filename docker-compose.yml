@@ -1,25 +1,27 @@
-# Production-like stack for our server. Same service split as the Azure target:
-#   caddy → Azure Front Door, api → Container Apps, volumes → Blob / PostgreSQL (added in the next layer).
 services:
-  caddy:
-    image: caddy:2
-    restart: unless-stopped
-    ports: ["80:80", "443:443"]
-    environment:
-      DOMAIN: ${DOMAIN:-localhost}
-    volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-    depends_on: [api, web]
-
   web:
     build: ./frontend
+    container_name: bantender-web
     restart: unless-stopped
-    expose: ["80"]
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      # LAN
+      caddy_0: bantender.home.arpa
+      caddy_0.tls: internal
+      caddy_0.reverse_proxy: "{{upstreams 80}}"
+      # Public
+      caddy_1: bantender.duckdns.org
+      caddy_1.reverse_proxy: "{{upstreams 80}}"
+    networks:
+      - homeserver
 
   api:
     build: { context: ., dockerfile: backend/Dockerfile, target: api }
+    container_name: bantender-api
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     env_file: .env
     environment:
       DATA_DIR: /data
@@ -27,15 +29,24 @@ services:
       WIN_CONTEXT_PATH: /context/tender_context.json
     volumes:
       - app_data:/data
-      - ./data/reference/v2:/reference/v2:ro   # company reference data, mounted read-only
-      # Tender facts the parser does not read (client estimate, bidders …): stand-in for the CRM / ingestion pipeline.
+      - ./data/reference/v2:/reference/v2:ro
       - ./data/samples/oberglatt/tender_context.json:/context/tender_context.json:ro
-    expose: ["8000"]
+    labels:
+      # Same sites as web; Caddy matches /api/* before web's catch-all
+      caddy_0: bantender.home.arpa
+      caddy_0.reverse_proxy: "/api/* {{upstreams 8000}}"
+      caddy_1: bantender.duckdns.org
+      caddy_1.reverse_proxy: "/api/* {{upstreams 8000}}"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/healthz')"]
       interval: 30s
       timeout: 5s
+    networks:
+      - homeserver
 
 volumes:
   app_data:
-  caddy_data:
+
+networks:
+  homeserver:
+    external: true

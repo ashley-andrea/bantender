@@ -80,7 +80,7 @@ function Options({ wc, pricing, busy, onChoose }: { wc: Required<WinCurve> } & P
         </div>
       </div>
 
-      <div className="w-[360px] shrink-0 h-full overflow-auto scroll-thin flex flex-col gap-4">
+      <div className="w-[360px] shrink-0 h-full overflow-auto scroll-thin flex flex-col gap-4 pb-[var(--bot-room,0px)] transition-[padding] duration-300">
         {scenarios.map((s) => (
           <OptionCard key={s.name} cite={`win:${s.name}`} label={t(SCENARIO[s.name].label)} hint={t(SCENARIO[s.name].hint)} recommended={s.name === 'Target'}
             offer={s.offer} margin={s.margin_pct} chance={s.win_probability} profit={s.offer - wc.baseline}
@@ -97,7 +97,7 @@ function OptionCard({ cite, label, hint, offer, margin, chance, profit, recommen
 }) {
   const { t } = useI18n()
   return (
-    <div data-cite={cite} className={`panel ${recommended ? 'panel-green' : ''} flex-1 min-h-[180px] p-5 flex flex-col relative`}>
+    <div data-cite={cite} className={`panel ${recommended ? 'panel-green' : ''} flex-[1_0_auto] p-5 flex flex-col relative`}>
       {recommended && <span className="hl-tag -top-3 right-4 text-green">{t('recommended')}</span>}
       <div className="flex items-baseline gap-3">
         <span className="text-[16px] font-semibold">{label}</span>

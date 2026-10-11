@@ -120,6 +120,14 @@ export function Assistant({ tenderId, view, active, onShow, avoid }: Props) {
     if (open) input.current?.focus()
   }, [open])
 
+  // How much of the bottom-right corner Esteban covers, for pages that keep it free (var(--bot-room)).
+  useEffect(() => {
+    document.documentElement.style.setProperty('--bot-room', aside ? '72px' : '128px')
+    return () => {
+      document.documentElement.style.removeProperty('--bot-room')
+    }
+  }, [aside])
+
   // A source shown under the window: move the window beside it.
   useEffect(() => {
     const box = panel.current?.getBoundingClientRect()

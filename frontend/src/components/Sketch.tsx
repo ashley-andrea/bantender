@@ -3,7 +3,10 @@ export function SketchDefs() {
   return (
     <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden>
       <defs>
-        <filter id="pencil" filterUnits="userSpaceOnUse" x="-5%" y="-5%" width="110%" height="110%">
+        {/* User-space region in absolute units (ItemGraph's viewBox is 660 wide): percentages here resolve against this
+            0×0 svg in some browsers, which leaves an empty region and hides every filtered stroke. Not objectBoundingBox:
+            straight lines have a zero-width/height box and would vanish too. */}
+        <filter id="pencil" filterUnits="userSpaceOnUse" x="-200" y="-200" width="1100" height="2400">
           <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="7" result="n" />
           <feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G" />
         </filter>

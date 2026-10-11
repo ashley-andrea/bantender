@@ -1,0 +1,109 @@
+bantender: narration for bantender_demo.mp4 (5:36)
+
+Timings are from the final video. Each block fits its scene at a calm pace
+(about 150 words a minute). If you run short, let the picture breathe;
+if you run long, cut the sentence in (brackets).
+
+
+[0:00 – 0:22]  Landing screen. Upload box in the middle, the bartender in the corner.
+
+This is bantender. It takes a public tender and turns it into a priced offer
+that an estimator can check, line by line. We'll use a real tender: the
+ventilation works for the new Erlenstrasse primary school in Oberglatt.
+
+
+[0:22 – 0:45]  Recent tenders → the tender opens on Extraction. The PDF zooms in.
+
+The tender is already uploaded, so I open it from Recent tenders.
+bantender has read all 202 pages and found 254 positions. The original PDF
+is on the left, and the positions it extracted are in the middle, grouped
+by system.
+
+
+[0:45 – 1:21]  Click the air-handling unit. Graph appears; hover the legend, then Qty, Airflow, Make, System.
+
+When I pick a position, a graph shows what the tender says about it:
+quantity, airflow, make, system and section. The colour shows where each
+value came from. Green means it was read directly, yellow means it was
+derived, red means it was assumed, and grey means it's missing. Here the
+quantity is red: the tender leaves it blank, so we assume one unit.
+When I hover a value, the exact line in the PDF lights up. Nothing is a
+black box.
+
+
+[1:21 – 1:57]  Supply air disc valve → Size node → Qty node → DN100 and DN125 rows → the air-handling unit's parts.
+
+Items that are the same product in different sizes are grouped. This supply
+air valve comes in two sizes, eleven pieces in total. The size node opens
+into DN100 and DN125, and the quantity splits into five and six pieces.
+Each size can also be opened on its own. Accessories hang under the item
+they belong to, (like the two parts of the air-handling unit.)
+
+
+[1:57 – 2:23]  Catalogue. The right panel scrolls to the product graph, catalogue rows and installation rule.
+
+In step two, every position is matched to a product. For this valve,
+that's two catalogue rows: list price, our twelve percent discount, and the
+net price. Below is the installation rule it uses: 0.65 hours per piece for
+an installer at 96 francs an hour, (adjusted for site efficiency, mounting
+height and school logistics.)
+
+
+[2:23 – 3:15]  Price. Air-handling unit; hours 34 → 40; net-to-unit steps; Engineering rate 145 → 176; offer price; undo.
+
+Step three is the price. I'll take the air-handling unit. Any value can be
+corrected in place: I raise the hours from 34 to 40, and the offer updates
+straight away. Below, the unit price is built in steps an estimator
+recognises: catalogue net price, material waste, supplier reserve, and one
+factor for project costs, overhead, risk and margin. All parameters are on
+the right. I'll raise the engineering rate to 176 francs an hour… and the
+offer price follows. Any change can be undone with one click, and every
+edit is logged.
+
+
+[3:15 – 3:21]  Click Excel.
+
+The whole calculation exports to Excel with live formulas, (matching the
+app to the centime.)
+
+
+[3:21 – 3:58]  AI bid optimization. Hover the three cards, the curve, the slider, then the key drivers.
+
+Step four goes beyond a single price. A win-probability model trained on
+historical bids gives three options. Aggressive: 5.4 percent margin and a
+61 percent chance of winning. Target, the recommended one: 7.7 percent
+margin, 46 percent chance, and the best expected profit. Conservative:
+almost 11 percent margin, but only 26 percent. With the curve I can explore
+any price in between, and the key drivers show why the model says what it
+says for this tender.
+
+
+[3:58 – 4:31]  Choose Target → Export. Flip through the filled pages, open a system summary, scroll.
+
+I choose Target. Step five is export. The tender requires the original
+document back, so bantender writes the prices into the tender's own PDF:
+648 fields on 97 pages, including totals, system summaries like this one,
+discounts and VAT. The tender text is left unchanged.
+
+
+[4:31 – 5:04]  Open Esteban, type "What is the submission deadline?", the answer arrives.
+
+And this is Esteban, our assistant. You can ask him anything about the
+tender, our offer or our company data. I'll ask for the submission
+deadline: 22 September 2026, at ten in the morning. Every statement comes
+with a source. Each answer is checked against its sources, and anything
+that can't be backed up is left out. Esteban even tells you when he did.
+
+
+[5:04 – 5:20]  Click source 1. The PDF jumps to page 9 with the deadline outlined.
+
+Clicking a source opens the tender at that page, with the quote outlined,
+so you can check it yourself.
+
+
+[5:20 – 5:36]  Close Esteban, click Download PDF.
+
+One click, and the filled-in offer is ready to submit. That's bantender:
+from tender to priced offer in minutes, with every number traceable. Built
+on containers and OpenAI, it maps straight onto Azure Container Apps and
+Azure OpenAI.

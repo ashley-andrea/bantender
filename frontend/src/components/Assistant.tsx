@@ -71,6 +71,17 @@ function Thinking({ lang }: { lang: 'en' | 'de' }) {
   )
 }
 
+/** The model's inline markdown (**bold**, *italic*, `code`) as elements; anything else stays plain text. */
+function Inline({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|\*[^*\s][^*]*\*)/g)
+  return parts.map((p, i) =>
+    /^(\*\*|__).+(\*\*|__)$/.test(p) ? <strong key={i} className="font-semibold">{p.slice(2, -2)}</strong>
+      : /^`.+`$/.test(p) ? <code key={i} className="num text-[12px] px-1 rounded bg-canvas">{p.slice(1, -1)}</code>
+        : /^\*.+\*$/.test(p) ? <em key={i}>{p.slice(1, -1)}</em>
+          : p,
+  )
+}
+
 /** The answer as plain text, for the conversation history sent with the next question. */
 function asText(a: AssistantAnswer) {
   return a.status === 'answered' ? a.statements.map((s) => s.text).join(' ') : a.message
@@ -296,7 +307,7 @@ function Answer({ answer, active, onShow }: { answer: AssistantAnswer; active: C
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
   if (answer.status !== 'answered') {
-    return <p className="max-w-[92%] rounded-[12px_14px_14px_3px/14px_12px_12px_3px] border-[1.4px] border-ink/70 bg-surface text-[13px] px-3 py-2">{answer.message}</p>
+    return <p className="max-w-[92%] rounded-[12px_14px_14px_3px/14px_12px_12px_3px] border-[1.4px] border-ink/70 bg-surface text-[13px] px-3 py-2"><Inline text={answer.message} /></p>
   }
   const byN = new Map(answer.citations.map((c) => [c.n, c]))
   const isActive = (cs: Citation[]) => cs.some((c) => active?.source === c.source && active.quote === c.quote)
@@ -312,7 +323,7 @@ function Answer({ answer, active, onShow }: { answer: AssistantAnswer; active: C
       <div className="rounded-[12px_14px_14px_3px/14px_12px_12px_3px] border-[1.4px] border-ink/70 bg-surface text-[13px] leading-relaxed px-3 py-2 space-y-1.5">
         {answer.statements.map((s, i) => (
           <p key={i}>
-            {s.text}
+            <Inline text={s.text} />
             {samePlace(s.refs.map((r) => byN.get(r)!)).map((cs) => (
               <button key={cs[0].n} onClick={() => show(cs[0])}
                 className={`ml-1 align-super text-[10px] font-semibold num px-1 rounded ${isActive(cs) ? 'bg-navy text-white' : 'bg-white text-green border border-hair hover:border-green'}`}>

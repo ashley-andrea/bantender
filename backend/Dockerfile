@@ -1,6 +1,6 @@
 FROM python:3.12-slim AS base
 
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy \
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_COMPILE_BYTECODE=1 UV_COMPILE_BYTECODE_TIMEOUT=600 UV_LINK_MODE=copy \
     PATH="/app/.venv/bin:$PATH" DATA_DIR=/data REFERENCE_DIR=/reference/v2
 COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /usr/local/bin/uv
 RUN useradd --create-home appuser && mkdir -p /data /app && chown appuser /data /app
